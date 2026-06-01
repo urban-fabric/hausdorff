@@ -14,6 +14,7 @@ mod macros;
 
 mod coord;
 mod geometry;
+mod geometry_algorithms;
 mod line_string;
 mod polygon;
 mod primitives;
