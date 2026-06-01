@@ -12,9 +12,14 @@ mod bearing;
 mod geodesic;
 mod point;
 mod radial_grid;
+mod similarity;
 
 pub use bbox::{BBox, BBoxParseError};
 pub use bearing::Bearing;
 pub use geodesic::{EARTH_RADIUS_M, destination, destination_m, haversine_m, haversine_meters};
 pub use point::{FixedGeoPoint, GeoPoint};
 pub use radial_grid::{RadialGrid, RingPoint};
+pub use similarity::{
+    directed_hausdorff_m, frechet_distance, frechet_distance_m, hausdorff_distance,
+    hausdorff_distance_m,
+};

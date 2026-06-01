@@ -1,0 +1,164 @@
+//! Area geometries: [`Polygon`] (an exterior ring with optional holes),
+//! [`MultiPolygon`], and the point collection [`MultiPoint`].
+
+use serde::{Deserialize, Serialize};
+
+use super::{LineString, Point};
+
+/// A polygon: one exterior ring plus zero or more interior rings (holes). Rings
+/// are stored closed — [`new`](Self::new) closes any that are not.
+#[derive(Clone, PartialEq, Debug, Default, Serialize, Deserialize)]
+pub struct Polygon {
+    exterior: LineString,
+    interiors: Vec<LineString>,
+}
+
+impl Polygon {
+    /// A polygon with the given exterior ring and holes; all rings are closed.
+    #[must_use]
+    pub fn new(mut exterior: LineString, mut interiors: Vec<LineString>) -> Self {
+        exterior.close();
+        for ring in &mut interiors {
+            ring.close();
+        }
+        Self {
+            exterior,
+            interiors,
+        }
+    }
+
+    /// The exterior ring.
+    #[inline]
+    #[must_use]
+    pub fn exterior(&self) -> &LineString {
+        &self.exterior
+    }
+
+    /// The interior rings (holes).
+    #[inline]
+    #[must_use]
+    pub fn interiors(&self) -> &[LineString] {
+        &self.interiors
+    }
+
+    /// Mutate the exterior ring in place, re-closing it afterwards.
+    pub fn exterior_mut(&mut self, f: impl FnOnce(&mut LineString)) {
+        f(&mut self.exterior);
+        self.exterior.close();
+    }
+
+    /// Decompose into `(exterior, interiors)`.
+    #[must_use]
+    pub fn into_inner(self) -> (LineString, Vec<LineString>) {
+        (self.exterior, self.interiors)
+    }
+}
+
+/// A collection of [`Polygon`]s.
+#[derive(Clone, PartialEq, Debug, Default, Serialize, Deserialize)]
+pub struct MultiPolygon(pub Vec<Polygon>);
+
+impl MultiPolygon {
+    /// A multi-polygon over `polygons`.
+    #[must_use]
+    pub fn new(polygons: Vec<Polygon>) -> Self {
+        Self(polygons)
+    }
+
+    /// The component polygons.
+    pub fn iter(&self) -> impl Iterator<Item = &Polygon> {
+        self.0.iter()
+    }
+
+    /// Number of component polygons.
+    #[inline]
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// True iff there are no component polygons.
+    #[inline]
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+/// A collection of [`Point`]s.
+#[derive(Clone, PartialEq, Debug, Default, Serialize, Deserialize)]
+pub struct MultiPoint(pub Vec<Point>);
+
+impl MultiPoint {
+    /// A multi-point over `points`.
+    #[must_use]
+    pub fn new(points: Vec<Point>) -> Self {
+        Self(points)
+    }
+
+    /// The component points.
+    pub fn iter(&self) -> impl Iterator<Item = &Point> {
+        self.0.iter()
+    }
+
+    /// Number of points.
+    #[inline]
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// True iff there are no points.
+    #[inline]
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl From<Vec<Point>> for MultiPoint {
+    fn from(points: Vec<Point>) -> Self {
+        Self(points)
+    }
+}
+
+impl From<Vec<(f64, f64)>> for MultiPoint {
+    fn from(coords: Vec<(f64, f64)>) -> Self {
+        Self(coords.into_iter().map(Point::from).collect())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::planar::Coord;
+
+    #[test]
+    fn polygon_closes_rings() {
+        let ext = LineString::new(vec![
+            Coord::new(0.0, 0.0),
+            Coord::new(1.0, 0.0),
+            Coord::new(1.0, 1.0),
+        ]);
+        let p = Polygon::new(ext, vec![]);
+        assert!(p.exterior().is_closed());
+        assert_eq!(p.exterior().coords_count(), 4);
+        assert!(p.interiors().is_empty());
+    }
+
+    #[test]
+    fn exterior_mut_recloses() {
+        let mut p = Polygon::new(
+            LineString::new(vec![
+                Coord::new(0.0, 0.0),
+                Coord::new(2.0, 0.0),
+                Coord::new(1.0, 2.0),
+            ]),
+            vec![],
+        );
+        p.exterior_mut(|ring| {
+            ring.0.reverse();
+        });
+        assert!(p.exterior().is_closed());
+    }
+}

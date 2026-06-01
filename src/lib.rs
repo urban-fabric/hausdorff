@@ -4,8 +4,14 @@
 
 //! Internal geospatial primitives and index implementations for UrbanFabric.
 
+pub mod convert;
 pub mod geo;
 pub mod h3;
+pub mod planar;
 pub mod s2;
 
 pub use geo::{FixedGeoPoint, GeoPoint};
+pub use planar::{
+    Coord, Geometry, Line, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon,
+    Rect, Triangle,
+};
