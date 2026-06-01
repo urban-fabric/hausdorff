@@ -19,6 +19,7 @@
 mod cap;
 mod cellid;
 mod coords;
+pub mod edges;
 mod loops;
 pub mod measures;
 mod point;
@@ -29,6 +30,7 @@ mod vector;
 
 pub use cap::Cap;
 pub use cellid::S2CellId;
+pub use edges::{Crossing, crossing_sign, intersection};
 pub use loops::Loop;
 pub use measures::{angle, girard_area, point_area, signed_area, turn_angle};
 pub use point::S2Point;

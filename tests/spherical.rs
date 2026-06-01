@@ -173,3 +173,24 @@ fn region_bounding_cap_contains_geometry() {
     let c = Cap::from_center_angle(p(45.0, 45.0), Angle::from_radians(0.3));
     assert_eq!(c.bounding_cap(), c);
 }
+
+// ---- s2 edge crossings ------------------------------------------------------
+
+#[test]
+fn edge_crossing_and_intersection() {
+    use hausdorff::s2::{Crossing, crossing_sign, intersection};
+    // AB: the equator from lon 0 to lon 90.  CD: a meridian arc at lon 45.
+    let (a, b) = (p(0.0, 0.0), p(0.0, 90.0));
+    let (c, d) = (p(-10.0, 45.0), p(10.0, 45.0));
+    assert_eq!(crossing_sign(a, b, c, d), Crossing::Cross);
+
+    let x = intersection(a, b, c, d).to_geo_point();
+    assert!((x.lat).abs() < 1e-6 && (x.lon - 45.0).abs() < 1e-6, "crossed at ({}, {})", x.lat, x.lon);
+
+    // CD entirely north of AB -> no crossing
+    let (c2, d2) = (p(10.0, 10.0), p(10.0, 80.0));
+    assert_eq!(crossing_sign(a, b, c2, d2), Crossing::DoNotCross);
+
+    // shared vertex -> Maybe (boundary case)
+    assert_eq!(crossing_sign(a, b, a, d), Crossing::Maybe);
+}
