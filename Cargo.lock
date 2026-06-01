@@ -391,6 +391,7 @@ dependencies = [
  "geojson",
  "h3o",
  "serde",
+ "serde_json",
  "wkb",
  "wkt",
 ]

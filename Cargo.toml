@@ -11,6 +11,9 @@ description = "Internal geospatial primitives and index implementations for Urba
 bytemuck = { version = "1.25", features = ["derive"] }
 euclid = { git = "ssh://git@github.com/urban-fabric/euclid.git", branch = "main" }
 serde = { version = "1", features = ["derive"] }
+# Generic JSON layer for the native GeoJSON codec (r2_format::geojson) — not a
+# geo crate; replaces the `geojson` crate's JSON handling.
+serde_json = "1"
 # Compatibility boundary for external geometry formats and algorithms that have
 # not yet been ported into hausdorff-native kernels. Downstream crates depend on
 # hausdorff for these surfaces rather than depending on geo/geo-types directly.

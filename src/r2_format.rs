@@ -7,5 +7,6 @@
 //! [`crate::projection`]). Native, self-contained codecs that let the workspace
 //! deprecate the external `wkt` / `wkb` / `geojson` crates.
 
+pub mod geojson;
 pub mod wkb;
 pub mod wkt;
