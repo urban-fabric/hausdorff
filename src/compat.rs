@@ -6,10 +6,6 @@
 //! been ported to native `hausdorff` kernels.
 
 use geo::{BooleanOps, Contains, GeodesicArea, Intersects, Relate};
-use geo_traits::to_geo::ToGeoGeometry;
-use wkb::reader::read_wkb;
-use wkb::writer::{WriteOptions, write_geometry};
-use wkt::{ToWkt, TryFromWkt};
 
 use crate::r2::{
     Coord, Geometry, Line, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon,
@@ -47,50 +43,44 @@ pub enum TopologyPredicate {
     Overlaps,
 }
 
+// WKB / WKT / GeoJSON now route through hausdorff's own native codecs in
+// [`crate::r2_format`]; the external `wkb`/`wkt`/`geojson` crates are kept only
+// as dev-dependency conformance references.
+
 /// Decode one WKB value into a hausdorff geometry.
 #[must_use]
 pub fn decode_wkb(bytes: &[u8]) -> Option<Geometry> {
-    read_wkb(bytes)
-        .ok()
-        .map(|w| from_geo_geometry(w.to_geometry()))
+    crate::r2_format::wkb::from_wkb(bytes).ok()
 }
 
 /// Encode one hausdorff geometry as little-endian WKB.
 #[must_use]
 pub fn encode_wkb(geom: &Geometry) -> Option<Vec<u8>> {
-    let geo = to_geo_geometry(geom);
-    let mut buf = Vec::new();
-    write_geometry(&mut buf, &geo, &WriteOptions::default()).ok()?;
-    Some(buf)
+    Some(crate::r2_format::wkb::to_wkb(geom))
 }
 
 /// Convert a hausdorff geometry to WKT text.
 #[must_use]
 pub fn geometry_to_wkt(geom: &Geometry) -> String {
-    to_geo_geometry(geom).wkt_string()
+    crate::r2_format::wkt::to_wkt(geom)
 }
 
 /// Parse WKT text into a hausdorff geometry.
 #[must_use]
 pub fn wkt_to_geometry(text: &str) -> Option<Geometry> {
-    geo_types::Geometry::<f64>::try_from_wkt_str(text)
-        .ok()
-        .map(from_geo_geometry)
+    crate::r2_format::wkt::from_wkt(text).ok()
 }
 
 /// Convert a hausdorff geometry to a GeoJSON geometry string.
 #[must_use]
 pub fn geometry_to_geojson(geom: &Geometry) -> String {
-    geojson::GeometryValue::from(&to_geo_geometry(geom)).to_string()
+    crate::r2_format::geojson::to_geojson(geom)
 }
 
 /// Parse a GeoJSON geometry string into a hausdorff geometry.
 #[must_use]
 pub fn geojson_to_geometry(text: &str) -> Option<Geometry> {
-    text.parse::<geojson::Geometry>()
-        .ok()
-        .and_then(|g| geo_types::Geometry::<f64>::try_from(g.value).ok())
-        .map(from_geo_geometry)
+    crate::r2_format::geojson::from_geojson(text).ok()
 }
 
 /// Geodesic area in square metres, delegated through the compatibility boundary.
@@ -197,7 +187,9 @@ fn from_geo_multi_polygon(multi_polygon: &geo_types::MultiPolygon<f64>) -> Multi
     )
 }
 
-fn to_geo_geometry(geom: &Geometry) -> geo_types::Geometry<f64> {
+/// Convert a hausdorff geometry to its `geo_types` equivalent (the bridge to the
+/// external geo ecosystem; used by conformance tests and remaining geo-backed ops).
+pub fn to_geo_geometry(geom: &Geometry) -> geo_types::Geometry<f64> {
     match geom {
         Geometry::Point(point) => {
             geo_types::Geometry::Point(geo_types::Point::new(point.x(), point.y()))
@@ -239,7 +231,8 @@ fn to_geo_geometry(geom: &Geometry) -> geo_types::Geometry<f64> {
     }
 }
 
-fn from_geo_geometry(geom: geo_types::Geometry<f64>) -> Geometry {
+/// Convert a `geo_types` geometry to its hausdorff equivalent.
+pub fn from_geo_geometry(geom: geo_types::Geometry<f64>) -> Geometry {
     match geom {
         geo_types::Geometry::Point(point) => Geometry::Point(Point::new(point.x(), point.y())),
         geo_types::Geometry::Line(line) => Geometry::Line(Line::new(

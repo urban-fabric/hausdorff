@@ -44,11 +44,19 @@ fn parses_standard_strings() {
 }
 
 #[test]
-fn interops_with_geojson_crate() {
+fn matches_geojson_reference_crate() {
     for g in fixtures() {
-        // native output parses via the geojson crate (through compat) back to g
-        assert_eq!(hausdorff::compat::geojson_to_geometry(&to_geojson(&g)).unwrap(), g);
-        // the geojson crate's output parses via native back to g
-        assert_eq!(from_geojson(&hausdorff::compat::geometry_to_geojson(&g)).unwrap(), g);
+        let geo_g = hausdorff::compat::to_geo_geometry(&g);
+        // reference GeoJSON (the `geojson` crate) parses through native to g
+        let reference = geojson::GeometryValue::from(&geo_g).to_string();
+        assert_eq!(from_geojson(&reference).unwrap(), g, "native parse of reference GeoJSON");
+        // native GeoJSON parses through the `geojson` crate back to g
+        let parsed: geojson::Geometry = to_geojson(&g).parse().unwrap();
+        let geo_parsed = geo_types::Geometry::<f64>::try_from(parsed.value).unwrap();
+        assert_eq!(
+            hausdorff::compat::from_geo_geometry(geo_parsed),
+            g,
+            "reference parse of native GeoJSON"
+        );
     }
 }

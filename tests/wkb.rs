@@ -37,12 +37,26 @@ fn native_round_trips() {
 }
 
 #[test]
-fn interops_with_wkb_crate() {
+fn matches_wkb_reference_crate() {
+    use geo_traits::to_geo::ToGeoGeometry;
+    use wkb::writer::{WriteOptions, write_geometry};
     for g in fixtures() {
-        // native bytes decode via the wkb crate (through compat) back to the same geometry
-        assert_eq!(hausdorff::compat::decode_wkb(&to_wkb(&g)).unwrap(), g);
-        // the wkb crate's bytes decode via the native reader back to the same geometry
-        assert_eq!(from_wkb(&hausdorff::compat::encode_wkb(&g).unwrap()).unwrap(), g);
+        // reference bytes (the `wkb` crate, via geo_types) decode through native to g
+        let mut reference = Vec::new();
+        write_geometry(
+            &mut reference,
+            &hausdorff::compat::to_geo_geometry(&g),
+            &WriteOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(from_wkb(&reference).unwrap(), g, "native decode of reference WKB");
+        // native bytes decode through the `wkb` crate back to g
+        let decoded = wkb::reader::read_wkb(&to_wkb(&g)).unwrap().to_geometry();
+        assert_eq!(
+            hausdorff::compat::from_geo_geometry(decoded),
+            g,
+            "reference decode of native WKB"
+        );
     }
 }
 

@@ -53,14 +53,18 @@ fn parses_standard_strings() {
 }
 
 #[test]
-fn interops_with_wkt_crate() {
+fn matches_wkt_reference_crate() {
+    use wkt::{ToWkt, TryFromWkt};
     for g in fixtures() {
-        // native output parses via the wkt crate (through compat) back to the same geometry
-        assert_eq!(hausdorff::compat::wkt_to_geometry(&to_wkt(&g)).unwrap(), g);
-        // the wkt crate's output parses via the native reader back to the same geometry
+        // reference WKT (the `wkt` crate, via geo_types) parses through native to g
+        let reference = hausdorff::compat::to_geo_geometry(&g).wkt_string();
+        assert_eq!(from_wkt(&reference).unwrap(), g, "native parse of reference WKT");
+        // native WKT parses through the `wkt` crate back to g
+        let parsed = geo_types::Geometry::<f64>::try_from_wkt_str(&to_wkt(&g)).unwrap();
         assert_eq!(
-            from_wkt(&hausdorff::compat::geometry_to_wkt(&g)).unwrap(),
-            g
+            hausdorff::compat::from_geo_geometry(parsed),
+            g,
+            "reference parse of native WKT"
         );
     }
 }
