@@ -47,3 +47,24 @@ fn degenerate_triangle_has_zero_signed_area() {
     assert_eq!(robust_sign(a, a, a), 0);
     assert_eq!(signed_area(a, a, a), 0.0);
 }
+
+// ---- s1::Angle (the angle type, brought in from euclid) ---------------------
+
+#[test]
+fn angle_radians_degrees_round_trip() {
+    use hausdorff::s1::{Angle, AngleDegrees};
+    let a = Angle::from_degrees(90.0);
+    assert!((a.radians() - std::f64::consts::FRAC_PI_2).abs() < 1e-12);
+    assert!((a.degrees() - 90.0).abs() < 1e-12);
+    assert_eq!(a.to_degrees(), AngleDegrees::new(90.0));
+    assert!((AngleDegrees::new(180.0).to_radians().radians() - PI).abs() < 1e-12);
+}
+
+#[test]
+fn angle_constants_and_ops() {
+    use hausdorff::s1::Angle;
+    assert_eq!(Angle::PI.radians(), PI);
+    assert_eq!((Angle::from_radians(1.0) + Angle::from_radians(2.0)).radians(), 3.0);
+    assert_eq!((Angle::PI * 0.5).radians(), std::f64::consts::FRAC_PI_2);
+    assert_eq!(Angle::from_radians(-1.5).abs().radians(), 1.5);
+}
