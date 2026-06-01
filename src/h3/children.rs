@@ -3,8 +3,6 @@
 
 use super::index;
 
-const MAX_RESOLUTION: u8 = 15;
-
 #[rustfmt::skip]
 const HEXAGON_CHILDREN_COUNTS: [u64; 16] = [
     1, 7, 49, 343, 2401, 16_807, 117_649, 823_543, 5_764_801, 40_353_607,
@@ -47,7 +45,7 @@ fn starting_state(bits: u64, parent_res: u8, target_res: u8) -> u64 {
     let mut scratchpad = bits;
     if range != 0 {
         let mask = (1u64 << (range * 3)) - 1;
-        let offset = (MAX_RESOLUTION - target_res) as u64 * 3;
+        let offset = (index::MAX_RESOLUTION - target_res) as u64 * 3;
         scratchpad &= !(mask << offset);
         scratchpad = index::set_resolution(scratchpad, target_res);
     }
@@ -81,7 +79,7 @@ impl Children {
     }
 
     fn next_direction(&mut self, res: u8) -> u8 {
-        let one = 1u64 << ((MAX_RESOLUTION - res) as u64 * 3);
+        let one = 1u64 << ((index::MAX_RESOLUTION - res) as u64 * 3);
         self.scratchpad = self.scratchpad.wrapping_add(one);
         index::get_direction(self.scratchpad, res)
     }

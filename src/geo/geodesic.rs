@@ -1,6 +1,5 @@
-//! Spherical geodesics over [`EARTH_RADIUS_M`] — euclid-free, in raw `f64`
-//! metres. The unit-typed (`LengthMeters`) wrappers live in `kolmogorov-geo`,
-//! keeping hausdorff free of a unit dependency.
+//! Spherical geodesics over [`EARTH_RADIUS_M`] in raw `f64` metres. Unit-typed
+//! sampling helpers live alongside these primitives in `geo::radial_grid`.
 
 use super::{Bearing, GeoPoint};
 
@@ -51,7 +50,10 @@ mod tests {
         let berlin = GeoPoint::from_lat_lon(52.52, 13.405);
         for deg in [0.0, 37.0, 90.0, 180.0, 271.5, 359.0] {
             let dest = destination_m(berlin, Bearing::from_degrees(deg), 1_500.0);
-            assert!((haversine_m(berlin, dest) - 1_500.0).abs() < 0.5, "deg {deg}");
+            assert!(
+                (haversine_m(berlin, dest) - 1_500.0).abs() < 0.5,
+                "deg {deg}"
+            );
         }
     }
 }

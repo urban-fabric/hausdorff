@@ -4,16 +4,17 @@
 //!
 //! `kolmogorov-geo` and hypatia's `hypatia-osm-primitives` re-export these, so
 //! there is one point/bbox/bearing type across the workspace rather than
-//! per-crate copies. The types stay free of `euclid`/unit dependencies on
-//! purpose — the unit-typed wrappers (`LengthMeters`, …) live in `kolmogorov-geo`
-//! — keeping hausdorff light enough for the minimal PBF reader to depend on.
+//! per-crate copies. Unit-typed geodesic sampling helpers use the sibling
+//! `euclid` units crate, which stays domain-agnostic and lightweight.
 
 mod bbox;
 mod bearing;
 mod geodesic;
 mod point;
+mod radial_grid;
 
 pub use bbox::{BBox, BBoxParseError};
 pub use bearing::Bearing;
-pub use geodesic::{destination_m, haversine_m, EARTH_RADIUS_M};
+pub use geodesic::{EARTH_RADIUS_M, destination_m, haversine_m};
 pub use point::{FixedGeoPoint, GeoPoint};
+pub use radial_grid::{RadialGrid, RingPoint};

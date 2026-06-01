@@ -25,7 +25,7 @@ mod polygon;
 
 pub use index::{
     H3Cell, H3CompactionError, H3DirectedEdge, H3LocalIJ, H3Vertex, InvalidH3Cell,
-    InvalidH3DirectedEdge, InvalidH3Vertex,
+    InvalidH3DirectedEdge, InvalidH3Vertex, MAX_RESOLUTION,
 };
 pub use polygon::{H3BoundaryRing, H3Polygon, H3PolygonError};
 

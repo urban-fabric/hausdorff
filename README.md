@@ -13,3 +13,6 @@ traversal, neighbor checks, grid distance, local IJ coordinates, grid paths,
 directed edges and edge geometry, canonical vertex indexes, exact cell area,
 centroid polygon cover, cell-set boundary dissolve, and the standard H3
 resolution metadata tables.
+
+The `geo` module also owns reusable geodesic sampling helpers such as
+`RadialGrid`, a concentric ring sampler around a WGS84 point.

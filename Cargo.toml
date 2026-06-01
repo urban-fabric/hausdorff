@@ -9,6 +9,7 @@ description = "Internal geospatial primitives and index implementations for Urba
 [dependencies]
 # Backing the canonical GeoPoint/FixedGeoPoint newtypes (POD layout + JSON).
 bytemuck = { version = "1.25", features = ["derive"] }
+euclid = { path = "../euclid" }
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]

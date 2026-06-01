@@ -80,6 +80,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "91622ff5e7162018101f2fea40d6ebf4a78bbe5a49736a2020649edf9693679e"
 
 [[package]]
+name = "euclid"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "serde",
+]
+
+[[package]]
 name = "float_eq"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -121,6 +129,7 @@ name = "hausdorff"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "euclid",
  "h3o",
  "serde",
 ]
