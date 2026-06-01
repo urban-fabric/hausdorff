@@ -3,16 +3,18 @@
 //! for the H3 core). The same geometry is built in both libraries and the
 //! algorithm outputs must agree.
 
+use geo::chamberlain_duquette_area::ChamberlainDuquetteArea as _;
 use geo::line_measures::FrechetDistance;
 // Bring geo's algorithm traits into scope for method resolution without binding
 // names that would collide with hausdorff's same-named traits.
 use geo::{
-    Area as _, BoundingRect as _, Centroid as _, Contains as _, ConvexHull as _, Distance as _,
-    Haversine,
+    Area as _, BoundingRect as _, Centroid as _, Contains as _, ConvexHull as _, CoordsIter as _,
+    Distance as _, Haversine, Simplify as _,
 };
 
 use hausdorff::geo::{GeoPoint, frechet_distance_m, haversine_m};
-use hausdorff::{Area, BoundingRect, Centroid, Contains, ConvexHull};
+use hausdorff::{Area, BoundingRect, Centroid, ChamberlainDuquetteArea, Contains, ConvexHull,
+    CoordsIter, Simplify};
 
 const EPS: f64 = 1e-9;
 
@@ -207,4 +209,65 @@ fn is_near_boundary(coords: &[(f64, f64)], x: f64, y: f64, tol: f64) -> bool {
         }
     }
     false
+}
+
+// ---- newly ported algorithms ------------------------------------------------
+
+fn h_line(coords: &[(f64, f64)]) -> hausdorff::LineString {
+    hausdorff::LineString::new(coords.iter().map(|&(x, y)| hausdorff::Coord::new(x, y)).collect())
+}
+
+fn g_line(coords: &[(f64, f64)]) -> geo::LineString<f64> {
+    geo::LineString(coords.iter().map(|&(x, y)| geo::Coord { x, y }).collect())
+}
+
+#[test]
+fn coords_count_matches_geo() {
+    for f in fixtures() {
+        assert_eq!(
+            h_poly(&f).coords_count(),
+            g_poly(&f).coords_count(),
+            "coords_count mismatch on {f:?}"
+        );
+    }
+}
+
+#[test]
+fn simplify_matches_geo() {
+    // a wiggly path with both sharp and shallow detours
+    let wiggly = vec![
+        (0.0, 0.0), (1.0, 0.1), (2.0, -0.1), (3.0, 5.0), (4.0, 0.05),
+        (5.0, -0.02), (6.0, 0.0), (7.0, 8.0), (8.0, 0.0),
+    ];
+    for eps in [0.2_f64, 1.0, 3.0] {
+        let h = h_line(&wiggly).simplify(eps);
+        let g = g_line(&wiggly).simplify(eps);
+        assert_eq!(h.0.len(), g.0.len(), "simplify vertex count mismatch at eps={eps}");
+        for (hc, gc) in h.0.iter().zip(g.0.iter()) {
+            assert!(
+                (hc.x - gc.x).abs() < EPS && (hc.y - gc.y).abs() < EPS,
+                "simplify vertex mismatch at eps={eps}: ({},{}) vs ({},{})",
+                hc.x, hc.y, gc.x, gc.y
+            );
+        }
+    }
+}
+
+#[test]
+fn chamberlain_duquette_area_matches_geo() {
+    // treat the fixtures as lon/lat polygons
+    for f in fixtures() {
+        let h = h_poly(&f).chamberlain_duquette_unsigned_area();
+        let g = g_poly(&f).chamberlain_duquette_unsigned_area();
+        let rel = (h - g).abs() / g.max(1.0);
+        assert!(rel < 1e-9, "CD area mismatch on {f:?}: {h} vs {g}");
+    }
+
+    // absolute sanity: the O2 in London is ~78,478 m² (geo's doc value)
+    let o2 = [
+        (0.00388383, 51.501574), (0.00538587, 51.502278), (0.00553607, 51.503299),
+        (0.00467777, 51.504181), (0.00327229, 51.504435), (0.00187754, 51.504168),
+        (0.00087976, 51.503380), (0.00107288, 51.502324), (0.00185608, 51.501770),
+    ];
+    assert_eq!(h_poly(&o2).chamberlain_duquette_unsigned_area().round(), 78_478.0);
 }

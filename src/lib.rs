@@ -12,7 +12,7 @@ pub mod s2;
 
 pub use geo::{FixedGeoPoint, GeoPoint};
 pub use planar::{
-    Area, BoundingRect, Centroid, Contains, ConvexHull, Coord, Dimensions, Direction, Geometry,
-    HasDimensions, Line, LineString, MultiLineString, MultiPoint, MultiPolygon, Orient, Point,
-    Polygon, Rect, Triangle, Winding, WindingOrder,
+    Area, BoundingRect, Centroid, ChamberlainDuquetteArea, Contains, ConvexHull, Coord, CoordsIter,
+    Dimensions, Direction, Geometry, HasDimensions, Line, LineString, MultiLineString, MultiPoint,
+    MultiPolygon, Orient, Point, Polygon, Rect, Simplify, Triangle, Winding, WindingOrder,
 };
