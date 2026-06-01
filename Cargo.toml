@@ -1,0 +1,15 @@
+[package]
+name = "hausdorff"
+version = "0.1.0"
+edition = "2024"
+license = "Proprietary"
+authors = ["Raymond Mead"]
+description = "Internal geospatial primitives and index implementations for UrbanFabric."
+
+[dependencies]
+# Backing the canonical GeoPoint/FixedGeoPoint newtypes (POD layout + JSON).
+bytemuck = { version = "1.25", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+h3o = "0.10.0"
