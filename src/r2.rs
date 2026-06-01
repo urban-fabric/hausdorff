@@ -21,6 +21,7 @@ mod primitives;
 mod util;
 
 pub mod area;
+pub mod bool_ops;
 pub mod bounding_rect;
 pub mod centroid;
 pub mod contains;
