@@ -157,3 +157,19 @@ fn polygon_area_subtracts_holes_and_contains() {
     assert!(!poly.contains_point(p(24.0, 24.0))); // inside the hole
     assert!(!poly.contains_point(p(-10.0, -10.0))); // outside the shell
 }
+
+// ---- s2::Region (bounding caps) --------------------------------------------
+
+#[test]
+fn region_bounding_cap_contains_geometry() {
+    use hausdorff::s1::Angle;
+    use hausdorff::s2::{Cap, Loop, Region};
+    let lp = Loop::new(vec![p(0.0, 0.0), p(0.0, 30.0), p(20.0, 15.0)]);
+    let cap = lp.bounding_cap();
+    for v in lp.vertices() {
+        assert!(cap.contains_point(*v), "bounding cap must contain every vertex");
+    }
+    // a Cap bounds itself
+    let c = Cap::from_center_angle(p(45.0, 45.0), Angle::from_radians(0.3));
+    assert_eq!(c.bounding_cap(), c);
+}
