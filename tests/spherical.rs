@@ -194,3 +194,17 @@ fn edge_crossing_and_intersection() {
     // shared vertex -> Maybe (boundary case)
     assert_eq!(crossing_sign(a, b, a, d), Crossing::Maybe);
 }
+
+#[test]
+fn loop_intersects() {
+    use hausdorff::s2::Loop;
+    let a = Loop::new(vec![p(0.0, 0.0), p(0.0, 20.0), p(20.0, 10.0)]);
+    let overlapping = Loop::new(vec![p(5.0, 5.0), p(5.0, 25.0), p(25.0, 15.0)]);
+    let disjoint = Loop::new(vec![p(0.0, 60.0), p(0.0, 80.0), p(20.0, 70.0)]);
+    let nested = Loop::new(vec![p(2.0, 5.0), p(2.0, 10.0), p(6.0, 7.0)]); // inside a
+
+    assert!(a.intersects(&overlapping));
+    assert!(!a.intersects(&disjoint));
+    assert!(a.intersects(&nested));
+    assert!(nested.intersects(&a)); // symmetric
+}

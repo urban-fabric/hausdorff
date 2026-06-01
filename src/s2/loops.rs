@@ -13,6 +13,7 @@ use std::f64::consts::PI;
 use crate::s1::Angle;
 
 use super::S2Point;
+use super::edges::{Crossing, crossing_sign};
 use super::measures::turn_angle;
 
 /// A closed loop of vertices on the unit sphere.
@@ -102,5 +103,23 @@ impl Loop {
             .map(|(a, b)| a.vector().angle(b.vector()).radians())
             .sum();
         Angle::from_radians(total)
+    }
+
+    /// True iff this loop and `other` overlap — their boundaries cross, or one
+    /// loop contains the other (the nested case). `O(n·m)` in the edge counts.
+    #[must_use]
+    pub fn intersects(&self, other: &Loop) -> bool {
+        if self.vertices.len() < 3 || other.vertices.len() < 3 {
+            return false;
+        }
+        for (a, b) in self.edges() {
+            for (c, d) in other.edges() {
+                if crossing_sign(a, b, c, d) == Crossing::Cross {
+                    return true;
+                }
+            }
+        }
+        // No boundary crossing: overlap only if one loop is nested in the other.
+        self.contains_point(other.vertices[0]) || other.contains_point(self.vertices[0])
     }
 }
