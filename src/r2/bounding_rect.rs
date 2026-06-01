@@ -2,9 +2,7 @@
 //! `BoundingRect` trait (with its `Output` distinction: always-present for a
 //! single coordinate, `Option` for collections that may be empty).
 
-use super::{
-    Coord, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon, Rect,
-};
+use super::{Coord, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon, Rect};
 
 /// The bounding rectangle of a geometry.
 pub trait BoundingRect {

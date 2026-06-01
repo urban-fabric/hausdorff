@@ -49,7 +49,15 @@ static LOOKUP: LazyLock<LookupTables> = LazyLock::new(|| {
     init_lookup_cell(0, 0, 0, 0, 0, 0, &mut t);
     init_lookup_cell(0, 0, 0, SWAP_MASK, 0, SWAP_MASK, &mut t);
     init_lookup_cell(0, 0, 0, INVERT_MASK, 0, INVERT_MASK, &mut t);
-    init_lookup_cell(0, 0, 0, SWAP_MASK | INVERT_MASK, 0, SWAP_MASK | INVERT_MASK, &mut t);
+    init_lookup_cell(
+        0,
+        0,
+        0,
+        SWAP_MASK | INVERT_MASK,
+        0,
+        SWAP_MASK | INVERT_MASK,
+        &mut t,
+    );
     t
 });
 
@@ -74,10 +82,42 @@ fn init_lookup_cell(
     let j = j << 1;
     let pos = pos << 2;
     let r = POS_TO_IJ[orientation as usize];
-    init_lookup_cell(level, i + (r[0] >> 1), j + (r[0] & 1), orig_orientation, pos, orientation ^ POS_TO_ORIENTATION[0], t);
-    init_lookup_cell(level, i + (r[1] >> 1), j + (r[1] & 1), orig_orientation, pos + 1, orientation ^ POS_TO_ORIENTATION[1], t);
-    init_lookup_cell(level, i + (r[2] >> 1), j + (r[2] & 1), orig_orientation, pos + 2, orientation ^ POS_TO_ORIENTATION[2], t);
-    init_lookup_cell(level, i + (r[3] >> 1), j + (r[3] & 1), orig_orientation, pos + 3, orientation ^ POS_TO_ORIENTATION[3], t);
+    init_lookup_cell(
+        level,
+        i + (r[0] >> 1),
+        j + (r[0] & 1),
+        orig_orientation,
+        pos,
+        orientation ^ POS_TO_ORIENTATION[0],
+        t,
+    );
+    init_lookup_cell(
+        level,
+        i + (r[1] >> 1),
+        j + (r[1] & 1),
+        orig_orientation,
+        pos + 1,
+        orientation ^ POS_TO_ORIENTATION[1],
+        t,
+    );
+    init_lookup_cell(
+        level,
+        i + (r[2] >> 1),
+        j + (r[2] & 1),
+        orig_orientation,
+        pos + 2,
+        orientation ^ POS_TO_ORIENTATION[2],
+        t,
+    );
+    init_lookup_cell(
+        level,
+        i + (r[3] >> 1),
+        j + (r[3] & 1),
+        orig_orientation,
+        pos + 3,
+        orientation ^ POS_TO_ORIENTATION[3],
+        t,
+    );
 }
 
 /// A 64-bit S2 cell identifier. The zero value and `u64::MAX` are invalid.
@@ -355,7 +395,9 @@ impl S2CellId {
             Self::from_face_ij_same(f, i, j + joffset, jsame).parent(level),
         ];
         if isame || jsame {
-            results.push(Self::from_face_ij_same(f, i + ioffset, j + joffset, isame && jsame).parent(level));
+            results.push(
+                Self::from_face_ij_same(f, i + ioffset, j + joffset, isame && jsame).parent(level),
+            );
         }
         results
     }
@@ -387,12 +429,23 @@ impl S2CellId {
             } else {
                 same_face = true;
                 // Top and bottom neighbors.
-                neighbors.push(Self::from_face_ij_same(face, i + k, j - nbr_size, j - size >= 0).parent(level));
-                neighbors.push(Self::from_face_ij_same(face, i + k, j + size, j + size < MAX_SIZE).parent(level));
+                neighbors.push(
+                    Self::from_face_ij_same(face, i + k, j - nbr_size, j - size >= 0).parent(level),
+                );
+                neighbors.push(
+                    Self::from_face_ij_same(face, i + k, j + size, j + size < MAX_SIZE)
+                        .parent(level),
+                );
             }
             // Left, right, and diagonal neighbors.
-            neighbors.push(Self::from_face_ij_same(face, i - nbr_size, j + k, same_face && i - size >= 0).parent(level));
-            neighbors.push(Self::from_face_ij_same(face, i + size, j + k, same_face && i + size < MAX_SIZE).parent(level));
+            neighbors.push(
+                Self::from_face_ij_same(face, i - nbr_size, j + k, same_face && i - size >= 0)
+                    .parent(level),
+            );
+            neighbors.push(
+                Self::from_face_ij_same(face, i + size, j + k, same_face && i + size < MAX_SIZE)
+                    .parent(level),
+            );
 
             if k >= size {
                 break;
@@ -453,8 +506,12 @@ impl S2CellId {
         let scale = 1.0 / MAX_SIZE as f64;
         // math.Nextafter(1, 2): the smallest f64 strictly greater than 1.
         let limit = f64::from_bits(1.0_f64.to_bits() + 1);
-        let u = (scale * ((i << 1) + 1 - MAX_SIZE) as f64).max(-limit).min(limit);
-        let v = (scale * ((j << 1) + 1 - MAX_SIZE) as f64).max(-limit).min(limit);
+        let u = (scale * ((i << 1) + 1 - MAX_SIZE) as f64)
+            .max(-limit)
+            .min(limit);
+        let v = (scale * ((j << 1) + 1 - MAX_SIZE) as f64)
+            .max(-limit)
+            .min(limit);
 
         let (f, u, v) = coords::xyz_to_face_uv(coords::face_uv_to_xyz(f as u8, u, v));
         Self::from_face_ij(

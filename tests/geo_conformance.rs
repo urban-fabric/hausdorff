@@ -14,8 +14,10 @@ use geo::{
 };
 
 use hausdorff::earth::{GeoPoint, frechet_distance_m, haversine_m};
-use hausdorff::{Area, BoundingRect, Centroid, ChamberlainDuquetteArea, Contains, ConvexHull,
-    CoordsIter, Simplify};
+use hausdorff::{
+    Area, BoundingRect, Centroid, ChamberlainDuquetteArea, Contains, ConvexHull, CoordsIter,
+    Simplify,
+};
 // hausdorff's line-measure traits, anonymous (for method resolution); the metric
 // spaces are referenced by full path to avoid clashing with geo's same names.
 use hausdorff::{Bearing as _, Destination as _, Distance as _, Length as _};
@@ -52,9 +54,22 @@ fn fixtures() -> Vec<Vec<(f64, f64)>> {
         // right triangle
         vec![(0.0, 0.0), (6.0, 0.0), (0.0, 3.0)],
         // concave L-shape
-        vec![(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 2.0), (2.0, 4.0), (0.0, 4.0)],
+        vec![
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (4.0, 2.0),
+            (2.0, 2.0),
+            (2.0, 4.0),
+            (0.0, 4.0),
+        ],
         // irregular pentagon
-        vec![(1.0, -3.1), (3.7, 2.7), (0.9, 7.6), (-4.8, 6.7), (-7.5, 0.9)],
+        vec![
+            (1.0, -3.1),
+            (3.7, 2.7),
+            (0.9, 7.6),
+            (-4.8, 6.7),
+            (-7.5, 0.9),
+        ],
     ]
 }
 
@@ -135,13 +150,27 @@ fn contains_matches_geo() {
 fn convex_hull_area_matches_geo() {
     let point_sets = vec![
         vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0), (2.0, 2.0)],
-        vec![(0.0, 0.0), (1.0, 0.5), (2.0, 0.0), (2.0, 2.0), (1.0, 1.5), (0.0, 2.0), (1.0, 1.0)],
-        vec![(-3.0, -1.0), (5.0, 0.0), (3.0, 6.0), (-2.0, 4.0), (0.0, 0.0), (1.0, 2.0)],
+        vec![
+            (0.0, 0.0),
+            (1.0, 0.5),
+            (2.0, 0.0),
+            (2.0, 2.0),
+            (1.0, 1.5),
+            (0.0, 2.0),
+            (1.0, 1.0),
+        ],
+        vec![
+            (-3.0, -1.0),
+            (5.0, 0.0),
+            (3.0, 6.0),
+            (-2.0, 4.0),
+            (0.0, 0.0),
+            (1.0, 2.0),
+        ],
     ];
     for pts in point_sets {
         let hmp = hausdorff::MultiPoint::from(pts.clone());
-        let gmp: geo::MultiPoint<f64> =
-            pts.iter().map(|&(x, y)| geo::Point::new(x, y)).collect();
+        let gmp: geo::MultiPoint<f64> = pts.iter().map(|&(x, y)| geo::Point::new(x, y)).collect();
         let ha = hmp.convex_hull().unsigned_area();
         let ga = gmp.convex_hull().unsigned_area();
         assert!(
@@ -158,10 +187,10 @@ fn haversine_distance_matches_geo() {
     // geo's Haversine mean radius (6_371_008.7714 m) vs ours (6_371_008.8 m)
     // differ by ~0.03 m, so allow a small absolute tolerance.
     let samples = [
-        ((52.52, 13.405), (48.8566, 2.3522)),  // Berlin -> Paris
-        ((40.0, -74.0), (34.05, -118.24)),     // NYC -> LA
+        ((52.52, 13.405), (48.8566, 2.3522)), // Berlin -> Paris
+        ((40.0, -74.0), (34.05, -118.24)),    // NYC -> LA
         ((0.0, 0.0), (0.0, 1.0)),
-        ((-33.87, 151.21), (35.68, 139.69)),   // Sydney -> Tokyo
+        ((-33.87, 151.21), (35.68, 139.69)), // Sydney -> Tokyo
     ];
     for ((lat1, lon1), (lat2, lon2)) in samples {
         let ours = haversine_m(
@@ -170,7 +199,10 @@ fn haversine_distance_matches_geo() {
         );
         let theirs = Haversine.distance(geo::Point::new(lon1, lat1), geo::Point::new(lon2, lat2));
         let rel = (ours - theirs).abs() / theirs.max(1.0);
-        assert!(rel < 1e-5, "haversine mismatch: ours={ours} geo={theirs} rel={rel}");
+        assert!(
+            rel < 1e-5,
+            "haversine mismatch: ours={ours} geo={theirs} rel={rel}"
+        );
     }
 }
 
@@ -184,12 +216,25 @@ fn frechet_distance_matches_geo() {
         &path_b.map(|(la, lo)| GeoPoint::from_lat_lon(la, lo)),
     );
     // geo coords are (x = lon, y = lat).
-    let ga = geo::LineString(path_a.iter().map(|&(la, lo)| geo::Coord { x: lo, y: la }).collect());
-    let gb = geo::LineString(path_b.iter().map(|&(la, lo)| geo::Coord { x: lo, y: la }).collect());
+    let ga = geo::LineString(
+        path_a
+            .iter()
+            .map(|&(la, lo)| geo::Coord { x: lo, y: la })
+            .collect(),
+    );
+    let gb = geo::LineString(
+        path_b
+            .iter()
+            .map(|&(la, lo)| geo::Coord { x: lo, y: la })
+            .collect(),
+    );
     let theirs = Haversine.frechet_distance(&ga, &gb);
 
     let rel = (ours - theirs).abs() / theirs.max(1.0);
-    assert!(rel < 1e-4, "frechet mismatch: ours={ours} geo={theirs} rel={rel}");
+    assert!(
+        rel < 1e-4,
+        "frechet mismatch: ours={ours} geo={theirs} rel={rel}"
+    );
 }
 
 // ---- helpers ----------------------------------------------------------------
@@ -218,7 +263,12 @@ fn is_near_boundary(coords: &[(f64, f64)], x: f64, y: f64, tol: f64) -> bool {
 // ---- newly ported algorithms ------------------------------------------------
 
 fn h_line(coords: &[(f64, f64)]) -> hausdorff::LineString {
-    hausdorff::LineString::new(coords.iter().map(|&(x, y)| hausdorff::Coord::new(x, y)).collect())
+    hausdorff::LineString::new(
+        coords
+            .iter()
+            .map(|&(x, y)| hausdorff::Coord::new(x, y))
+            .collect(),
+    )
 }
 
 fn g_line(coords: &[(f64, f64)]) -> geo::LineString<f64> {
@@ -240,18 +290,32 @@ fn coords_count_matches_geo() {
 fn simplify_matches_geo() {
     // a wiggly path with both sharp and shallow detours
     let wiggly = vec![
-        (0.0, 0.0), (1.0, 0.1), (2.0, -0.1), (3.0, 5.0), (4.0, 0.05),
-        (5.0, -0.02), (6.0, 0.0), (7.0, 8.0), (8.0, 0.0),
+        (0.0, 0.0),
+        (1.0, 0.1),
+        (2.0, -0.1),
+        (3.0, 5.0),
+        (4.0, 0.05),
+        (5.0, -0.02),
+        (6.0, 0.0),
+        (7.0, 8.0),
+        (8.0, 0.0),
     ];
     for eps in [0.2_f64, 1.0, 3.0] {
         let h = h_line(&wiggly).simplify(eps);
         let g = g_line(&wiggly).simplify(eps);
-        assert_eq!(h.0.len(), g.0.len(), "simplify vertex count mismatch at eps={eps}");
+        assert_eq!(
+            h.0.len(),
+            g.0.len(),
+            "simplify vertex count mismatch at eps={eps}"
+        );
         for (hc, gc) in h.0.iter().zip(g.0.iter()) {
             assert!(
                 (hc.x - gc.x).abs() < EPS && (hc.y - gc.y).abs() < EPS,
                 "simplify vertex mismatch at eps={eps}: ({},{}) vs ({},{})",
-                hc.x, hc.y, gc.x, gc.y
+                hc.x,
+                hc.y,
+                gc.x,
+                gc.y
             );
         }
     }
@@ -269,11 +333,20 @@ fn chamberlain_duquette_area_matches_geo() {
 
     // absolute sanity: the O2 in London is ~78,478 m² (geo's doc value)
     let o2 = [
-        (0.00388383, 51.501574), (0.00538587, 51.502278), (0.00553607, 51.503299),
-        (0.00467777, 51.504181), (0.00327229, 51.504435), (0.00187754, 51.504168),
-        (0.00087976, 51.503380), (0.00107288, 51.502324), (0.00185608, 51.501770),
+        (0.00388383, 51.501574),
+        (0.00538587, 51.502278),
+        (0.00553607, 51.503299),
+        (0.00467777, 51.504181),
+        (0.00327229, 51.504435),
+        (0.00187754, 51.504168),
+        (0.00087976, 51.503380),
+        (0.00107288, 51.502324),
+        (0.00185608, 51.501770),
     ];
-    assert_eq!(h_poly(&o2).chamberlain_duquette_unsigned_area().round(), 78_478.0);
+    assert_eq!(
+        h_poly(&o2).chamberlain_duquette_unsigned_area().round(),
+        78_478.0
+    );
 }
 
 // ---- line measures (metric spaces) -----------------------------------------
@@ -291,11 +364,20 @@ fn haversine_distance_and_bearing_match_geo() {
         let (ha, hb) = (hausdorff::Point::new(x1, y1), hausdorff::Point::new(x2, y2));
         let (ga, gb) = (geo::Point::new(x1, y1), geo::Point::new(x2, y2));
 
-        let (hd, gd) = (hausdorff::Haversine.distance(ha, hb), Haversine.distance(ga, gb));
-        assert!((hd - gd).abs() / gd.max(1.0) < 1e-5, "distance {hd} vs {gd}");
+        let (hd, gd) = (
+            hausdorff::Haversine.distance(ha, hb),
+            Haversine.distance(ga, gb),
+        );
+        assert!(
+            (hd - gd).abs() / gd.max(1.0) < 1e-5,
+            "distance {hd} vs {gd}"
+        );
 
         // bearing is radius-independent; compare modulo 360
-        let (hbr, gbr) = (hausdorff::Haversine.bearing(ha, hb), Haversine.bearing(ga, gb));
+        let (hbr, gbr) = (
+            hausdorff::Haversine.bearing(ha, hb),
+            Haversine.bearing(ga, gb),
+        );
         let diff = ((hbr - gbr + 540.0) % 360.0 - 180.0).abs();
         assert!(diff < 1e-6, "bearing {hbr} vs {gbr}");
     }
@@ -305,7 +387,10 @@ fn haversine_distance_and_bearing_match_geo() {
 fn lengths_match_geo() {
     let coords = vec![(0.0, 0.0), (1.0, 0.5), (2.0, 2.0), (3.0, 1.0), (4.0, 3.0)];
     let (h, g) = (h_line(&coords), g_line(&coords));
-    assert!((hausdorff::Euclidean.length(&h) - Euclidean.length(&g)).abs() < 1e-9, "euclidean length");
+    assert!(
+        (hausdorff::Euclidean.length(&h) - Euclidean.length(&g)).abs() < 1e-9,
+        "euclidean length"
+    );
     let (hl, gl) = (hausdorff::Haversine.length(&h), Haversine.length(&g));
     assert!((hl - gl).abs() / gl.max(1.0) < 1e-5, "haversine length");
 }
@@ -314,13 +399,21 @@ fn lengths_match_geo() {
 fn haversine_destination_matches_geo() {
     let h_origin = hausdorff::Point::new(13.405, 52.52);
     let g_origin = geo::Point::new(13.405, 52.52);
-    for &(bearing, dist) in &[(0.0, 1000.0), (90.0, 5000.0), (215.0, 250.0), (359.0, 12000.0)] {
+    for &(bearing, dist) in &[
+        (0.0, 1000.0),
+        (90.0, 5000.0),
+        (215.0, 250.0),
+        (359.0, 12000.0),
+    ] {
         let hd = hausdorff::Haversine.destination(h_origin, bearing, dist);
         let gd = Haversine.destination(g_origin, bearing, dist);
         assert!(
             (hd.x() - gd.x()).abs() < 1e-6 && (hd.y() - gd.y()).abs() < 1e-6,
             "destination bearing={bearing} dist={dist}: ({},{}) vs ({},{})",
-            hd.x(), hd.y(), gd.x(), gd.y()
+            hd.x(),
+            hd.y(),
+            gd.x(),
+            gd.y()
         );
     }
 }

@@ -144,7 +144,10 @@ fn all_neighbors_include_edge_neighbors() {
         assert_eq!(nb.level(), 12);
     }
     for nb in &c.edge_neighbors() {
-        assert!(all.contains(nb), "edge neighbor {nb} missing from all_neighbors");
+        assert!(
+            all.contains(nb),
+            "edge neighbor {nb} missing from all_neighbors"
+        );
     }
     assert!(all_neighbors_empty_when_level_too_coarse(c));
 }

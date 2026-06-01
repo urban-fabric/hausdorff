@@ -152,7 +152,8 @@ impl Projection for TransverseMercator {
                     * tphi
                     * (aa * aa / 2.0
                         + (5.0 - t + 9.0 * c + 4.0 * c * c) * aa.powi(4) / 24.0
-                        + (61.0 - 58.0 * t + t * t + 600.0 * c - 330.0 * ep2) * aa.powi(6) / 720.0));
+                        + (61.0 - 58.0 * t + t * t + 600.0 * c - 330.0 * ep2) * aa.powi(6)
+                            / 720.0));
         Coord::new(easting, northing)
     }
 
@@ -184,7 +185,9 @@ impl Projection for TransverseMercator {
             - (n1 * tphi1 / r1)
                 * (d * d / 2.0
                     - (5.0 + 3.0 * t1 + 10.0 * c1 - 4.0 * c1 * c1 - 9.0 * ep2) * d.powi(4) / 24.0
-                    + (61.0 + 90.0 * t1 + 298.0 * c1 + 45.0 * t1 * t1 - 252.0 * ep2 - 3.0 * c1 * c1)
+                    + (61.0 + 90.0 * t1 + 298.0 * c1 + 45.0 * t1 * t1
+                        - 252.0 * ep2
+                        - 3.0 * c1 * c1)
                         * d.powi(6)
                         / 720.0);
         let lon = self.central_meridian.to_radians()

@@ -139,7 +139,10 @@ mod winding {
 
         let mut rev = ccw.0.clone();
         rev.reverse();
-        assert_eq!(LineString::new(rev).winding_order(), Some(WindingOrder::Clockwise));
+        assert_eq!(
+            LineString::new(rev).winding_order(),
+            Some(WindingOrder::Clockwise)
+        );
     }
 
     #[test]
@@ -201,7 +204,11 @@ mod area {
     #[test]
     fn rect_and_triangle() {
         assert_eq!(Rect::new((0.0, 0.0), (2.0, 3.0)).unsigned_area(), 6.0);
-        let t = Triangle::new(Coord::new(0.0, 0.0), Coord::new(4.0, 0.0), Coord::new(0.0, 3.0));
+        let t = Triangle::new(
+            Coord::new(0.0, 0.0),
+            Coord::new(4.0, 0.0),
+            Coord::new(0.0, 3.0),
+        );
         assert_eq!(t.unsigned_area(), 6.0);
     }
 }
@@ -238,7 +245,10 @@ mod dimensions {
 
     #[test]
     fn dimensions_by_type() {
-        assert_eq!(Point::new(0.0, 0.0).dimensions(), Dimensions::ZeroDimensional);
+        assert_eq!(
+            Point::new(0.0, 0.0).dimensions(),
+            Dimensions::ZeroDimensional
+        );
         assert_eq!(
             LineString::from(vec![(0.0, 0.0), (1.0, 1.0)]).dimensions(),
             Dimensions::OneDimensional
@@ -246,8 +256,11 @@ mod dimensions {
         assert_eq!(LineString::default().dimensions(), Dimensions::Empty);
         assert!(LineString::default().is_empty());
         assert_eq!(
-            Polygon::new(LineString::from(vec![(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)]), vec![])
-                .dimensions(),
+            Polygon::new(
+                LineString::from(vec![(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)]),
+                vec![]
+            )
+            .dimensions(),
             Dimensions::TwoDimensional
         );
     }
@@ -290,7 +303,12 @@ mod contains {
     fn square() -> Polygon {
         Polygon::new(
             LineString::from(vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]),
-            vec![LineString::from(vec![(1.0, 1.0), (3.0, 1.0), (3.0, 3.0), (1.0, 3.0)])],
+            vec![LineString::from(vec![
+                (1.0, 1.0),
+                (3.0, 1.0),
+                (3.0, 3.0),
+                (1.0, 3.0),
+            ])],
         )
     }
 

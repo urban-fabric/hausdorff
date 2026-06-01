@@ -3,7 +3,9 @@
 
 use std::str::FromStr;
 
-use hausdorff::h3::{H3Cell, H3CompactionError, H3DirectedEdge, H3Polygon, H3PolygonError, H3Vertex};
+use hausdorff::h3::{
+    H3Cell, H3CompactionError, H3DirectedEdge, H3Polygon, H3PolygonError, H3Vertex,
+};
 
 /// A spread of real cells: every base cell (res 0), plus cells from a lat/lon
 /// grid at several resolutions (including r10, the perf-test source resolution).
@@ -357,9 +359,10 @@ fn grid_disk_distances_and_ring_are_consistent() {
     for k in 0..=4 {
         let disk = cell.grid_disk_distances(k);
         assert_eq!(disk.len() as u64, H3Cell::max_grid_disk_size(k));
-        assert!(disk
-            .iter()
-            .any(|(candidate, distance)| { *candidate == cell && *distance == 0 }));
+        assert!(
+            disk.iter()
+                .any(|(candidate, distance)| { *candidate == cell && *distance == 0 })
+        );
         for (candidate, distance) in &disk {
             assert!(*distance <= k);
             assert_eq!(
@@ -541,7 +544,7 @@ fn vertices_match_h3o() {
                 Some(ours_vertex)
             );
             assert_eq!(owner.as_u64(), u64::from(oracle_vertex.owner()));
-            assert_eq!(ours_vertex.vertex(), oracle_vertex.vertex().into());
+            assert_eq!(ours_vertex.vertex(), u8::from(oracle_vertex.vertex()));
             assert!(
                 (ours_ll.0 - ll.lat()).abs() < 1e-9 && (ours_ll.1 - ll.lng()).abs() < 1e-9,
                 "vertex latlng {raw:#x} v{vertex}: ours={ours_ll:?} oracle=({}, {})",

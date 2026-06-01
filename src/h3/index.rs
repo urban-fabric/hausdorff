@@ -1132,11 +1132,7 @@ const fn rotate_digit(digit: u8, count: usize, ccw: bool) -> u8 {
         _ => return digit,
     };
     let index = (count + offset) % 6;
-    if ccw {
-        CCW_SEQ[index]
-    } else {
-        CW_SEQ[index]
-    }
+    if ccw { CCW_SEQ[index] } else { CW_SEQ[index] }
 }
 
 /// Rotates a whole index `count` times by 60°.

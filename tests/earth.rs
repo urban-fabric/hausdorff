@@ -29,7 +29,10 @@ mod bbox {
         assert!(bbox.contains(GeoPoint::from_lat_lon(40.5, -73.5)));
         assert!(!bbox.contains(GeoPoint::from_lat_lon(0.0, 0.0)));
         assert!(!bbox.contains(GeoPoint::from_lat_lon(f64::NAN, -73.5)));
-        assert_eq!("40.0,-74.0".parse::<BBox>(), Err(BBoxParseError::WrongArity(2)));
+        assert_eq!(
+            "40.0,-74.0".parse::<BBox>(),
+            Err(BBoxParseError::WrongArity(2))
+        );
     }
 }
 
@@ -47,7 +50,11 @@ mod bearing {
         let origin = GeoPoint::from_lat_lon(0.0, 0.0);
         let east = Bearing::initial(origin, GeoPoint::from_lat_lon(0.0, 1.0));
         let north = Bearing::initial(origin, GeoPoint::from_lat_lon(1.0, 0.0));
-        assert!((east.degrees() - 90.0).abs() < 1e-6, "east: {}", east.degrees());
+        assert!(
+            (east.degrees() - 90.0).abs() < 1e-6,
+            "east: {}",
+            east.degrees()
+        );
         assert!(north.degrees() < 1e-6 || (360.0 - north.degrees()) < 1e-6);
     }
 }
@@ -69,8 +76,8 @@ mod geodesic {
 }
 
 mod radial_grid {
-    use hausdorff::earth::*;
     use euclid::LengthMeters;
+    use hausdorff::earth::*;
 
     fn approx(a: f64, b: f64, tol: f64) -> bool {
         (a - b).abs() <= tol
@@ -300,8 +307,13 @@ mod similarity {
     fn typed_wrappers_match_raw() {
         let a = [pt(0.0, 0.0), pt(0.0, 1.0)];
         let b = [pt(0.5, 0.5)];
-        assert_eq!(hausdorff_distance(&a, &b).as_meters(), hausdorff_distance_m(&a, &b));
-        assert_eq!(frechet_distance(&a, &b).as_meters(), frechet_distance_m(&a, &b));
+        assert_eq!(
+            hausdorff_distance(&a, &b).as_meters(),
+            hausdorff_distance_m(&a, &b)
+        );
+        assert_eq!(
+            frechet_distance(&a, &b).as_meters(),
+            frechet_distance_m(&a, &b)
+        );
     }
 }
-

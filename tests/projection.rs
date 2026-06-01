@@ -33,7 +33,11 @@ fn utm_central_meridian_anchor() {
     let u = Utm::from_geo(g(0.0, 3.0)); // zone 31, CM 3°E
     assert_eq!(u.zone, 31);
     assert!(u.north);
-    assert!((u.easting - 500_000.0).abs() < 1e-3, "easting {}", u.easting);
+    assert!(
+        (u.easting - 500_000.0).abs() < 1e-3,
+        "easting {}",
+        u.easting
+    );
     assert!(u.northing.abs() < 1e-3, "northing {}", u.northing);
 }
 

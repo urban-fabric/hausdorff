@@ -5,7 +5,7 @@
 use std::collections::{HashSet, VecDeque};
 
 use super::base_cells;
-use super::coord::{CoordIJK, CCW, CW};
+use super::coord::{CCW, CW, CoordIJK};
 use super::faceijk::FaceIJK;
 use super::index;
 

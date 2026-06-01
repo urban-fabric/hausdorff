@@ -59,9 +59,9 @@ fn ring_lonlat(ring: &LineString) -> Vec<LineStringCoord> {
 impl ChamberlainDuquetteArea for Polygon {
     fn chamberlain_duquette_signed_area(&self) -> f64 {
         let exterior = ring_area(&ring_lonlat(self.exterior()));
-        self.interiors()
-            .iter()
-            .fold(exterior, |total, hole| total - ring_area(&ring_lonlat(hole)))
+        self.interiors().iter().fold(exterior, |total, hole| {
+            total - ring_area(&ring_lonlat(hole))
+        })
     }
 }
 

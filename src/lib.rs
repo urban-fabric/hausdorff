@@ -11,6 +11,7 @@
 //! generalizes the metric to any planet radius; [`convert`] bridges the planar
 //! and spherical sides. Cell indexes live in [`h3`] and [`s2`].
 
+pub mod compat;
 pub mod convert;
 pub mod earth;
 pub mod h3;

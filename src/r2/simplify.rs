@@ -69,7 +69,10 @@ impl Simplify for Polygon {
     fn simplify(&self, epsilon: f64) -> Self {
         Polygon::new(
             self.exterior().simplify(epsilon),
-            self.interiors().iter().map(|r| r.simplify(epsilon)).collect(),
+            self.interiors()
+                .iter()
+                .map(|r| r.simplify(epsilon))
+                .collect(),
         )
     }
 }

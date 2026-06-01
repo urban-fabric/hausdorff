@@ -11,14 +11,21 @@ description = "Internal geospatial primitives and index implementations for Urba
 bytemuck = { version = "1.25", features = ["derive"] }
 euclid = { git = "ssh://git@github.com/urban-fabric/euclid.git", branch = "main" }
 serde = { version = "1", features = ["derive"] }
+# Compatibility boundary for external geometry formats and algorithms that have
+# not yet been ported into hausdorff-native kernels. Downstream crates depend on
+# hausdorff for these surfaces rather than depending on geo/geo-types directly.
+geo = "0.33"
+geo-types = "0.7"
+geo-traits = "0.3"
+geojson = { version = "1.0", features = ["geo-types"] }
+wkb = "0.9"
+wkt = "0.14"
 
 [dev-dependencies]
 h3o = "0.10.0"
 # Reference oracle for the ported planar/spherical algorithms — used only in
 # tests to cross-check our in-house implementations (the same role h3o plays
 # for the H3 core). Never a runtime dependency.
-geo = "0.33"
-geo-types = "0.7"
 # Also needed by the relocated tests/ integration suite, which names the typed
 # LengthMeters returned across the public API (e.g. RadialGrid construction).
 euclid = { git = "ssh://git@github.com/urban-fabric/euclid.git", branch = "main" }

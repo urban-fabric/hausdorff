@@ -105,7 +105,11 @@ impl CoordsIter for Polygon {
     }
     fn coords_count(&self) -> usize {
         self.exterior().coords_count()
-            + self.interiors().iter().map(LineString::coords_count).sum::<usize>()
+            + self
+                .interiors()
+                .iter()
+                .map(LineString::coords_count)
+                .sum::<usize>()
     }
     fn exterior_coords_iter(&self) -> std::vec::IntoIter<Coord> {
         self.exterior().0.clone().into_iter()

@@ -44,10 +44,8 @@ pub fn point_area(a: S2Point, b: S2Point, c: S2Point) -> f64 {
         }
     }
 
-    let tan_prod = (0.5 * s).tan()
-        * (0.5 * (s - sa)).tan()
-        * (0.5 * (s - sb)).tan()
-        * (0.5 * (s - sc)).tan();
+    let tan_prod =
+        (0.5 * s).tan() * (0.5 * (s - sa)).tan() * (0.5 * (s - sb)).tan() * (0.5 * (s - sc)).tan();
     4.0 * tan_prod.max(0.0).sqrt().atan()
 }
 

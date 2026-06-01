@@ -3,7 +3,7 @@
 //! the H3 reference (h3o); resolution is a `usize`, Class III is `res & 1 == 1`.
 
 use super::base_cells;
-use super::coord::{CoordIJK, Vec2d, Vec3d, CCW, CW, SQRT3_2};
+use super::coord::{CCW, CW, CoordIJK, SQRT3_2, Vec2d, Vec3d};
 use super::face::{self, IJ, JK, KI};
 use super::index;
 

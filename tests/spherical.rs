@@ -15,8 +15,16 @@ fn p(lat: f64, lon: f64) -> S2Point {
 fn octant_area_is_half_pi() {
     // (1,0,0), (0,1,0), (0,0,1) span one octant of the sphere = π/2 steradians.
     let (a, b, c) = (p(0.0, 0.0), p(0.0, 90.0), p(90.0, 0.0));
-    assert!((point_area(a, b, c) - PI / 2.0).abs() < 1e-12, "l'Huilier: {}", point_area(a, b, c));
-    assert!((girard_area(a, b, c) - PI / 2.0).abs() < 1e-12, "Girard: {}", girard_area(a, b, c));
+    assert!(
+        (point_area(a, b, c) - PI / 2.0).abs() < 1e-12,
+        "l'Huilier: {}",
+        point_area(a, b, c)
+    );
+    assert!(
+        (girard_area(a, b, c) - PI / 2.0).abs() < 1e-12,
+        "Girard: {}",
+        girard_area(a, b, c)
+    );
 }
 
 #[test]
@@ -38,7 +46,10 @@ fn small_triangle_matches_planar_area() {
     let leg = (0.001_f64).to_radians() * EARTH_RADIUS_M;
     let planar_m2 = 0.5 * leg * leg;
     let rel = (spherical_m2 - planar_m2).abs() / planar_m2;
-    assert!(rel < 1e-4, "spherical {spherical_m2} vs planar {planar_m2} (rel {rel})");
+    assert!(
+        rel < 1e-4,
+        "spherical {spherical_m2} vs planar {planar_m2} (rel {rel})"
+    );
 }
 
 #[test]
@@ -64,7 +75,10 @@ fn angle_radians_degrees_round_trip() {
 fn angle_constants_and_ops() {
     use hausdorff::s1::Angle;
     assert_eq!(Angle::PI.radians(), PI);
-    assert_eq!((Angle::from_radians(1.0) + Angle::from_radians(2.0)).radians(), 3.0);
+    assert_eq!(
+        (Angle::from_radians(1.0) + Angle::from_radians(2.0)).radians(),
+        3.0
+    );
     assert_eq!((Angle::PI * 0.5).radians(), std::f64::consts::FRAC_PI_2);
     assert_eq!(Angle::from_radians(-1.5).abs().radians(), 1.5);
 }
@@ -75,17 +89,38 @@ fn angle_constants_and_ops() {
 fn loop_area_octant_and_hemisphere() {
     use hausdorff::s2::Loop;
     let octant = Loop::new(vec![p(0.0, 0.0), p(0.0, 90.0), p(90.0, 0.0)]);
-    assert!((octant.area() - PI / 2.0).abs() < 1e-9, "octant area {}", octant.area());
+    assert!(
+        (octant.area() - PI / 2.0).abs() < 1e-9,
+        "octant area {}",
+        octant.area()
+    );
     // four equator points, CCW as seen from the north pole = northern hemisphere
-    let hemi = Loop::new(vec![p(0.0, 0.0), p(0.0, 90.0), p(0.0, 180.0), p(0.0, -90.0)]);
-    assert!((hemi.area() - 2.0 * PI).abs() < 1e-9, "hemisphere area {}", hemi.area());
+    let hemi = Loop::new(vec![
+        p(0.0, 0.0),
+        p(0.0, 90.0),
+        p(0.0, 180.0),
+        p(0.0, -90.0),
+    ]);
+    assert!(
+        (hemi.area() - 2.0 * PI).abs() < 1e-9,
+        "hemisphere area {}",
+        hemi.area()
+    );
 }
 
 #[test]
 fn loop_contains_and_perimeter() {
     use hausdorff::s2::Loop;
-    let hemi = Loop::new(vec![p(0.0, 0.0), p(0.0, 90.0), p(0.0, 180.0), p(0.0, -90.0)]);
-    assert!(hemi.contains_point(p(89.0, 12.0)), "north is inside northern hemisphere");
+    let hemi = Loop::new(vec![
+        p(0.0, 0.0),
+        p(0.0, 90.0),
+        p(0.0, 180.0),
+        p(0.0, -90.0),
+    ]);
+    assert!(
+        hemi.contains_point(p(89.0, 12.0)),
+        "north is inside northern hemisphere"
+    );
     assert!(!hemi.contains_point(p(-89.0, 12.0)), "south is outside");
     // perimeter is the full equator great circle = 2π
     assert!((hemi.perimeter().radians() - 2.0 * PI).abs() < 1e-9);
@@ -99,7 +134,9 @@ fn sphere_is_planet_flexible() {
     use hausdorff::sphere::Sphere;
 
     // arc length of one radian equals the radius
-    assert!((Sphere::EARTH.length(Angle::from_radians(1.0)).as_meters() - EARTH_RADIUS_M).abs() < 1e-6);
+    assert!(
+        (Sphere::EARTH.length(Angle::from_radians(1.0)).as_meters() - EARTH_RADIUS_M).abs() < 1e-6
+    );
     // a full sphere is 4π steradians
     let full = Sphere::EARTH.area_m2(4.0 * PI);
     assert!((full - 4.0 * PI * EARTH_RADIUS_M * EARTH_RADIUS_M).abs() / full < 1e-12);
@@ -118,7 +155,11 @@ fn cap_hemisphere() {
     // a cap of angular radius π/2 about the north pole = the northern hemisphere
     let north = p(90.0, 0.0);
     let cap = Cap::from_center_angle(north, Angle::from_radians(PI / 2.0));
-    assert!((cap.area() - 2.0 * PI).abs() < 1e-12, "hemisphere cap area {}", cap.area());
+    assert!(
+        (cap.area() - 2.0 * PI).abs() < 1e-12,
+        "hemisphere cap area {}",
+        cap.area()
+    );
     assert!(cap.contains_point(north));
     assert!(cap.contains_point(p(45.0, 30.0))); // mid-northern latitude
     assert!(!cap.contains_point(p(-45.0, 30.0))); // southern
@@ -167,7 +208,10 @@ fn region_bounding_cap_contains_geometry() {
     let lp = Loop::new(vec![p(0.0, 0.0), p(0.0, 30.0), p(20.0, 15.0)]);
     let cap = lp.bounding_cap();
     for v in lp.vertices() {
-        assert!(cap.contains_point(*v), "bounding cap must contain every vertex");
+        assert!(
+            cap.contains_point(*v),
+            "bounding cap must contain every vertex"
+        );
     }
     // a Cap bounds itself
     let c = Cap::from_center_angle(p(45.0, 45.0), Angle::from_radians(0.3));
@@ -185,7 +229,12 @@ fn edge_crossing_and_intersection() {
     assert_eq!(crossing_sign(a, b, c, d), Crossing::Cross);
 
     let x = intersection(a, b, c, d).to_geo_point();
-    assert!((x.lat).abs() < 1e-6 && (x.lon - 45.0).abs() < 1e-6, "crossed at ({}, {})", x.lat, x.lon);
+    assert!(
+        (x.lat).abs() < 1e-6 && (x.lon - 45.0).abs() < 1e-6,
+        "crossed at ({}, {})",
+        x.lat,
+        x.lon
+    );
 
     // CD entirely north of AB -> no crossing
     let (c2, d2) = (p(10.0, 10.0), p(10.0, 80.0));
