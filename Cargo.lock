@@ -82,6 +82,7 @@ checksum = "91622ff5e7162018101f2fea40d6ebf4a78bbe5a49736a2020649edf9693679e"
 [[package]]
 name = "euclid"
 version = "0.1.0"
+source = "git+ssh://git@github.com/urban-fabric/euclid.git?branch=main#9b4d5648e8e88dce7d257851fd89c07c78a8e594"
 dependencies = [
  "bytemuck",
  "serde",

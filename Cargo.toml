@@ -9,7 +9,7 @@ description = "Internal geospatial primitives and index implementations for Urba
 [dependencies]
 # Backing the canonical GeoPoint/FixedGeoPoint newtypes (POD layout + JSON).
 bytemuck = { version = "1.25", features = ["derive"] }
-euclid = { path = "../euclid" }
+euclid = { git = "ssh://git@github.com/urban-fabric/euclid.git", branch = "main" }
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
