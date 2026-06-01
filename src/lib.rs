@@ -14,6 +14,7 @@
 pub mod compat;
 pub mod convert;
 pub mod earth;
+pub mod geohash;
 pub mod h3;
 pub mod projection;
 pub mod r2;

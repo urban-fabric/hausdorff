@@ -12,10 +12,11 @@ use crate::r2::{
     Rect, Triangle,
 };
 
-/// Encode a lon/lat coordinate as a geohash string.
+/// Encode a lon/lat coordinate as a geohash string (native; see
+/// [`crate::geohash`]).
 #[must_use]
 pub fn encode_geohash(lon: f64, lat: f64, precision: usize) -> Option<String> {
-    geohash::encode(geohash::Coord { x: lon, y: lat }, precision).ok()
+    Some(crate::geohash::encode(lon, lat, precision))
 }
 
 /// Topological predicates delegated through the compatibility boundary.

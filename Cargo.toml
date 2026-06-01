@@ -20,13 +20,14 @@ serde_json = "1"
 geo = "0.33"
 geo-types = "0.7"
 geo-traits = "0.3"
-geohash = "0.13"
 
 [dev-dependencies]
 h3o = "0.10.0"
-# WKB/WKT/GeoJSON reference libraries — used only to conformance-check the
-# native r2_format codecs (the same role geo/h3o play). Never runtime deps.
+# WKB/WKT/GeoJSON/geohash reference libraries — used only to conformance-check
+# the native r2_format/geohash codecs (the same role geo/h3o play). Never runtime
+# deps.
 geojson = { version = "1.0", features = ["geo-types"] }
+geohash = "0.13"
 wkb = "0.9"
 wkt = "0.14"
 # Reference oracle for the ported planar/spherical algorithms — used only in
