@@ -1,7 +1,7 @@
 //! Native WKT codec: round-trips, standard strings, and interop with the
 //! vendored `wkt` crate (so it can be deprecated in favour of the native one).
 
-use hausdorff::wkt::{from_wkt, to_wkt};
+use hausdorff::r2_format::wkt::{from_wkt, to_wkt};
 use hausdorff::{Coord, Geometry, LineString, MultiPolygon, Point, Polygon};
 
 fn poly(rings: Vec<Vec<(f64, f64)>>) -> Polygon {

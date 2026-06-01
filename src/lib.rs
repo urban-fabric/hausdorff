@@ -17,11 +17,11 @@ pub mod earth;
 pub mod h3;
 pub mod projection;
 pub mod r2;
+pub mod r2_format;
 pub mod r3;
 pub mod s1;
 pub mod s2;
 pub mod sphere;
-pub mod wkt;
 
 pub use earth::{FixedGeoPoint, GeoPoint};
 pub use r2::{
