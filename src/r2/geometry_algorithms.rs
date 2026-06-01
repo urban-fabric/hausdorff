@@ -4,9 +4,24 @@
 
 use super::convex_hull::convex_hull_coords;
 use super::{
-    Area, BoundingRect, Centroid, ConvexHull, Coord, CoordsIter, Geometry, LineString, MultiPoint,
-    Point, Polygon, Rect, Simplify,
+    Area, BoundingRect, Centroid, ChamberlainDuquetteArea, ConvexHull, Coord, CoordsIter, Geometry,
+    LineString, MultiPoint, Point, Polygon, Rect, Simplify,
 };
+
+impl ChamberlainDuquetteArea for Geometry {
+    fn chamberlain_duquette_signed_area(&self) -> f64 {
+        match self {
+            Geometry::Polygon(g) => g.chamberlain_duquette_signed_area(),
+            Geometry::MultiPolygon(g) => g.chamberlain_duquette_signed_area(),
+            Geometry::Rect(g) => g.to_polygon().chamberlain_duquette_signed_area(),
+            Geometry::Triangle(g) => g.to_polygon().chamberlain_duquette_signed_area(),
+            Geometry::GeometryCollection(gs) => {
+                gs.iter().map(ChamberlainDuquetteArea::chamberlain_duquette_signed_area).sum()
+            }
+            _ => 0.0,
+        }
+    }
+}
 
 impl Area for Geometry {
     fn signed_area(&self) -> f64 {

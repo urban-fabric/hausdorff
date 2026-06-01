@@ -26,8 +26,9 @@ pub mod sphere;
 
 pub use earth::{FixedGeoPoint, GeoPoint};
 pub use r2::{
-    Area, Bearing, BoundingRect, Centroid, ChamberlainDuquetteArea, Contains, ConvexHull, Coord,
-    CoordsIter, Destination, Dimensions, Direction, Distance, Euclidean, Geometry, HasDimensions,
-    Haversine, Length, Line, LineString, MultiLineString, MultiPoint, MultiPolygon, Orient, Point,
-    Polygon, Rect, Simplify, Triangle, Winding, WindingOrder,
+    Area, Bearing, BoundingRect, Centroid, ChamberlainDuquetteArea, ConcaveHull, Contains,
+    ConvexHull, Coord, CoordsIter, Destination, Dimensions, Direction, Distance, Euclidean,
+    Geometry, HasDimensions, Haversine, Intersects, Length, Line, LineString, MultiLineString,
+    MultiPoint, MultiPolygon, Orient, Point, Polygon, Rect, Simplify, Triangle, Winding,
+    WindingOrder,
 };

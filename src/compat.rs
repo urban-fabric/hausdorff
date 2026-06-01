@@ -5,7 +5,7 @@
 //! needed for WKB/WKT/GeoJSON and topology/overlay operations that have not yet
 //! been ported to native `hausdorff` kernels.
 
-use geo::{BooleanOps, Contains, GeodesicArea, Relate};
+use geo::{BooleanOps, Contains, Relate};
 
 use crate::r2::{
     Coord, Geometry, Line, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon,
@@ -84,10 +84,14 @@ pub fn geojson_to_geometry(text: &str) -> Option<Geometry> {
     crate::r2_format::geojson::from_geojson(text).ok()
 }
 
-/// Geodesic area in square metres, delegated through the compatibility boundary.
+/// Geodesic area in square metres (native spherical Chamberlain–Duquette; see
+/// [`crate::r2::ChamberlainDuquetteArea`]). This is the spherical approximation,
+/// not geo's ellipsoidal Karney area — within ~0.5%, which the workspace does
+/// not depend on to tighter tolerance.
 #[must_use]
 pub fn geodesic_area_unsigned_m2(geom: &Geometry) -> f64 {
-    to_geo_geometry(geom).geodesic_area_unsigned()
+    use crate::r2::ChamberlainDuquetteArea;
+    geom.chamberlain_duquette_unsigned_area()
 }
 
 /// Evaluate a topology predicate through the compatibility boundary.
