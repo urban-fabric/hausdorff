@@ -21,6 +21,7 @@ pub mod r3;
 pub mod s1;
 pub mod s2;
 pub mod sphere;
+pub mod wkt;
 
 pub use earth::{FixedGeoPoint, GeoPoint};
 pub use r2::{

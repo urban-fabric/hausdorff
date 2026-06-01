@@ -17,6 +17,7 @@ serde = { version = "1", features = ["derive"] }
 geo = "0.33"
 geo-types = "0.7"
 geo-traits = "0.3"
+geohash = "0.13"
 geojson = { version = "1.0", features = ["geo-types"] }
 wkb = "0.9"
 wkt = "0.14"
