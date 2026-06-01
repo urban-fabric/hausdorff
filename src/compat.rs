@@ -1,9 +1,17 @@
 //! Compatibility boundary for external geometry crates and interchange formats.
 //!
-//! Downstream UrbanFabric crates should depend on `hausdorff` geometry types.
-//! This module contains the temporary adapters to `geo`/`geo-types`/`geo-traits`
-//! needed for WKB/WKT/GeoJSON and topology/overlay operations that have not yet
-//! been ported to native `hausdorff` kernels.
+//! Downstream UrbanFabric crates depend on `hausdorff` geometry types and call
+//! through this boundary. Almost everything here is now backed by native
+//! `hausdorff` kernels — formats ([`crate::r2_format`]), geohash, overlay
+//! ([`crate::r2::bool_ops`]), `Intersects`/`Disjoint`, and geodesic area.
+//!
+//! The **only** remaining use of the heavy `geo` crate is the DE-9IM topology
+//! predicates beyond intersection (`Contains`/`Within`/`Covers`/`CoveredBy`/
+//! `Touches`/`Crosses`/`Equals`/`Overlaps`) in [`topology_predicate`]. These are
+//! exposed by galois's Polars API but are not consumed by any leaf application,
+//! so a full native `Relate` matrix is intentionally out of scope (we don't need
+//! the full `geo`). The lightweight `geo-types` bridge ([`to_geo_geometry`] /
+//! [`from_geo_geometry`]) is kept deliberately for the WKB/shapefile I/O edges.
 
 use geo::{Contains, Relate};
 
