@@ -5,7 +5,7 @@
 //! needed for WKB/WKT/GeoJSON and topology/overlay operations that have not yet
 //! been ported to native `hausdorff` kernels.
 
-use geo::{BooleanOps, Contains, GeodesicArea, Intersects, Relate};
+use geo::{BooleanOps, Contains, GeodesicArea, Relate};
 
 use crate::r2::{
     Coord, Geometry, Line, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon,
@@ -91,27 +91,30 @@ pub fn geodesic_area_unsigned_m2(geom: &Geometry) -> f64 {
 }
 
 /// Evaluate a topology predicate through the compatibility boundary.
+///
+/// `Intersects`/`Disjoint` are native ([`crate::r2::Intersects`]); the remaining
+/// DE-9IM predicates still delegate to `geo`'s `Relate` until a native relate
+/// matrix lands.
 #[must_use]
 pub fn topology_predicate(left: &Geometry, right: &Geometry, predicate: TopologyPredicate) -> bool {
-    let left = to_geo_geometry(left);
-    let right = to_geo_geometry(right);
+    use crate::r2::Intersects as _;
     match predicate {
-        TopologyPredicate::Intersects => left.intersects(&right),
-        TopologyPredicate::Contains => left.contains(&right),
-        _ => {
-            let matrix = left.relate(&right);
-            match predicate {
-                TopologyPredicate::Within => matrix.is_within(),
-                TopologyPredicate::Covers => matrix.is_covers(),
-                TopologyPredicate::CoveredBy => matrix.is_coveredby(),
-                TopologyPredicate::Disjoint => matrix.is_disjoint(),
-                TopologyPredicate::Touches => matrix.is_touches(),
-                TopologyPredicate::Crosses => matrix.is_crosses(),
-                TopologyPredicate::Equals => matrix.is_equal_topo(),
-                TopologyPredicate::Overlaps => matrix.is_overlaps(),
-                TopologyPredicate::Intersects | TopologyPredicate::Contains => unreachable!(),
-            }
-        }
+        TopologyPredicate::Intersects => return left.intersects(right),
+        TopologyPredicate::Disjoint => return !left.intersects(right),
+        _ => {}
+    }
+    let l = to_geo_geometry(left);
+    let r = to_geo_geometry(right);
+    match predicate {
+        TopologyPredicate::Contains => l.contains(&r),
+        TopologyPredicate::Within => l.relate(&r).is_within(),
+        TopologyPredicate::Covers => l.relate(&r).is_covers(),
+        TopologyPredicate::CoveredBy => l.relate(&r).is_coveredby(),
+        TopologyPredicate::Touches => l.relate(&r).is_touches(),
+        TopologyPredicate::Crosses => l.relate(&r).is_crosses(),
+        TopologyPredicate::Equals => l.relate(&r).is_equal_topo(),
+        TopologyPredicate::Overlaps => l.relate(&r).is_overlaps(),
+        TopologyPredicate::Intersects | TopologyPredicate::Disjoint => unreachable!(),
     }
 }
 
