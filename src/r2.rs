@@ -42,6 +42,7 @@ pub use polygon::{MultiPoint, MultiPolygon, Polygon};
 pub use primitives::{Line, Rect, Triangle};
 
 pub use area::Area;
+pub use bool_ops::{BooleanOps, Operation};
 pub use bounding_rect::BoundingRect;
 pub use centroid::Centroid;
 pub use concave_hull::ConcaveHull;

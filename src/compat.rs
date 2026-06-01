@@ -5,11 +5,11 @@
 //! needed for WKB/WKT/GeoJSON and topology/overlay operations that have not yet
 //! been ported to native `hausdorff` kernels.
 
-use geo::{BooleanOps, Contains, Relate};
+use geo::{Contains, Relate};
 
 use crate::r2::{
-    Coord, Geometry, Line, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon,
-    Rect, Triangle,
+    BooleanOps, Coord, Geometry, Line, LineString, MultiLineString, MultiPoint, MultiPolygon,
+    Point, Polygon, Rect, Triangle,
 };
 
 /// Encode a lon/lat coordinate as a geohash string (native; see
@@ -122,28 +122,29 @@ pub fn topology_predicate(left: &Geometry, right: &Geometry, predicate: Topology
     }
 }
 
-/// Pairwise polygon intersection.
+/// Pairwise polygon intersection (native Martinez–Rueda; see
+/// [`crate::r2::bool_ops`]).
 #[must_use]
 pub fn intersection(left: &MultiPolygon, right: &MultiPolygon) -> MultiPolygon {
-    from_geo_multi_polygon(&to_geo_multi_polygon(left).intersection(&to_geo_multi_polygon(right)))
+    left.intersection(right)
 }
 
-/// Pairwise polygon union.
+/// Pairwise polygon union (native).
 #[must_use]
 pub fn union(left: &MultiPolygon, right: &MultiPolygon) -> MultiPolygon {
-    from_geo_multi_polygon(&to_geo_multi_polygon(left).union(&to_geo_multi_polygon(right)))
+    left.union(right)
 }
 
-/// Pairwise polygon difference.
+/// Pairwise polygon difference (native).
 #[must_use]
 pub fn difference(left: &MultiPolygon, right: &MultiPolygon) -> MultiPolygon {
-    from_geo_multi_polygon(&to_geo_multi_polygon(left).difference(&to_geo_multi_polygon(right)))
+    left.difference(right)
 }
 
-/// Pairwise polygon symmetric difference.
+/// Pairwise polygon symmetric difference (native).
 #[must_use]
 pub fn xor(left: &MultiPolygon, right: &MultiPolygon) -> MultiPolygon {
-    from_geo_multi_polygon(&to_geo_multi_polygon(left).xor(&to_geo_multi_polygon(right)))
+    left.xor(right)
 }
 
 fn to_geo_coord(coord: Coord) -> geo_types::Coord<f64> {
@@ -182,17 +183,6 @@ fn from_geo_polygon(polygon: geo_types::Polygon<f64>) -> Polygon {
 
 fn to_geo_multi_polygon(multi_polygon: &MultiPolygon) -> geo_types::MultiPolygon<f64> {
     geo_types::MultiPolygon(multi_polygon.iter().map(to_geo_polygon).collect())
-}
-
-fn from_geo_multi_polygon(multi_polygon: &geo_types::MultiPolygon<f64>) -> MultiPolygon {
-    MultiPolygon::new(
-        multi_polygon
-            .0
-            .iter()
-            .cloned()
-            .map(from_geo_polygon)
-            .collect(),
-    )
 }
 
 /// Convert a hausdorff geometry to its `geo_types` equivalent (the bridge to the
