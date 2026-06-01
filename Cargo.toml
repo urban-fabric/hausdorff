@@ -14,3 +14,8 @@ serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 h3o = "0.10.0"
+# Reference oracle for the ported planar/spherical algorithms — used only in
+# tests to cross-check our in-house implementations (the same role h3o plays
+# for the H3 core). Never a runtime dependency.
+geo = "0.33"
+geo-types = "0.7"
