@@ -17,8 +17,12 @@
 
 mod cellid;
 mod coords;
+pub mod measures;
 mod point;
+pub mod predicates;
 mod vector;
 
 pub use cellid::S2CellId;
+pub use measures::{angle, girard_area, point_area, signed_area};
 pub use point::S2Point;
+pub use predicates::{robust_sign, sign};
