@@ -4,7 +4,7 @@
 
 use std::f64::consts::PI;
 
-use hausdorff::geo::{EARTH_RADIUS_M, GeoPoint};
+use hausdorff::earth::{EARTH_RADIUS_M, GeoPoint};
 use hausdorff::s2::{S2Point, girard_area, point_area, robust_sign, signed_area};
 
 fn p(lat: f64, lon: f64) -> S2Point {

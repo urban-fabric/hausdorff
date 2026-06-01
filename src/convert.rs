@@ -1,5 +1,5 @@
-//! Interchange between the **spherical** WGS84 geometry of [`crate::geo`] and the
-//! **planar** Cartesian geometry of [`crate::planar`].
+//! Interchange between the **spherical** WGS84 geometry of [`crate::earth`] and the
+//! **planar** Cartesian geometry of [`crate::r2`].
 //!
 //! The mapping is the GIS convention `x = lon`, `y = lat`: a spherical
 //! [`GeoPoint`] becomes a planar [`Coord`]/[`Point`] carrying longitude in `x`
@@ -8,8 +8,8 @@
 //! metres. Project first (or use the spherical algorithms) when you need metric
 //! results.
 
-use crate::geo::GeoPoint;
-use crate::planar::{Coord, LineString, Point, Polygon};
+use crate::earth::GeoPoint;
+use crate::r2::{Coord, LineString, Point, Polygon};
 
 /// A spherical [`GeoPoint`] as a planar [`Coord`] with `x = lon`, `y = lat`.
 #[must_use]

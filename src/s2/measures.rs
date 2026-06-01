@@ -2,7 +2,7 @@
 //! unit sphere, ported from golang/geo's `point_measures.go`.
 //!
 //! Areas are in **steradians** (multiply by R² for m²; see
-//! [`crate::geo::EARTH_RADIUS_M`]). Everything is computed from the unit-vector
+//! [`crate::earth::EARTH_RADIUS_M`]). Everything is computed from the unit-vector
 //! [`S2Point`]s directly, so there is no projection and no pole/antimeridian
 //! special-casing.
 

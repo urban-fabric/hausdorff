@@ -1,7 +1,7 @@
-//! Public-API tests for `hausdorff::geo` (spherical WGS84), relocated out of `src/`.
+//! Public-API tests for `hausdorff::earth` (spherical WGS84), relocated out of `src/`.
 
 mod point {
-    use hausdorff::geo::*;
+    use hausdorff::earth::*;
 
     #[test]
     fn round_trip_within_quantization_tolerance() {
@@ -21,7 +21,7 @@ mod point {
 }
 
 mod bbox {
-    use hausdorff::geo::*;
+    use hausdorff::earth::*;
 
     #[test]
     fn bbox_contains_and_parses() {
@@ -34,7 +34,7 @@ mod bbox {
 }
 
 mod bearing {
-    use hausdorff::geo::*;
+    use hausdorff::earth::*;
 
     #[test]
     fn bearing_normalizes_into_unit_turn() {
@@ -53,7 +53,7 @@ mod bearing {
 }
 
 mod geodesic {
-    use hausdorff::geo::*;
+    use hausdorff::earth::*;
 
     #[test]
     fn destination_is_inverse_of_haversine() {
@@ -69,7 +69,7 @@ mod geodesic {
 }
 
 mod radial_grid {
-    use hausdorff::geo::*;
+    use hausdorff::earth::*;
     use euclid::LengthMeters;
 
     fn approx(a: f64, b: f64, tol: f64) -> bool {
@@ -237,7 +237,7 @@ mod radial_grid {
 }
 
 mod similarity {
-    use hausdorff::geo::*;
+    use hausdorff::earth::*;
 
     fn pt(lat: f64, lon: f64) -> GeoPoint {
         GeoPoint::from_lat_lon(lat, lon)

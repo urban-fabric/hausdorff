@@ -4,7 +4,7 @@
 //! [`Polygon`], [`MultiPolygon`], …) and the algorithms over them, mirroring
 //! `geo`'s shapes and trait names so consumers migrate by swapping the import
 //! path. This is the planar sibling of the spherical WGS84 types in
-//! [`crate::geo`]; move between the two with [`crate::convert`].
+//! [`crate::earth`]; move between the two with [`crate::convert`].
 //!
 //! Ported from georust `geo` / `geo-types` (dual MIT/Apache-2.0); see the crate
 //! `NOTICE`.

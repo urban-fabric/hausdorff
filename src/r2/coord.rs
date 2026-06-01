@@ -9,7 +9,7 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 use serde::{Deserialize, Serialize};
 
 /// A 2-D coordinate `(x, y)` in an unspecified Cartesian plane. The planar
-/// counterpart to the spherical [`crate::geo::GeoPoint`]; by GIS convention an
+/// counterpart to the spherical [`crate::earth::GeoPoint`]; by GIS convention an
 /// interchange maps `x = lon`, `y = lat` (see [`crate::convert`]).
 #[derive(Copy, Clone, PartialEq, Debug, Default, Serialize, Deserialize)]
 pub struct Coord {

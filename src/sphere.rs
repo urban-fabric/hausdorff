@@ -2,7 +2,7 @@
 //! (angles from [`crate::s1`], areas in steradians from [`crate::s2`]) into
 //! physical lengths and areas on a sphere of a chosen radius.
 //!
-//! `s1`/`s2` live on the *unit* circle/sphere and carry no radius; [`crate::geo`]
+//! `s1`/`s2` live on the *unit* circle/sphere and carry no radius; [`crate::earth`]
 //! is Earth-specific. [`Sphere`] is the general bridge — pick a radius (Earth,
 //! Mars, the Moon, or any custom value) and it converts angles → metres and
 //! steradians → m². This is the only place a radius (and hence a physical unit)
@@ -20,9 +20,9 @@ pub struct Sphere {
 }
 
 impl Sphere {
-    /// Earth — GRS80 / WGS84 mean radius R₁, matching [`crate::geo::EARTH_RADIUS_M`].
+    /// Earth — GRS80 / WGS84 mean radius R₁, matching [`crate::earth::EARTH_RADIUS_M`].
     pub const EARTH: Sphere = Sphere {
-        radius_m: crate::geo::EARTH_RADIUS_M,
+        radius_m: crate::earth::EARTH_RADIUS_M,
     };
     /// Mars — IAU mean radius.
     pub const MARS: Sphere = Sphere {

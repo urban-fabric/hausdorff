@@ -2,12 +2,12 @@
 //! from the workspace's WGS84 [`GeoPoint`]. Mirrors golang/geo's `s2.Point`
 //! together with its `LatLng` conversions.
 
-use crate::geo::GeoPoint;
+use crate::earth::GeoPoint;
 
 use super::vector::R3Vector;
 
 /// A point on the unit sphere, stored as a 3D direction vector. Shares
-/// `hausdorff::geo::GeoPoint` at the lat/lon boundary so S2 and the rest of the
+/// `hausdorff::earth::GeoPoint` at the lat/lon boundary so S2 and the rest of the
 /// workspace speak the same coordinate type.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct S2Point(pub(super) R3Vector);

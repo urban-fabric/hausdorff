@@ -2,7 +2,7 @@
 //! tokens, and lat/lon round-trips.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use hausdorff::geo::GeoPoint;
+use hausdorff::earth::GeoPoint;
 
 use hausdorff::s2::S2CellId;
 

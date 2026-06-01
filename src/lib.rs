@@ -1,20 +1,27 @@
-// `deny` rather than `forbid` so the `bytemuck` POD derives in `geo` can locally
-// `#![allow(unsafe_code)]`; the H3 implementation stays unsafe-free under deny.
+// `deny` rather than `forbid` so the `bytemuck` POD derives in `earth`/`s1` can
+// locally `#![allow(unsafe_code)]`; the H3 implementation stays unsafe-free.
 #![deny(unsafe_code)]
 
-//! Internal geospatial primitives and index implementations for UrbanFabric.
+//! Internal geometry library for UrbanFabric.
+//!
+//! Organized after Google's S2 into dimensional pieces: [`r2`]/[`r3`] for
+//! Euclidean geometry, [`s1`]/[`s2`] for unit-circle/unit-sphere spherical
+//! geometry — all unit-less (angles live here, not in `euclid`). [`earth`] is
+//! the Earth-specific layer (WGS84 lat/lon + great-circle metres); [`sphere`]
+//! generalizes the metric to any planet radius; [`convert`] bridges the planar
+//! and spherical sides. Cell indexes live in [`h3`] and [`s2`].
 
 pub mod convert;
-pub mod geo;
+pub mod earth;
 pub mod h3;
-pub mod planar;
+pub mod r2;
 pub mod r3;
 pub mod s1;
 pub mod s2;
 pub mod sphere;
 
-pub use geo::{FixedGeoPoint, GeoPoint};
-pub use planar::{
+pub use earth::{FixedGeoPoint, GeoPoint};
+pub use r2::{
     Area, Bearing, BoundingRect, Centroid, ChamberlainDuquetteArea, Contains, ConvexHull, Coord,
     CoordsIter, Destination, Dimensions, Direction, Distance, Euclidean, Geometry, HasDimensions,
     Haversine, Length, Line, LineString, MultiLineString, MultiPoint, MultiPolygon, Orient, Point,

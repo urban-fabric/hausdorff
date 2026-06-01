@@ -1,8 +1,8 @@
 //! Public-API tests for `hausdorff::convert`, relocated out of `src/`.
 
 use hausdorff::convert::*;
-use hausdorff::geo::GeoPoint;
-use hausdorff::planar::Coord;
+use hausdorff::earth::GeoPoint;
+use hausdorff::r2::Coord;
 
 
     #[test]

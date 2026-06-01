@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use super::coords::{self, MAX_LEVEL, MAX_SIZE, NUM_FACES};
 use super::point::S2Point;
-use crate::geo::GeoPoint;
+use crate::earth::GeoPoint;
 
 /// Bits used to encode the face number.
 const FACE_BITS: u32 = 3;

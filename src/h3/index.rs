@@ -239,9 +239,9 @@ impl H3Cell {
         Self::try_new(bits)
     }
 
-    /// The cell at `resolution` containing the given [`GeoPoint`](crate::geo::GeoPoint).
+    /// The cell at `resolution` containing the given [`GeoPoint`](crate::earth::GeoPoint).
     /// Convenience over [`for_point`](Self::for_point).
-    pub fn for_geo_point(point: crate::geo::GeoPoint, resolution: u8) -> Option<Self> {
+    pub fn for_geo_point(point: crate::earth::GeoPoint, resolution: u8) -> Option<Self> {
         Self::for_point(point.lat, point.lon, resolution)
     }
 

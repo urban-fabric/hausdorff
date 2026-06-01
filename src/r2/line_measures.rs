@@ -4,13 +4,13 @@
 //!
 //! Under [`Haversine`], a [`Point`]/[`Coord`] is read as **`x = lon`, `y = lat`
 //! degrees** (the geo convention) and the spherical work is delegated to the
-//! crate's validated [`crate::geo`] kernels, so results stay consistent with the
+//! crate's validated [`crate::earth`] kernels, so results stay consistent with the
 //! rest of the crate.
 //!
 //! The ellipsoidal `Geodesic` (Karney) metric space is a future addition — it
 //! needs a geographiclib-style port rather than the spherical kernels here.
 
-use crate::geo::{Bearing as CompassBearing, GeoPoint, destination_m, haversine_m};
+use crate::earth::{Bearing as CompassBearing, GeoPoint, destination_m, haversine_m};
 
 use super::{Coord, LineString, MultiLineString, Point};
 
@@ -19,7 +19,7 @@ use super::{Coord, LineString, MultiLineString, Point};
 pub struct Euclidean;
 
 /// The spherical great-circle metric space (coordinates read as `x = lon`,
-/// `y = lat`), on a sphere of [`crate::geo::EARTH_RADIUS_M`].
+/// `y = lat`), on a sphere of [`crate::earth::EARTH_RADIUS_M`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Haversine;
 

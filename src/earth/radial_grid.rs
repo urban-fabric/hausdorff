@@ -7,7 +7,7 @@
 //!
 //! ```
 //! use euclid::LengthMeters;
-//! use hausdorff::geo::{GeoPoint, RadialGrid};
+//! use hausdorff::earth::{GeoPoint, RadialGrid};
 //!
 //! // 15 rings, +100 m radius per ring, 32 points on each ring.
 //! let grid = RadialGrid::new(

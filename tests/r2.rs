@@ -1,7 +1,7 @@
-//! Public-API tests for `hausdorff::planar`, relocated out of `src/`.
+//! Public-API tests for `hausdorff::r2`, relocated out of `src/`.
 
 mod coord {
-    use hausdorff::planar::*;
+    use hausdorff::r2::*;
 
     #[test]
     fn coord_ops_and_cross() {
@@ -26,7 +26,7 @@ mod coord {
 }
 
 mod primitives {
-    use hausdorff::planar::*;
+    use hausdorff::r2::*;
 
     #[test]
     fn line_length() {
@@ -55,7 +55,7 @@ mod primitives {
 }
 
 mod line_string {
-    use hausdorff::planar::*;
+    use hausdorff::r2::*;
 
     #[test]
     fn closing_a_ring() {
@@ -79,7 +79,7 @@ mod line_string {
 }
 
 mod polygon {
-    use hausdorff::planar::*;
+    use hausdorff::r2::*;
 
     #[test]
     fn polygon_closes_rings() {
@@ -112,7 +112,7 @@ mod polygon {
 }
 
 mod geometry {
-    use hausdorff::planar::*;
+    use hausdorff::r2::*;
 
     #[test]
     fn from_conversions() {
@@ -124,7 +124,7 @@ mod geometry {
 }
 
 mod winding {
-    use hausdorff::planar::*;
+    use hausdorff::r2::*;
 
     fn ls(coords: &[(f64, f64)]) -> LineString {
         LineString::new(coords.iter().map(|&(x, y)| Coord::new(x, y)).collect())
@@ -156,7 +156,7 @@ mod winding {
 }
 
 mod area {
-    use hausdorff::planar::*;
+    use hausdorff::r2::*;
 
     fn poly(coords: &[(f64, f64)]) -> Polygon {
         Polygon::new(
@@ -207,7 +207,7 @@ mod area {
 }
 
 mod bounding_rect {
-    use hausdorff::planar::*;
+    use hausdorff::r2::*;
 
     #[test]
     fn polygon_bounding_rect() {
@@ -234,7 +234,7 @@ mod bounding_rect {
 }
 
 mod dimensions {
-    use hausdorff::planar::*;
+    use hausdorff::r2::*;
 
     #[test]
     fn dimensions_by_type() {
@@ -254,7 +254,7 @@ mod dimensions {
 }
 
 mod centroid {
-    use hausdorff::planar::*;
+    use hausdorff::r2::*;
 
     fn poly(coords: &[(f64, f64)]) -> Polygon {
         Polygon::new(LineString::from(coords.to_vec()), vec![])
@@ -285,7 +285,7 @@ mod centroid {
 }
 
 mod contains {
-    use hausdorff::planar::*;
+    use hausdorff::r2::*;
 
     fn square() -> Polygon {
         Polygon::new(
@@ -313,7 +313,7 @@ mod contains {
 }
 
 mod convex_hull {
-    use hausdorff::planar::*;
+    use hausdorff::r2::*;
 
     #[test]
     fn hull_of_square_with_interior_point() {
@@ -341,7 +341,7 @@ mod convex_hull {
 }
 
 mod macros {
-    use hausdorff::planar::*;
+    use hausdorff::r2::*;
     use hausdorff::{coord, line_string, point, polygon};
 
     #[test]

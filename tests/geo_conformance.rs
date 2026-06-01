@@ -13,7 +13,7 @@ use geo::{
     Simplify as _,
 };
 
-use hausdorff::geo::{GeoPoint, frechet_distance_m, haversine_m};
+use hausdorff::earth::{GeoPoint, frechet_distance_m, haversine_m};
 use hausdorff::{Area, BoundingRect, Centroid, ChamberlainDuquetteArea, Contains, ConvexHull,
     CoordsIter, Simplify};
 // hausdorff's line-measure traits, anonymous (for method resolution); the metric
