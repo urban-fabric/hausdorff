@@ -16,16 +16,20 @@
 //! orientation [`predicates`], and the [`Loop`] region (spherical polygon) — all
 //! computed from vectors, with no projection.
 
+mod cap;
 mod cellid;
 mod coords;
 mod loops;
 pub mod measures;
 mod point;
+mod polygon;
 pub mod predicates;
 mod vector;
 
+pub use cap::Cap;
 pub use cellid::S2CellId;
 pub use loops::Loop;
 pub use measures::{angle, girard_area, point_area, signed_area, turn_angle};
 pub use point::S2Point;
+pub use polygon::Polygon;
 pub use predicates::{robust_sign, sign};

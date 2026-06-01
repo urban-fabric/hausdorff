@@ -108,3 +108,52 @@ fn sphere_is_planet_flexible() {
     assert!(Sphere::MARS.radius().as_meters() < Sphere::EARTH.radius().as_meters());
     assert!(Sphere::MARS.length(a).as_meters() < Sphere::EARTH.length(a).as_meters());
 }
+
+// ---- s2::Cap (spherical disc) ----------------------------------------------
+
+#[test]
+fn cap_hemisphere() {
+    use hausdorff::s1::Angle;
+    use hausdorff::s2::Cap;
+    // a cap of angular radius π/2 about the north pole = the northern hemisphere
+    let north = p(90.0, 0.0);
+    let cap = Cap::from_center_angle(north, Angle::from_radians(PI / 2.0));
+    assert!((cap.area() - 2.0 * PI).abs() < 1e-12, "hemisphere cap area {}", cap.area());
+    assert!(cap.contains_point(north));
+    assert!(cap.contains_point(p(45.0, 30.0))); // mid-northern latitude
+    assert!(!cap.contains_point(p(-45.0, 30.0))); // southern
+}
+
+#[test]
+fn cap_empty_full_and_complement() {
+    use hausdorff::s1::Angle;
+    use hausdorff::s2::Cap;
+    let c = p(10.0, 20.0);
+    assert!(Cap::empty(c).is_empty() && Cap::empty(c).area() == 0.0);
+    assert!(Cap::full(c).is_full() && (Cap::full(c).area() - 4.0 * PI).abs() < 1e-12);
+    // a point outside a cap is inside its complement
+    let cap = Cap::from_center_angle(p(90.0, 0.0), Angle::from_radians(PI / 4.0));
+    let outside = p(0.0, 0.0);
+    assert!(!cap.contains_point(outside));
+    assert!(cap.complement().contains_point(outside));
+}
+
+// ---- s2::Polygon (shell + holes) -------------------------------------------
+
+#[test]
+fn polygon_area_subtracts_holes_and_contains() {
+    use hausdorff::s2::{Loop, Polygon};
+    // big shell triangle (an octant), with a small triangular hole inside it
+    let shell = Loop::new(vec![p(1.0, 1.0), p(1.0, 80.0), p(80.0, 1.0)]);
+    let hole = Loop::new(vec![p(20.0, 20.0), p(20.0, 30.0), p(30.0, 20.0)]);
+    let poly = Polygon::new(shell.clone(), vec![hole.clone()]);
+
+    assert!((poly.area() - (shell.area() - hole.area())).abs() < 1e-12);
+    assert!(poly.area() < shell.area());
+
+    // a point in the shell but outside the hole is contained; a point in the
+    // hole is not; a point outside the shell is not.
+    assert!(poly.contains_point(p(10.0, 10.0)));
+    assert!(!poly.contains_point(p(24.0, 24.0))); // inside the hole
+    assert!(!poly.contains_point(p(-10.0, -10.0))); // outside the shell
+}
