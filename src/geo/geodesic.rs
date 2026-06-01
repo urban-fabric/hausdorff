@@ -1,5 +1,9 @@
-//! Spherical geodesics over [`EARTH_RADIUS_M`] in raw `f64` metres. Unit-typed
-//! sampling helpers live alongside these primitives in `geo::radial_grid`.
+//! Spherical geodesics over [`EARTH_RADIUS_M`]. The raw `f64`-metre primitives
+//! ([`haversine_m`], [`destination_m`]) are the kernels; [`haversine_meters`]
+//! and [`destination`] are the `euclid`-typed forms callers should prefer so
+//! earth-distance quantities carry units rather than bare `f64`.
+
+use euclid::LengthMeters;
 
 use super::{Bearing, GeoPoint};
 
@@ -39,6 +43,22 @@ pub fn destination_m(origin: GeoPoint, bearing: Bearing, distance_m: f64) -> Geo
 
     let lon_deg = (lon2.to_degrees() + 540.0).rem_euclid(360.0) - 180.0;
     GeoPoint::from_lat_lon(lat2.to_degrees(), lon_deg)
+}
+
+/// Great-circle distance between `a` and `b` as a typed length — a
+/// [`LengthMeters`] wrapper over [`haversine_m`]. Prefer this over the raw
+/// `f64` kernel so callers can't drop or confuse the unit.
+#[must_use]
+pub fn haversine_meters(a: GeoPoint, b: GeoPoint) -> LengthMeters {
+    LengthMeters::new(haversine_m(a, b))
+}
+
+/// The point reached by travelling `distance` from `origin` along the initial
+/// compass `bearing` — a [`LengthMeters`]-typed wrapper over [`destination_m`].
+/// Inverse-pair to [`haversine_meters`].
+#[must_use]
+pub fn destination(origin: GeoPoint, bearing: Bearing, distance: LengthMeters) -> GeoPoint {
+    destination_m(origin, bearing, distance.as_meters())
 }
 
 #[cfg(test)]

@@ -6,5 +6,6 @@
 
 pub mod geo;
 pub mod h3;
+pub mod s2;
 
 pub use geo::{FixedGeoPoint, GeoPoint};

@@ -15,6 +15,6 @@ mod radial_grid;
 
 pub use bbox::{BBox, BBoxParseError};
 pub use bearing::Bearing;
-pub use geodesic::{EARTH_RADIUS_M, destination_m, haversine_m};
+pub use geodesic::{EARTH_RADIUS_M, destination, destination_m, haversine_m, haversine_meters};
 pub use point::{FixedGeoPoint, GeoPoint};
 pub use radial_grid::{RadialGrid, RingPoint};
