@@ -75,3 +75,17 @@ pub fn signed_area(a: S2Point, b: S2Point, c: S2Point) -> f64 {
 pub fn angle(a: S2Point, b: S2Point, c: S2Point) -> Angle {
     point_cross(a, b).angle(point_cross(c, b))
 }
+
+/// Exterior ("turn") angle at vertex `b` walking `a → b → c`: positive for a
+/// left/counter-clockwise turn, negative for a right/clockwise turn — the
+/// geodesic curvature at `b`. `turn_angle(a, b, c) == −turn_angle(c, b, a)`.
+/// This is the term summed by the Gauss–Bonnet loop-area formula.
+#[must_use]
+pub fn turn_angle(a: S2Point, b: S2Point, c: S2Point) -> Angle {
+    let magnitude = point_cross(a, b).angle(point_cross(b, c));
+    if super::predicates::robust_sign(a, b, c) > 0 {
+        magnitude
+    } else {
+        -magnitude
+    }
+}

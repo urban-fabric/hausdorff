@@ -68,3 +68,43 @@ fn angle_constants_and_ops() {
     assert_eq!((Angle::PI * 0.5).radians(), std::f64::consts::FRAC_PI_2);
     assert_eq!(Angle::from_radians(-1.5).abs().radians(), 1.5);
 }
+
+// ---- s2::Loop (spherical polygon, unit sphere) -----------------------------
+
+#[test]
+fn loop_area_octant_and_hemisphere() {
+    use hausdorff::s2::Loop;
+    let octant = Loop::new(vec![p(0.0, 0.0), p(0.0, 90.0), p(90.0, 0.0)]);
+    assert!((octant.area() - PI / 2.0).abs() < 1e-9, "octant area {}", octant.area());
+    // four equator points, CCW as seen from the north pole = northern hemisphere
+    let hemi = Loop::new(vec![p(0.0, 0.0), p(0.0, 90.0), p(0.0, 180.0), p(0.0, -90.0)]);
+    assert!((hemi.area() - 2.0 * PI).abs() < 1e-9, "hemisphere area {}", hemi.area());
+}
+
+#[test]
+fn loop_contains_and_perimeter() {
+    use hausdorff::s2::Loop;
+    let hemi = Loop::new(vec![p(0.0, 0.0), p(0.0, 90.0), p(0.0, 180.0), p(0.0, -90.0)]);
+    assert!(hemi.contains_point(p(89.0, 12.0)), "north is inside northern hemisphere");
+    assert!(!hemi.contains_point(p(-89.0, 12.0)), "south is outside");
+    // perimeter is the full equator great circle = 2π
+    assert!((hemi.perimeter().radians() - 2.0 * PI).abs() < 1e-9);
+}
+
+// ---- planet-flexible metric (Sphere) ----------------------------------------
+
+#[test]
+fn sphere_is_planet_flexible() {
+    use hausdorff::s1::Angle;
+    use hausdorff::sphere::Sphere;
+
+    // arc length of one radian equals the radius
+    assert!((Sphere::EARTH.length(Angle::from_radians(1.0)).as_meters() - EARTH_RADIUS_M).abs() < 1e-6);
+    // a full sphere is 4π steradians
+    let full = Sphere::EARTH.area_m2(4.0 * PI);
+    assert!((full - 4.0 * PI * EARTH_RADIUS_M * EARTH_RADIUS_M).abs() / full < 1e-12);
+    // the same angle is a shorter distance on smaller Mars than on Earth
+    let a = Angle::from_degrees(1.0);
+    assert!(Sphere::MARS.radius().as_meters() < Sphere::EARTH.radius().as_meters());
+    assert!(Sphere::MARS.length(a).as_meters() < Sphere::EARTH.length(a).as_meters());
+}

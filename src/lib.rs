@@ -11,6 +11,7 @@ pub mod planar;
 pub mod r3;
 pub mod s1;
 pub mod s2;
+pub mod sphere;
 
 pub use geo::{FixedGeoPoint, GeoPoint};
 pub use planar::{
