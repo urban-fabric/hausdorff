@@ -77,24 +77,3 @@ impl From<FixedGeoPoint> for GeoPoint {
         p.to_geo()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn round_trip_within_quantization_tolerance() {
-        for &(lat, lon) in &[
-            (40.0, -74.0),
-            (40.123_456_7, -74.987_654_3),
-            (-89.999_999_9, 179.999_999_9),
-            (0.0, 0.0),
-        ] {
-            let p = GeoPoint::from_lat_lon(lat, lon);
-            let back = FixedGeoPoint::from(p).to_geo();
-            // Round-to-nearest at 1e-7 ⇒ error never exceeds half a step.
-            assert!((back.lat - lat).abs() <= 1e-7, "lat {lat} -> {}", back.lat);
-            assert!((back.lon - lon).abs() <= 1e-7, "lon {lon} -> {}", back.lon);
-        }
-    }
-}

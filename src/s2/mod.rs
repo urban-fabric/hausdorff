@@ -22,7 +22,3 @@ mod vector;
 
 pub use cellid::S2CellId;
 pub use point::S2Point;
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests;

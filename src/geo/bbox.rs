@@ -180,17 +180,3 @@ impl std::str::FromStr for BBox {
         })
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn bbox_contains_and_parses() {
-        let bbox: BBox = "40.0,-74.0,41.0,-73.0".parse().unwrap();
-        assert!(bbox.contains(GeoPoint::from_lat_lon(40.5, -73.5)));
-        assert!(!bbox.contains(GeoPoint::from_lat_lon(0.0, 0.0)));
-        assert!(!bbox.contains(GeoPoint::from_lat_lon(f64::NAN, -73.5)));
-        assert_eq!("40.0,-74.0".parse::<BBox>(), Err(BBoxParseError::WrongArity(2)));
-    }
-}

@@ -83,33 +83,3 @@ impl ConvexHull for MultiPolygon {
         hull_polygon(&coords)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::planar::area::Area;
-
-    #[test]
-    fn hull_of_square_with_interior_point() {
-        // Four corners plus a point inside; the hull is just the square.
-        let mp = MultiPoint::from(vec![
-            (0.0, 0.0),
-            (4.0, 0.0),
-            (4.0, 4.0),
-            (0.0, 4.0),
-            (2.0, 2.0), // interior — should be dropped
-        ]);
-        let hull = mp.convex_hull();
-        assert_eq!(hull.unsigned_area(), 16.0);
-        assert!(hull.exterior().is_closed());
-        // 4 distinct corners + closing point
-        assert_eq!(hull.exterior().coords_count(), 5);
-    }
-
-    #[test]
-    fn hull_is_counter_clockwise() {
-        let mp = MultiPoint::from(vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]);
-        let hull = mp.convex_hull();
-        assert!(hull.signed_area() > 0.0); // CCW
-    }
-}

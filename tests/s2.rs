@@ -1,9 +1,10 @@
 //! Tests for the S2 cell-indexing port: structural invariants, reference
 //! tokens, and lat/lon round-trips.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::geo::GeoPoint;
+use hausdorff::geo::GeoPoint;
 
-use super::S2CellId;
+use hausdorff::s2::S2CellId;
 
 const MAX_LEVEL: u32 = 30;
 

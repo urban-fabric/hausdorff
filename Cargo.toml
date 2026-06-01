@@ -19,3 +19,6 @@ h3o = "0.10.0"
 # for the H3 core). Never a runtime dependency.
 geo = "0.33"
 geo-types = "0.7"
+# Also needed by the relocated tests/ integration suite, which names the typed
+# LengthMeters returned across the public API (e.g. RadialGrid construction).
+euclid = { git = "ssh://git@github.com/urban-fabric/euclid.git", branch = "main" }

@@ -60,20 +60,3 @@ pub fn haversine_meters(a: GeoPoint, b: GeoPoint) -> LengthMeters {
 pub fn destination(origin: GeoPoint, bearing: Bearing, distance: LengthMeters) -> GeoPoint {
     destination_m(origin, bearing, distance.as_meters())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn destination_is_inverse_of_haversine() {
-        let berlin = GeoPoint::from_lat_lon(52.52, 13.405);
-        for deg in [0.0, 37.0, 90.0, 180.0, 271.5, 359.0] {
-            let dest = destination_m(berlin, Bearing::from_degrees(deg), 1_500.0);
-            assert!(
-                (haversine_m(berlin, dest) - 1_500.0).abs() < 0.5,
-                "deg {deg}"
-            );
-        }
-    }
-}

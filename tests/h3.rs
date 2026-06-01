@@ -1,8 +1,9 @@
 //! Differential tests for the in-house H3 codec against the h3o oracle.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::str::FromStr;
 
-use super::{H3Cell, H3CompactionError, H3DirectedEdge, H3Polygon, H3PolygonError, H3Vertex};
+use hausdorff::h3::{H3Cell, H3CompactionError, H3DirectedEdge, H3Polygon, H3PolygonError, H3Vertex};
 
 /// A spread of real cells: every base cell (res 0), plus cells from a lat/lon
 /// grid at several resolutions (including r10, the perf-test source resolution).

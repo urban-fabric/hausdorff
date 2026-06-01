@@ -28,7 +28,3 @@ pub use index::{
     InvalidH3DirectedEdge, InvalidH3Vertex, MAX_RESOLUTION,
 };
 pub use polygon::{H3BoundaryRing, H3Polygon, H3PolygonError};
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests;

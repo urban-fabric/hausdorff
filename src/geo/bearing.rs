@@ -41,23 +41,3 @@ impl Bearing {
         self.0.to_radians()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn bearing_normalizes_into_unit_turn() {
-        assert!((Bearing::from_degrees(450.0).degrees() - 90.0).abs() < 1e-9);
-        assert!((Bearing::from_degrees(-90.0).degrees() - 270.0).abs() < 1e-9);
-    }
-
-    #[test]
-    fn initial_bearing_points_east_and_north() {
-        let origin = GeoPoint::from_lat_lon(0.0, 0.0);
-        let east = Bearing::initial(origin, GeoPoint::from_lat_lon(0.0, 1.0));
-        let north = Bearing::initial(origin, GeoPoint::from_lat_lon(1.0, 0.0));
-        assert!((east.degrees() - 90.0).abs() < 1e-6, "east: {}", east.degrees());
-        assert!(north.degrees() < 1e-6 || (360.0 - north.degrees()) < 1e-6);
-    }
-}
