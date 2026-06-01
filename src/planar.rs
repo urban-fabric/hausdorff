@@ -27,6 +27,7 @@ pub mod convex_hull;
 pub mod coords_iter;
 pub mod dimensions;
 pub mod geodesic_area;
+pub mod line_measures;
 pub mod simplify;
 pub mod winding;
 
@@ -44,5 +45,6 @@ pub use convex_hull::ConvexHull;
 pub use coords_iter::CoordsIter;
 pub use dimensions::{Dimensions, HasDimensions};
 pub use geodesic_area::ChamberlainDuquetteArea;
+pub use line_measures::{Bearing, Destination, Distance, Euclidean, Haversine, Length};
 pub use simplify::Simplify;
 pub use winding::{Direction, Orient, Winding, WindingOrder};

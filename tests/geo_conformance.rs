@@ -8,13 +8,17 @@ use geo::line_measures::FrechetDistance;
 // Bring geo's algorithm traits into scope for method resolution without binding
 // names that would collide with hausdorff's same-named traits.
 use geo::{
-    Area as _, BoundingRect as _, Centroid as _, Contains as _, ConvexHull as _, CoordsIter as _,
-    Distance as _, Haversine, Simplify as _,
+    Area as _, Bearing as _, BoundingRect as _, Centroid as _, Contains as _, ConvexHull as _,
+    CoordsIter as _, Destination as _, Distance as _, Euclidean, Haversine, Length as _,
+    Simplify as _,
 };
 
 use hausdorff::geo::{GeoPoint, frechet_distance_m, haversine_m};
 use hausdorff::{Area, BoundingRect, Centroid, ChamberlainDuquetteArea, Contains, ConvexHull,
     CoordsIter, Simplify};
+// hausdorff's line-measure traits, anonymous (for method resolution); the metric
+// spaces are referenced by full path to avoid clashing with geo's same names.
+use hausdorff::{Bearing as _, Destination as _, Distance as _, Length as _};
 
 const EPS: f64 = 1e-9;
 
@@ -270,4 +274,53 @@ fn chamberlain_duquette_area_matches_geo() {
         (0.00087976, 51.503380), (0.00107288, 51.502324), (0.00185608, 51.501770),
     ];
     assert_eq!(h_poly(&o2).chamberlain_duquette_unsigned_area().round(), 78_478.0);
+}
+
+// ---- line measures (metric spaces) -----------------------------------------
+
+#[test]
+fn haversine_distance_and_bearing_match_geo() {
+    // (lon, lat) pairs
+    let samples = [
+        ((13.405, 52.52), (2.3522, 48.8566)),
+        ((-74.0, 40.0), (-118.24, 34.05)),
+        ((0.0, 0.0), (1.0, 0.0)),
+        ((151.21, -33.87), (139.69, 35.68)),
+    ];
+    for &((x1, y1), (x2, y2)) in &samples {
+        let (ha, hb) = (hausdorff::Point::new(x1, y1), hausdorff::Point::new(x2, y2));
+        let (ga, gb) = (geo::Point::new(x1, y1), geo::Point::new(x2, y2));
+
+        let (hd, gd) = (hausdorff::Haversine.distance(ha, hb), Haversine.distance(ga, gb));
+        assert!((hd - gd).abs() / gd.max(1.0) < 1e-5, "distance {hd} vs {gd}");
+
+        // bearing is radius-independent; compare modulo 360
+        let (hbr, gbr) = (hausdorff::Haversine.bearing(ha, hb), Haversine.bearing(ga, gb));
+        let diff = ((hbr - gbr + 540.0) % 360.0 - 180.0).abs();
+        assert!(diff < 1e-6, "bearing {hbr} vs {gbr}");
+    }
+}
+
+#[test]
+fn lengths_match_geo() {
+    let coords = vec![(0.0, 0.0), (1.0, 0.5), (2.0, 2.0), (3.0, 1.0), (4.0, 3.0)];
+    let (h, g) = (h_line(&coords), g_line(&coords));
+    assert!((hausdorff::Euclidean.length(&h) - Euclidean.length(&g)).abs() < 1e-9, "euclidean length");
+    let (hl, gl) = (hausdorff::Haversine.length(&h), Haversine.length(&g));
+    assert!((hl - gl).abs() / gl.max(1.0) < 1e-5, "haversine length");
+}
+
+#[test]
+fn haversine_destination_matches_geo() {
+    let h_origin = hausdorff::Point::new(13.405, 52.52);
+    let g_origin = geo::Point::new(13.405, 52.52);
+    for &(bearing, dist) in &[(0.0, 1000.0), (90.0, 5000.0), (215.0, 250.0), (359.0, 12000.0)] {
+        let hd = hausdorff::Haversine.destination(h_origin, bearing, dist);
+        let gd = Haversine.destination(g_origin, bearing, dist);
+        assert!(
+            (hd.x() - gd.x()).abs() < 1e-6 && (hd.y() - gd.y()).abs() < 1e-6,
+            "destination bearing={bearing} dist={dist}: ({},{}) vs ({},{})",
+            hd.x(), hd.y(), gd.x(), gd.y()
+        );
+    }
 }
