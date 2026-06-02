@@ -845,6 +845,15 @@ fn polygon_rejects_invalid_rings() {
         ),
         Err(H3PolygonError::TransmeridianUnsupported)
     );
+    // Out-of-range longitude is rejected like H3Line / H3Cell::for_point, rather
+    // than silently producing an empty or incomplete cover.
+    assert_eq!(
+        H3Polygon::new(
+            vec![(0.0, 200.0), (0.0, 201.0), (1.0, 200.5)],
+            Vec::<Vec<(f64, f64)>>::new()
+        ),
+        Err(H3PolygonError::InvalidCoordinate)
+    );
 }
 
 #[test]

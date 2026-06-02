@@ -197,7 +197,8 @@ impl H3BoundaryRing {
 pub enum H3PolygonError {
     /// A ring had fewer than three vertices after removing a duplicated close.
     RingTooShort,
-    /// Coordinates must be finite and latitudes must be in `[-90, 90]`.
+    /// Coordinates must be finite, with latitude in `[-90, 90]` and longitude in
+    /// `[-180, 180]`.
     InvalidCoordinate,
     /// First pass does not yet split rings crossing the antimeridian.
     TransmeridianUnsupported,
@@ -384,7 +385,11 @@ fn normalize_ring(mut ring: Vec<(f64, f64)>) -> Result<Vec<(f64, f64)>, H3Polygo
         return Err(H3PolygonError::RingTooShort);
     }
     for &(lat, lng) in &ring {
-        if !lat.is_finite() || !lng.is_finite() || !(-90.0..=90.0).contains(&lat) {
+        if !lat.is_finite()
+            || !lng.is_finite()
+            || !(-90.0..=90.0).contains(&lat)
+            || !(-180.0..=180.0).contains(&lng)
+        {
             return Err(H3PolygonError::InvalidCoordinate);
         }
     }

@@ -19,11 +19,11 @@ use super::{H3Cell, H3Line, H3Polygon};
 /// - **collections** recurse.
 ///
 /// Returns `None` when no honest cover can be produced: a point is unmappable, a
-/// polygon's interior fill is invalid (a degenerate or transmeridian ring), a
-/// *line's* grid path is undefined (vertices too far apart or split by a
-/// pentagon), or `resolution` is out of range. A polygon's boundary completion is
-/// best-effort — a ring edge whose grid path is undefined is skipped, not fatal,
-/// since the interior fill already covers the polygon.
+/// ring is invalid (degenerate, out-of-range coordinate, or transmeridian), a
+/// grid path is undefined (a line's or a polygon boundary's vertices are too far
+/// apart or split by a pentagon), or `resolution` is out of range. A polygon
+/// cover is all-or-nothing — if any boundary ring can't be grid-path covered the
+/// whole result is `None` — so a returned `Some` is genuinely boundary-complete.
 #[must_use]
 pub fn cover_geometry(geom: &Geometry, resolution: u8) -> Option<Vec<H3Cell>> {
     let mut cells = BTreeSet::new();
@@ -86,15 +86,13 @@ fn cover_polygon(poly: &Polygon, res: u8, out: &mut BTreeSet<H3Cell>) -> Option<
     out.extend(H3Polygon::new(exterior.clone(), holes.clone()).ok()?.to_cells(res).ok()?);
 
     // Boundary completion: the grid-path cover of every ring catches the
-    // edge-straddling cells the centroid fill omits. The r2 rings are already
-    // closed (first == last), so every edge — including the closing one — is
-    // walked.
+    // edge-straddling cells the centroid fill omits, making the cover
+    // boundary-complete. A ring whose grid path is undefined is fatal (`None`),
+    // matching line covers — a silently-incomplete cover would be unsafe to index
+    // against. The r2 rings are already closed (first == last), so every edge —
+    // including the closing one — is walked.
     for ring in std::iter::once(exterior).chain(holes) {
-        if let Ok(line) = H3Line::new(ring)
-            && let Ok(cells) = line.to_cells(res)
-        {
-            out.extend(cells);
-        }
+        out.extend(H3Line::new(ring).ok()?.to_cells(res).ok()?);
     }
     Some(())
 }
