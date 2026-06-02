@@ -25,6 +25,7 @@
 
 use std::cmp::Ordering;
 
+use super::util::point_in_ring;
 use super::{Coord, CoordsIter, LineString, MultiPolygon, Polygon};
 
 /// Which boolean operation to compute.
@@ -841,24 +842,4 @@ fn ring_area2(ring: &[Coord]) -> f64 {
         s += a.x * b.y - b.x * a.y;
     }
     s
-}
-
-fn point_in_ring(p: Coord, ring: &[Coord]) -> bool {
-    let v = ring_vertices(ring);
-    let n = v.len();
-    if n < 3 {
-        return false;
-    }
-    let mut inside = false;
-    let mut j = n - 1;
-    for i in 0..n {
-        let (pi, pj) = (v[i], v[j]);
-        if (pi.y > p.y) != (pj.y > p.y)
-            && p.x < (pj.x - pi.x) * (p.y - pi.y) / (pj.y - pi.y) + pi.x
-        {
-            inside = !inside;
-        }
-        j = i;
-    }
-    inside
 }

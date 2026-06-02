@@ -2,7 +2,7 @@
 //! The in-house equivalent of `geo`'s `Intersects` on `Geometry`, built from
 //! robust segment crossing + point-in-polygon (no DE-9IM matrix needed).
 
-use super::util::ring_vertices;
+use super::util::{point_in_ring, ring_vertices};
 use super::{Coord, CoordsIter, Geometry, Polygon, Rect};
 
 /// True iff `self` and `other` share at least one point.
@@ -106,26 +106,6 @@ fn point_on_segment(p: Coord, a: Coord, b: Coord) -> bool {
 
 fn poly_contains(p: &Polygon, c: Coord) -> bool {
     point_in_ring(c, &p.exterior().0) && !p.interiors().iter().any(|h| point_in_ring(c, &h.0))
-}
-
-fn point_in_ring(p: Coord, ring: &[Coord]) -> bool {
-    let v = ring_vertices(ring);
-    let n = v.len();
-    if n < 3 {
-        return false;
-    }
-    let mut inside = false;
-    let mut j = n - 1;
-    for i in 0..n {
-        let (pi, pj) = (v[i], v[j]);
-        if (pi.y > p.y) != (pj.y > p.y)
-            && p.x < (pj.x - pi.x) * (p.y - pi.y) / (pj.y - pi.y) + pi.x
-        {
-            inside = !inside;
-        }
-        j = i;
-    }
-    inside
 }
 
 fn ring_segments(coords: &[Coord], out: &mut Vec<(Coord, Coord)>) {

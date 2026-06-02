@@ -9,6 +9,7 @@
 //! valid simple polygon that covers all the input points.
 
 use super::convex_hull::convex_hull_coords;
+use super::util::orient;
 use super::{Coord, LineString, MultiPoint, Polygon};
 
 /// Build a concave hull at the given `concavity`.
@@ -108,10 +109,6 @@ fn nearest_to_edge(interior: &[Coord], a: Coord, b: Coord) -> Option<(usize, f64
         .enumerate()
         .map(|(i, p)| (i, point_seg_d2(*p, a, b)))
         .min_by(|x, y| x.1.partial_cmp(&y.1).unwrap())
-}
-
-fn orient(a: Coord, b: Coord, c: Coord) -> f64 {
-    (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
 }
 
 /// Proper crossing: segments share an interior point (no shared endpoints).

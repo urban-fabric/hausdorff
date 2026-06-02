@@ -32,6 +32,13 @@ pub(crate) fn signed_area2(ring: &[Coord]) -> f64 {
     s
 }
 
+/// Twice the signed area of triangle `a,b,c` — the 2-D cross product of `b-a`
+/// and `c-a`. `> 0` if `a→b→c` turns left (counter-clockwise), `< 0` right,
+/// `0` collinear.
+pub(crate) fn orient(a: Coord, b: Coord, c: Coord) -> f64 {
+    (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+}
+
 /// Even-odd ray-cast test: is `p` inside `ring`? Reports interior membership;
 /// results for points exactly on the boundary are not guaranteed either way.
 pub(crate) fn point_in_ring(p: Coord, ring: &[Coord]) -> bool {

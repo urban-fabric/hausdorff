@@ -9,7 +9,7 @@
 //! each operand (Interior/Boundary/Exterior) and recording the dimension of each
 //! Location×Location cell. Areal interiors are handled with point-in-polygon.
 
-use super::util::ring_vertices;
+use super::util::{orient, point_in_ring, ring_vertices};
 use super::{Contains, Coord, Geometry, Intersects, Polygon, Rect, StrTree};
 
 /// Location of a point relative to a geometry.
@@ -830,10 +830,6 @@ fn locate_in_polygon(p: Coord, poly: &Polygon) -> Loc {
     Loc::Interior
 }
 
-fn orient(a: Coord, b: Coord, c: Coord) -> f64 {
-    (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
-}
-
 fn on_bbox(a: Coord, b: Coord, p: Coord) -> bool {
     let eps = 1e-9 * (1.0 + a.x.abs() + b.x.abs() + a.y.abs() + b.y.abs());
     p.x <= a.x.max(b.x) + eps
@@ -863,26 +859,6 @@ fn point_on_ring(p: Coord, ring: &[Coord]) -> bool {
         }
     }
     false
-}
-
-fn point_in_ring(p: Coord, ring: &[Coord]) -> bool {
-    let v = ring_vertices(ring);
-    let n = v.len();
-    if n < 3 {
-        return false;
-    }
-    let mut inside = false;
-    let mut j = n - 1;
-    for i in 0..n {
-        let (pi, pj) = (v[i], v[j]);
-        if (pi.y > p.y) != (pj.y > p.y)
-            && p.x < (pj.x - pi.x) * (p.y - pi.y) / (pj.y - pi.y) + pi.x
-        {
-            inside = !inside;
-        }
-        j = i;
-    }
-    inside
 }
 
 /// A segment's bounding box, expanded by a scale-relative epsilon so that the

@@ -28,6 +28,7 @@
 //! across calls. (For the index-once-query-many shape, see
 //! [`PreparedGeometry`](super::PreparedGeometry).)
 
+use super::util::orient;
 use super::{Coord, Geometry, Intersects, LineString, Polygon, Rect, StrTree, Triangle};
 
 /// Minimum Euclidean distance between two geometries. `0.0` if they intersect;
@@ -546,11 +547,6 @@ fn segments_intersect(p1: Coord, p2: Coord, p3: Coord, p4: Coord) -> bool {
         || (d2 == 0.0 && in_box(p3, p4, p2))
         || (d3 == 0.0 && in_box(p1, p2, p3))
         || (d4 == 0.0 && in_box(p1, p2, p4))
-}
-
-/// Twice the signed area of triangle `abc` (orientation: >0 left, <0 right).
-fn orient(a: Coord, b: Coord, c: Coord) -> f64 {
-    (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
 }
 
 /// Is `p` inside the bounding box of segment `a`–`b` (used for collinear cases)?
