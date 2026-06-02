@@ -6,7 +6,7 @@
 //! hole. Results for points exactly on a boundary are not guaranteed.
 
 use super::util::point_in_ring;
-use super::{Coord, MultiPolygon, Point, Polygon, Rect};
+use super::{Coord, Geometry, MultiPolygon, Point, Polygon, Rect};
 
 /// Whether `self` contains `rhs`.
 pub trait Contains<Rhs = Self> {
@@ -45,6 +45,28 @@ impl Contains<Coord> for Rect {
 }
 
 impl Contains<Point> for Rect {
+    fn contains(&self, rhs: &Point) -> bool {
+        self.contains(&rhs.0)
+    }
+}
+
+/// Areal interior containment lifted to the [`Geometry`] enum: a coordinate is
+/// contained iff the geometry is areal (`Polygon`/`MultiPolygon`/`Rect`) and the
+/// coordinate lies in its interior. Non-areal geometries contain nothing under
+/// this predicate — use [`relate`](super::relate) for full DE-9IM containment
+/// (e.g. a line containing a point on it).
+impl Contains<Coord> for Geometry {
+    fn contains(&self, rhs: &Coord) -> bool {
+        match self {
+            Geometry::Polygon(p) => p.contains(rhs),
+            Geometry::MultiPolygon(mp) => mp.contains(rhs),
+            Geometry::Rect(r) => r.contains(rhs),
+            _ => false,
+        }
+    }
+}
+
+impl Contains<Point> for Geometry {
     fn contains(&self, rhs: &Point) -> bool {
         self.contains(&rhs.0)
     }

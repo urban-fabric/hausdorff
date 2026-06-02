@@ -65,6 +65,7 @@ pub use index::StrTree;
 pub use line_measures::{Bearing, Destination, Distance, Euclidean, Haversine, Length};
 pub use min_distance::{MinDistanceWorkspace, euclidean_distance, euclidean_within};
 pub use prepared::PreparedGeometry;
+pub use relate::SpatialPredicate;
 pub use set_distance::{directed_hausdorff_distance, frechet_distance, hausdorff_distance};
 pub use simplify::Simplify;
 pub use winding::{Direction, Orient, Winding, WindingOrder};
