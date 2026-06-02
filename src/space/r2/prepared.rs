@@ -10,7 +10,7 @@
 //! can't capture).
 
 use super::min_distance::{seg_box, segment_gap_sq, segments};
-use super::{Coord, Geometry, Intersects, Rect, StrTree};
+use super::{Coord, Geometry, Intersects, PointBatch, Rect, StrTree};
 
 /// A geometry indexed for repeated spatial predicates against many others.
 pub struct PreparedGeometry<'a> {
@@ -129,6 +129,44 @@ impl<'a> PreparedGeometry<'a> {
             }
         });
         crossings % 2 == 1
+    }
+
+    // ---- batch (spatial-join broadcast) -------------------------------------
+    //
+    // Prepare one geometry, then probe a whole column of others against it in one
+    // call — the core of a spatial join. Each returns one result per input,
+    // aligned with it (a boolean mask, or a distance), so the output drops
+    // straight into a columnar filter. The per-element probes are independent and
+    // run on rayon when the `parallel` feature is enabled (identical either way).
+
+    /// For each point in `points`, whether it lies inside this prepared **areal**
+    /// geometry — a vectorized [`contains_point`](Self::contains_point) over a
+    /// columnar batch: the point-in-polygon join.
+    #[must_use]
+    pub fn contains_points(&self, points: &PointBatch) -> Vec<bool> {
+        crate::par::map_indexed(points.len(), |i| self.contains_point(points.coord(i)))
+    }
+
+    /// For each geometry in `others`, whether it is within `d` of this prepared
+    /// geometry (`ST_DWithin`) — a vectorized [`within`](Self::within), the
+    /// distance-join predicate.
+    #[must_use]
+    pub fn within_each(&self, others: &[Geometry], d: f64) -> Vec<bool> {
+        crate::par::map_indexed(others.len(), |i| self.within(&others[i], d))
+    }
+
+    /// For each geometry in `others`, whether it intersects this prepared
+    /// geometry — a vectorized [`intersects`](Self::intersects).
+    #[must_use]
+    pub fn intersects_each(&self, others: &[Geometry]) -> Vec<bool> {
+        crate::par::map_indexed(others.len(), |i| self.intersects(&others[i]))
+    }
+
+    /// Minimum distance from this prepared geometry to each geometry in `others`
+    /// — a vectorized [`distance`](Self::distance).
+    #[must_use]
+    pub fn distance_each(&self, others: &[Geometry]) -> Vec<f64> {
+        crate::par::map_indexed(others.len(), |i| self.distance(&others[i]))
     }
 
     /// Bounding-box pre-test: could the prepared geometry touch `other`'s segments?

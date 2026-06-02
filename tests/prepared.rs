@@ -1,7 +1,7 @@
 //! `PreparedGeometry`: indexed repeated predicates must agree with the one-shot
 //! (non-prepared) kernels they accelerate.
 
-use hausdorff::space::r2::{PreparedGeometry, euclidean_distance, euclidean_within};
+use hausdorff::space::r2::{PointBatch, PreparedGeometry, euclidean_distance, euclidean_within};
 use hausdorff::{Contains, Coord, Geometry, Intersects, LineString, Polygon};
 
 struct Lcg(u64);
@@ -45,6 +45,43 @@ fn prepared_distance_within_intersects_match_oneshot() {
                 "within {d}"
             );
         }
+    }
+}
+
+#[test]
+fn prepared_batch_predicates_match_per_call() {
+    // The batch (spatial-join broadcast) methods must return, element-for-element,
+    // exactly what the per-call methods do.
+    let base = sq(0.0, 0.0, 10.0, 10.0);
+    let prepared = PreparedGeometry::new(&base);
+    let mut rng = Lcg(0xD1B5_4A32_D192_ED03);
+
+    let others: Vec<Geometry> = (0..400)
+        .map(|_| {
+            let (x, y) = (rng.coord(40), rng.coord(40));
+            let (w, h) = (1.0 + rng.coord(8).abs(), 1.0 + rng.coord(8).abs());
+            sq(x, y, x + w, y + h)
+        })
+        .collect();
+
+    let d = 3.0;
+    let within = prepared.within_each(&others, d);
+    let inter = prepared.intersects_each(&others);
+    let dist = prepared.distance_each(&others);
+    assert_eq!(within.len(), others.len());
+    for (i, o) in others.iter().enumerate() {
+        assert_eq!(within[i], prepared.within(o, d), "within_each[{i}]");
+        assert_eq!(inter[i], prepared.intersects(o), "intersects_each[{i}]");
+        let pd = prepared.distance(o);
+        assert!((dist[i] - pd).abs() <= 1e-12 * pd.max(1.0), "distance_each[{i}]");
+    }
+
+    let coords: Vec<Coord> = (0..1000).map(|_| Coord::new(rng.coord(24), rng.coord(24))).collect();
+    let batch = PointBatch::from_coords(&coords);
+    let mask = prepared.contains_points(&batch);
+    assert_eq!(mask.len(), coords.len());
+    for (i, &c) in coords.iter().enumerate() {
+        assert_eq!(mask[i], prepared.contains_point(c), "contains_points[{i}]");
     }
 }
 
