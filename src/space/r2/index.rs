@@ -15,6 +15,9 @@
 //! STR packing sorts items into a near-square grid of tiles, giving a balanced,
 //! cache-friendly tree built in `O(n log n)`.
 
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
+
 use super::{Coord, Rect};
 
 /// A static, bulk-loaded STR-tree over `(Rect, T)` items.
@@ -118,6 +121,28 @@ impl<T> StrTree<T> {
             nearest_node(root, point, &mut best);
         }
         best.map(|(_, t)| t)
+    }
+
+    /// The up-to-`k` payloads whose bounding boxes are closest to `point` (by
+    /// squared box-distance), nearest first. Exact k-nearest-neighbour for point
+    /// data; for areal items it is the k nearest *by bounding box* — use them as
+    /// candidates, then refine with the exact geometry distance. Returns fewer
+    /// than `k` only when the index holds fewer items. Map it over a column of
+    /// query points for a batch k-NN.
+    #[must_use]
+    pub fn k_nearest(&self, point: Coord, k: usize) -> Vec<&T> {
+        if k == 0 {
+            return Vec::new();
+        }
+        // A bounded max-heap (farthest on top): once it holds `k`, its top is the
+        // current k-th-nearest distance, which prunes whole subtrees.
+        let mut heap: BinaryHeap<Neighbor<'_, T>> = BinaryHeap::new();
+        if let Some(root) = &self.root {
+            k_nearest_node(root, point, k, &mut heap);
+        }
+        let mut found = heap.into_vec();
+        found.sort_by(|a, b| a.dist.total_cmp(&b.dist));
+        found.into_iter().map(|n| n.item).collect()
     }
 }
 
@@ -228,6 +253,69 @@ fn nearest_node<'a, T>(node: &'a Node<T>, point: Coord, best: &mut Option<(f64, 
     }
 }
 
+/// A candidate in the bounded k-NN max-heap, ordered by box-distance (the top of
+/// the heap is the farthest of the current best `k`).
+struct Neighbor<'a, T> {
+    dist: f64,
+    item: &'a T,
+}
+
+impl<T> PartialEq for Neighbor<'_, T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.dist == other.dist
+    }
+}
+impl<T> Eq for Neighbor<'_, T> {}
+impl<T> PartialOrd for Neighbor<'_, T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl<T> Ord for Neighbor<'_, T> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.dist.total_cmp(&other.dist)
+    }
+}
+
+fn k_nearest_node<'a, T>(
+    node: &'a Node<T>,
+    point: Coord,
+    k: usize,
+    heap: &mut BinaryHeap<Neighbor<'a, T>>,
+) {
+    // Prune: once `k` are held, any subtree whose box is no closer than the
+    // current k-th-nearest can't contribute.
+    if heap.len() >= k
+        && let Some(worst) = heap.peek()
+        && point_rect_dist_sq(point, node.bbox()) >= worst.dist
+    {
+        return;
+    }
+    match node {
+        Node::Leaf { items, .. } => {
+            for (r, t) in items {
+                let d = point_rect_dist_sq(point, *r);
+                if heap.len() < k {
+                    heap.push(Neighbor { dist: d, item: t });
+                } else if heap.peek().is_some_and(|w| d < w.dist) {
+                    heap.pop();
+                    heap.push(Neighbor { dist: d, item: t });
+                }
+            }
+        }
+        Node::Internal { children, .. } => {
+            // Descend the closest child first so the bound tightens early.
+            let mut order: Vec<&Node<T>> = children.iter().collect();
+            order.sort_by(|a, b| {
+                point_rect_dist_sq(point, a.bbox()).total_cmp(&point_rect_dist_sq(point, b.bbox()))
+            });
+            for c in order {
+                k_nearest_node(c, point, k, heap);
+            }
+        }
+    }
+}
+
 // ---- rectangle geometry ----------------------------------------------------
 
 fn center_x(r: &Rect) -> f64 {
@@ -260,4 +348,43 @@ fn point_rect_dist_sq(p: Coord, r: Rect) -> f64 {
     let dx = (r.min().x - p.x).max(p.x - r.max().x).max(0.0);
     let dy = (r.min().y - p.y).max(p.y - r.max().y).max(0.0);
     dx * dx + dy * dy
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Lcg(u64);
+    impl Lcg {
+        fn f(&mut self) -> f64 {
+            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            f64::from((self.0 >> 40) as u32 & 0xFFFF)
+        }
+    }
+
+    #[test]
+    fn k_nearest_matches_brute_force() {
+        let mut rng = Lcg(0x1357_9BDF_2468_ACE0);
+        let pts: Vec<Coord> = (0..400).map(|_| Coord::new(rng.f(), rng.f())).collect();
+        let items: Vec<(Rect, usize)> =
+            pts.iter().enumerate().map(|(i, &p)| (Rect::new(p, p), i)).collect();
+        let tree = StrTree::new(items);
+        let q = Coord::new(30000.0, 12345.0);
+        let dist_sq = |p: Coord| (p.x - q.x).powi(2) + (p.y - q.y).powi(2);
+
+        let mut brute: Vec<f64> = pts.iter().map(|&p| dist_sq(p)).collect();
+        brute.sort_by(f64::total_cmp);
+
+        for k in [0usize, 1, 5, 37, 400, 1000] {
+            let got = tree.k_nearest(q, k);
+            let want_k = k.min(pts.len());
+            assert_eq!(got.len(), want_k, "k={k} length");
+            // The returned items' distances (sorted) are exactly the k smallest.
+            let mut got_d: Vec<f64> = got.iter().map(|&&i| dist_sq(pts[i])).collect();
+            got_d.sort_by(f64::total_cmp);
+            for (a, b) in got_d.iter().zip(&brute[..want_k]) {
+                assert!((a - b).abs() < 1e-6, "k={k}: {a} vs {b}");
+            }
+        }
+    }
 }
