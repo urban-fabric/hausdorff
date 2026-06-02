@@ -1,8 +1,10 @@
 //! Native WKT codec: round-trips, standard strings, and interop with the
 //! vendored `wkt` crate (so it can be deprecated in favour of the native one).
 
-use hausdorff::r2_format::wkt::{from_wkt, to_wkt};
+use hausdorff::format::wkt::{from_wkt, to_wkt};
 use hausdorff::{Coord, Geometry, LineString, MultiPolygon, Point, Polygon};
+
+mod common;
 
 fn poly(rings: Vec<Vec<(f64, f64)>>) -> Polygon {
     let mut it = rings.into_iter();
@@ -57,12 +59,12 @@ fn matches_wkt_reference_crate() {
     use wkt::{ToWkt, TryFromWkt};
     for g in fixtures() {
         // reference WKT (the `wkt` crate, via geo_types) parses through native to g
-        let reference = hausdorff::compat::to_geo_geometry(&g).wkt_string();
+        let reference = common::to_geo_geometry(&g).wkt_string();
         assert_eq!(from_wkt(&reference).unwrap(), g, "native parse of reference WKT");
         // native WKT parses through the `wkt` crate back to g
         let parsed = geo_types::Geometry::<f64>::try_from_wkt_str(&to_wkt(&g)).unwrap();
         assert_eq!(
-            hausdorff::compat::from_geo_geometry(parsed),
+            common::from_geo_geometry(parsed),
             g,
             "reference parse of native WKT"
         );

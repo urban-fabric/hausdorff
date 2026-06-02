@@ -4,7 +4,7 @@
 
 use hausdorff::earth::GeoPoint;
 
-use hausdorff::s2::S2CellId;
+use hausdorff::space::s2::S2CellId;
 
 const MAX_LEVEL: u32 = 30;
 

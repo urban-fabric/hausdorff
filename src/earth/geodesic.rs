@@ -18,10 +18,13 @@ pub const EARTH_RADIUS_M: f64 = 6_371_008.8;
 pub fn haversine_m(a: GeoPoint, b: GeoPoint) -> f64 {
     let lat1 = a.lat.to_radians();
     let lat2 = b.lat.to_radians();
-    let dlat = lat2 - lat1;
-    let dlon = (b.lon - a.lon).to_radians();
-    let h = (dlat * 0.5).sin().powi(2) + lat1.cos() * lat2.cos() * (dlon * 0.5).sin().powi(2);
-    2.0 * EARTH_RADIUS_M * h.sqrt().atan2((1.0 - h).sqrt())
+    let sin_dlat = ((lat2 - lat1) * 0.5).sin();
+    let sin_dlon = ((b.lon - a.lon).to_radians() * 0.5).sin();
+    let h = sin_dlat * sin_dlat + lat1.cos() * lat2.cos() * sin_dlon * sin_dlon;
+    // 2·R·asin(√h) — equivalent to the atan2 form for h ∈ [0, 1], with one fewer
+    // sqrt and a cheaper single-argument inverse trig. (`min(1.0)` guards the
+    // asin domain against rounding past 1 for near-antipodal points.)
+    2.0 * EARTH_RADIUS_M * h.min(1.0).sqrt().asin()
 }
 
 /// The point reached by travelling `distance_m` metres from `origin` along the

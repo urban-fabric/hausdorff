@@ -4,7 +4,7 @@
 use std::f64::consts::PI;
 
 use hausdorff::earth::GeoPoint;
-use hausdorff::projection::{Ellipsoid, Projection, TransverseMercator, Utm, WebMercator};
+use hausdorff::earth::projection::{Ellipsoid, Projection, TransverseMercator, Utm, WebMercator};
 
 fn g(lat: f64, lon: f64) -> GeoPoint {
     GeoPoint::from_lat_lon(lat, lon)
@@ -24,6 +24,21 @@ fn web_mercator_anchors_and_round_trip() {
         let back = wm.inverse(wm.project(g(lat, lon)));
         assert!((back.lat - lat).abs() < 1e-9 && (back.lon - lon).abs() < 1e-9);
     }
+}
+
+#[test]
+fn try_utm_validates_zone() {
+    // zones 1..=60 are valid
+    assert!(TransverseMercator::try_utm(1, true).is_some());
+    assert!(TransverseMercator::try_utm(60, false).is_some());
+    // anything outside the range is rejected
+    assert!(TransverseMercator::try_utm(0, true).is_none());
+    assert!(TransverseMercator::try_utm(61, true).is_none());
+    // the checked form agrees with the unchecked one for valid zones
+    assert_eq!(
+        TransverseMercator::try_utm(33, true),
+        Some(TransverseMercator::utm(33, true))
+    );
 }
 
 #[test]

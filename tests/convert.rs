@@ -2,7 +2,7 @@
 
 use hausdorff::convert::*;
 use hausdorff::earth::GeoPoint;
-use hausdorff::r2::Coord;
+use hausdorff::space::r2::Coord;
 
 #[test]
 fn geo_point_round_trips_through_coord() {

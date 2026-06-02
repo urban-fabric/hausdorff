@@ -1,8 +1,10 @@
 //! Native GeoJSON codec: round-trips, standard strings, and interop with the
 //! vendored `geojson` crate (so it can be deprecated).
 
-use hausdorff::r2_format::geojson::{from_geojson, to_geojson};
+use hausdorff::format::geojson::{from_geojson, to_geojson};
 use hausdorff::{Geometry, LineString, MultiPolygon, Point, Polygon};
+
+mod common;
 
 fn poly(rings: Vec<Vec<(f64, f64)>>) -> Polygon {
     let mut it = rings.into_iter();
@@ -46,7 +48,7 @@ fn parses_standard_strings() {
 #[test]
 fn matches_geojson_reference_crate() {
     for g in fixtures() {
-        let geo_g = hausdorff::compat::to_geo_geometry(&g);
+        let geo_g = common::to_geo_geometry(&g);
         // reference GeoJSON (the `geojson` crate) parses through native to g
         let reference = geojson::GeometryValue::from(&geo_g).to_string();
         assert_eq!(from_geojson(&reference).unwrap(), g, "native parse of reference GeoJSON");
@@ -54,7 +56,7 @@ fn matches_geojson_reference_crate() {
         let parsed: geojson::Geometry = to_geojson(&g).parse().unwrap();
         let geo_parsed = geo_types::Geometry::<f64>::try_from(parsed.value).unwrap();
         assert_eq!(
-            hausdorff::compat::from_geo_geometry(geo_parsed),
+            common::from_geo_geometry(geo_parsed),
             g,
             "reference parse of native GeoJSON"
         );

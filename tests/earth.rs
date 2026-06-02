@@ -117,6 +117,22 @@ mod radial_grid {
     }
 
     #[test]
+    fn zero_points_per_ring_is_empty_without_divide_by_zero() {
+        let g = RadialGrid::new(
+            GeoPoint::from_lat_lon(52.52, 13.405),
+            3,
+            LengthMeters::new(100.0),
+            0,
+        );
+        assert!(g.is_empty());
+        assert_eq!(g.len(), 0);
+        assert_eq!(g.points().count(), 0);
+        // bearing() must not divide by zero (would be NaN/inf); it falls back to
+        // the offset and stays finite.
+        assert!(g.bearing(0).degrees().is_finite());
+    }
+
+    #[test]
     fn ring_major_ordering() {
         let g = RadialGrid::new(
             GeoPoint::from_lat_lon(0.0, 0.0),

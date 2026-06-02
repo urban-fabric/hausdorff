@@ -1,7 +1,7 @@
 //! Native Intersects predicate conformance vs geo's Intersects.
 
 use geo::Intersects as _;
-use hausdorff::r2::Intersects;
+use hausdorff::space::r2::Intersects;
 use hausdorff::{Geometry, LineString, Point, Polygon};
 
 fn hpoly(coords: &[(f64, f64)]) -> Geometry {

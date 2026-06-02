@@ -155,8 +155,13 @@ impl RadialGrid {
         LengthMeters::new(self.first_radius_m + f64::from(ring) * self.step_m)
     }
 
-    /// Compass bearing of spoke `s`, clockwise from North.
+    /// Compass bearing of spoke `s`, clockwise from North. A grid with zero
+    /// `points_per_ring` is empty and has no spokes, so the bearing is just the
+    /// offset (avoiding a divide-by-zero).
     pub fn bearing(&self, spoke: u32) -> Bearing {
+        if self.points_per_ring == 0 {
+            return Bearing::from_degrees(self.bearing_offset_deg);
+        }
         Bearing::from_degrees(
             self.bearing_offset_deg + f64::from(spoke) * 360.0 / f64::from(self.points_per_ring),
         )

@@ -1,7 +1,7 @@
 //! Native geohash codec: round-trips and conformance against the `geohash` crate
 //! reference.
 
-use hausdorff::geohash::{decode, encode};
+use hausdorff::index::geohash::{decode, encode, try_encode};
 
 #[test]
 fn matches_geohash_crate() {
@@ -29,4 +29,19 @@ fn decode_returns_cell_center_near_point() {
     // a 9-char geohash is ~2-5 m; center is well within 0.001 deg of the point
     assert!((dlon - lon).abs() < 1e-3 && (dlat - lat).abs() < 1e-3);
     assert!(decode("a!b").is_none()); // invalid char
+    assert!(decode("").is_none()); // empty geohash is invalid
+}
+
+#[test]
+fn try_encode_validates_input() {
+    // valid input agrees with the unchecked form
+    assert_eq!(try_encode(13.405, 52.52, 9), Some(encode(13.405, 52.52, 9)));
+    // out-of-range, non-finite, or zero-precision → None
+    assert!(try_encode(180.001, 0.0, 9).is_none());
+    assert!(try_encode(0.0, 90.001, 9).is_none());
+    assert!(try_encode(f64::NAN, 0.0, 9).is_none());
+    assert!(try_encode(0.0, f64::INFINITY, 9).is_none());
+    assert!(try_encode(0.0, 0.0, 0).is_none());
+    // inclusive bounds are accepted
+    assert!(try_encode(-180.0, -90.0, 1).is_some());
 }

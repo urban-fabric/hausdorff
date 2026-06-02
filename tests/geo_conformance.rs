@@ -417,3 +417,80 @@ fn haversine_destination_matches_geo() {
         );
     }
 }
+
+// ---- real-world WKT fixtures (from georust geo-test-fixtures) ----------------
+// Irregular, real coordinate runs exercise collinear / near-duplicate / large-n
+// cases that the synthetic shapes above don't. The native WKT parser reads them,
+// and the planar algorithms are oracle-checked against geo on the same data.
+
+/// Distance from `p` to the bounded segment `a`–`b` (RDP's metric).
+fn seg_dist(p: (f64, f64), a: (f64, f64), b: (f64, f64)) -> f64 {
+    let (abx, aby) = (b.0 - a.0, b.1 - a.1);
+    let len2 = abx * abx + aby * aby;
+    let t = if len2 == 0.0 {
+        0.0
+    } else {
+        (((p.0 - a.0) * abx + (p.1 - a.1) * aby) / len2).clamp(0.0, 1.0)
+    };
+    let (qx, qy) = (a.0 + abx * t, a.1 + aby * t);
+    ((p.0 - qx).powi(2) + (p.1 - qy).powi(2)).sqrt()
+}
+
+#[test]
+fn real_wkt_fixtures_conformance() {
+    use hausdorff::format::wkt::{from_wkt, to_wkt};
+
+    for (name, wkt) in [
+        ("poly1", include_str!("fixtures/poly1.wkt")),
+        ("poly2", include_str!("fixtures/poly2.wkt")),
+    ] {
+        // 1. the native WKT parser reads the real LineString
+        let g = from_wkt(wkt).unwrap_or_else(|e| panic!("parse {name}: {e:?}"));
+        let coords: Vec<(f64, f64)> = match &g {
+            hausdorff::Geometry::LineString(ls) => ls.0.iter().map(|c| (c.x, c.y)).collect(),
+            other => panic!("{name}: expected LineString, got {other:?}"),
+        };
+        assert!(coords.len() > 50, "{name}: real shape ({} pts)", coords.len());
+
+        // 2. WKT round-trips through the native writer/reader with no point drift
+        match from_wkt(&to_wkt(&g)).expect("re-parse") {
+            hausdorff::Geometry::LineString(ls) => assert_eq!(ls.0.len(), coords.len()),
+            other => panic!("{name}: round-trip changed type to {other:?}"),
+        }
+
+        // 3. convex hull area matches geo exactly on the irregular input
+        let hmp = hausdorff::MultiPoint::from(coords.clone());
+        let gmp: geo::MultiPoint<f64> =
+            coords.iter().map(|&(x, y)| geo::Point::new(x, y)).collect();
+        let (ha, ga) = (hmp.convex_hull().unsigned_area(), gmp.convex_hull().unsigned_area());
+        assert!((ha - ga).abs() <= ga.abs() * 1e-9, "{name}: hull area {ha} vs geo {ga}");
+
+        // 4. RDP simplify is a *valid* simplification of real data: endpoints
+        //    kept, output is a subset, monotone in epsilon, and every original
+        //    point lies within `epsilon` of the simplified line. Exact point
+        //    parity with geo is *not* asserted here — on real data RDP tie-breaks
+        //    and the bounded-segment vs infinite-line distance metric legitimately
+        //    diverge (the synthetic `simplify_matches_geo` test covers parity).
+        let hls = hausdorff::LineString::from(coords.clone());
+        let mut prev_len = coords.len();
+        for eps in [0.5_f64, 2.0, 10.0] {
+            let s: Vec<(f64, f64)> = hls.simplify(eps).0.iter().map(|c| (c.x, c.y)).collect();
+            assert!(s.len() >= 2 && s.len() <= prev_len, "{name}: monotone at eps={eps}");
+            prev_len = s.len();
+            assert_eq!(s[0], coords[0], "{name}: first endpoint kept");
+            assert_eq!(*s.last().unwrap(), *coords.last().unwrap(), "{name}: last endpoint kept");
+            for &c in &s {
+                assert!(coords.contains(&c), "{name}: kept point {c:?} is an original");
+            }
+            let max_dev = coords
+                .iter()
+                .map(|&p| {
+                    s.windows(2)
+                        .map(|w| seg_dist(p, w[0], w[1]))
+                        .fold(f64::INFINITY, f64::min)
+                })
+                .fold(0.0_f64, f64::max);
+            assert!(max_dev <= eps + 1e-9, "{name}: simplify deviation {max_dev} > eps {eps}");
+        }
+    }
+}

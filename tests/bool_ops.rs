@@ -4,7 +4,7 @@
 //! identical, holes, multipolygons), and the set-algebra invariants must hold.
 
 use geo::BooleanOps as _;
-use hausdorff::r2::bool_ops::BooleanOps;
+use hausdorff::space::r2::bool_ops::BooleanOps;
 use hausdorff::{Area, LineString, MultiPolygon, Polygon};
 
 fn hpoly(rings: &[&[(f64, f64)]]) -> Polygon {
@@ -94,6 +94,56 @@ fn shared_edge() {
 #[test]
 fn partial_edge_overlap() {
     check(&[&[&sq(0.0, 0.0, 4.0, 2.0)]], &[&[&sq(2.0, 0.0, 6.0, 2.0)]]);
+}
+
+// ---- T-vertex configurations (the documented overlay limitation) -----------
+// A vertex of one polygon lying on the *interior* of the other's edge. Common on
+// integer grids / tiled data. These probe whether the sweep mislabels in/out.
+
+#[test]
+fn t_vertex_touching_matches_geo() {
+    // B's corner (2,1) lies on the interior of A's right edge (x=2, y∈[0,2]).
+    // Interiors are disjoint; they touch along x=2, y∈[0,1]. Union = 4 + 2 = 6.
+    let a = sq(0.0, 0.0, 2.0, 2.0);
+    let b = vec![(2.0, 0.0), (4.0, 0.0), (4.0, 1.0), (2.0, 1.0)];
+    check(&[&[&a]], &[&[&b]]);
+}
+
+#[test]
+fn t_vertex_grid_tiles_matches_geo() {
+    // A big left tile abutting two stacked right tiles: the right tiles' shared
+    // corner (4,1) is a T-vertex on the big tile's right edge (x=4, y∈[0,2]).
+    let left = sq(0.0, 0.0, 4.0, 2.0);
+    let right_lo = sq(4.0, 0.0, 6.0, 1.0);
+    let right_hi = sq(4.0, 1.0, 6.0, 2.0);
+    check(&[&[&left]], &[&[&right_lo], &[&right_hi]]);
+}
+
+#[test]
+fn t_vertex_overlap_matches_geo() {
+    // Overlapping T-vertex: B's left edge runs x=2, y∈[1,3]; its corners (2,1)
+    // and (2,3) lie on the interior of A's edges, and the interiors overlap.
+    let a = sq(0.0, 0.0, 4.0, 4.0);
+    let b = sq(2.0, 1.0, 6.0, 3.0);
+    check(&[&[&a]], &[&[&b]]);
+}
+
+#[test]
+fn t_vertex_staircase_union_matches_geo() {
+    // A comb/staircase whose steps put several vertices (6,2) and (6,4) on the
+    // interior of the big square's right edge (x=6, y∈[0,6]) — many T-vertices.
+    let big = sq(0.0, 0.0, 6.0, 6.0);
+    let comb = vec![
+        (3.0, 0.0),
+        (6.0, 0.0),
+        (6.0, 2.0),
+        (4.0, 2.0),
+        (4.0, 4.0),
+        (6.0, 4.0),
+        (6.0, 6.0),
+        (3.0, 6.0),
+    ];
+    check(&[&[&big]], &[&[&comb]]);
 }
 
 #[test]

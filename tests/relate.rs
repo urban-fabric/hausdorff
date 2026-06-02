@@ -2,9 +2,11 @@
 //! predicate must agree with geo across a battery of geometry-type pairs.
 
 use geo::Relate;
-use hausdorff::compat::to_geo_geometry;
-use hausdorff::r2::relate::{geometry_dimension, relate};
+use hausdorff::space::r2::relate::{geometry_dimension, relate};
 use hausdorff::{Coord, Geometry, Line, LineString, MultiPolygon, Point, Polygon};
+
+mod common;
+use common::to_geo_geometry;
 
 fn poly(coords: &[(f64, f64)]) -> Geometry {
     Geometry::Polygon(Polygon::new(LineString::from(coords.to_vec()), vec![]))
@@ -120,6 +122,40 @@ fn polygon_with_hole() {
     check2(&donut, &pt(5.0, 5.0)); // in the hole → outside
     check2(&donut, &pt(1.0, 1.0)); // in the ring body
     check2(&donut, &sq(4.0, 4.0, 6.0, 6.0)); // square inside the hole
+}
+
+#[test]
+fn adversarial_areal_relate_matches_geo() {
+    let holed = |shell: &[(f64, f64)], hole: &[(f64, f64)]| {
+        Geometry::Polygon(Polygon::new(
+            LineString::from(shell.to_vec()),
+            vec![LineString::from(hole.to_vec())],
+        ))
+    };
+    let shell = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0), (0.0, 0.0)];
+    let hole = [(3.0, 3.0), (7.0, 3.0), (7.0, 7.0), (3.0, 7.0), (3.0, 3.0)];
+    let donut = holed(&shell, &hole);
+
+    // outer contains inner (interiors overlap; inner is within outer)
+    check2(&sq(0.0, 0.0, 10.0, 10.0), &sq(3.0, 3.0, 7.0, 7.0));
+    // a thin horizontal bar crossed by a thin vertical bar: interiors overlap in
+    // a tiny region and no vertex of one lies inside the other — this is the case
+    // that pure interior-sampling could miss but a ring-crossing check catches.
+    check2(&sq(0.0, 0.0, 10.0, 1.0), &sq(4.0, -5.0, 5.0, 5.0));
+    // square exactly filling the hole touches the donut along the hole ring only
+    check2(&donut, &sq(3.0, 3.0, 7.0, 7.0));
+    // square overlapping both the hole and the solid ring (proper crossing)
+    check2(&donut, &sq(5.0, 5.0, 12.0, 12.0));
+    // a small square deep in the solid ring is within the donut
+    check2(&donut, &sq(0.5, 0.5, 2.5, 2.5));
+    // identical donuts are topologically equal
+    check2(&donut, &holed(&shell, &hole));
+    // two donuts whose holes overlap but bodies also overlap
+    let donut2 = holed(
+        &[(5.0, 5.0), (15.0, 5.0), (15.0, 15.0), (5.0, 15.0), (5.0, 5.0)],
+        &[(8.0, 8.0), (12.0, 8.0), (12.0, 12.0), (8.0, 12.0), (8.0, 8.0)],
+    );
+    check2(&donut, &donut2);
 }
 
 #[test]

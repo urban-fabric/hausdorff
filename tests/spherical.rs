@@ -5,7 +5,7 @@
 use std::f64::consts::PI;
 
 use hausdorff::earth::{EARTH_RADIUS_M, GeoPoint};
-use hausdorff::s2::{S2Point, girard_area, point_area, robust_sign, signed_area};
+use hausdorff::space::s2::{S2Point, girard_area, point_area, robust_sign, signed_area};
 
 fn p(lat: f64, lon: f64) -> S2Point {
     S2Point::from_geo_point(GeoPoint::from_lat_lon(lat, lon))
@@ -63,7 +63,7 @@ fn degenerate_triangle_has_zero_signed_area() {
 
 #[test]
 fn angle_radians_degrees_round_trip() {
-    use hausdorff::s1::{Angle, AngleDegrees};
+    use hausdorff::space::s1::{Angle, AngleDegrees};
     let a = Angle::from_degrees(90.0);
     assert!((a.radians() - std::f64::consts::FRAC_PI_2).abs() < 1e-12);
     assert!((a.degrees() - 90.0).abs() < 1e-12);
@@ -73,7 +73,7 @@ fn angle_radians_degrees_round_trip() {
 
 #[test]
 fn angle_constants_and_ops() {
-    use hausdorff::s1::Angle;
+    use hausdorff::space::s1::Angle;
     assert_eq!(Angle::PI.radians(), PI);
     assert_eq!(
         (Angle::from_radians(1.0) + Angle::from_radians(2.0)).radians(),
@@ -87,7 +87,7 @@ fn angle_constants_and_ops() {
 
 #[test]
 fn loop_area_octant_and_hemisphere() {
-    use hausdorff::s2::Loop;
+    use hausdorff::space::s2::Loop;
     let octant = Loop::new(vec![p(0.0, 0.0), p(0.0, 90.0), p(90.0, 0.0)]);
     assert!(
         (octant.area() - PI / 2.0).abs() < 1e-9,
@@ -110,7 +110,7 @@ fn loop_area_octant_and_hemisphere() {
 
 #[test]
 fn loop_contains_and_perimeter() {
-    use hausdorff::s2::Loop;
+    use hausdorff::space::s2::Loop;
     let hemi = Loop::new(vec![
         p(0.0, 0.0),
         p(0.0, 90.0),
@@ -130,8 +130,8 @@ fn loop_contains_and_perimeter() {
 
 #[test]
 fn sphere_is_planet_flexible() {
-    use hausdorff::s1::Angle;
-    use hausdorff::sphere::Sphere;
+    use hausdorff::space::s1::Angle;
+    use hausdorff::earth::sphere::Sphere;
 
     // arc length of one radian equals the radius
     assert!(
@@ -140,6 +140,9 @@ fn sphere_is_planet_flexible() {
     // a full sphere is 4π steradians
     let full = Sphere::EARTH.area_m2(4.0 * PI);
     assert!((full - 4.0 * PI * EARTH_RADIUS_M * EARTH_RADIUS_M).abs() / full < 1e-12);
+    // the typed form (euclid AreaSquareMeters, via the LengthMeters × LengthMeters
+    // algebraic connection) carries the unit and agrees with the raw m² kernel
+    assert_eq!(Sphere::EARTH.area(4.0 * PI).as_square_meters(), full);
     // the same angle is a shorter distance on smaller Mars than on Earth
     let a = Angle::from_degrees(1.0);
     assert!(Sphere::MARS.radius().as_meters() < Sphere::EARTH.radius().as_meters());
@@ -150,8 +153,8 @@ fn sphere_is_planet_flexible() {
 
 #[test]
 fn cap_hemisphere() {
-    use hausdorff::s1::Angle;
-    use hausdorff::s2::Cap;
+    use hausdorff::space::s1::Angle;
+    use hausdorff::space::s2::Cap;
     // a cap of angular radius π/2 about the north pole = the northern hemisphere
     let north = p(90.0, 0.0);
     let cap = Cap::from_center_angle(north, Angle::from_radians(PI / 2.0));
@@ -167,8 +170,8 @@ fn cap_hemisphere() {
 
 #[test]
 fn cap_empty_full_and_complement() {
-    use hausdorff::s1::Angle;
-    use hausdorff::s2::Cap;
+    use hausdorff::space::s1::Angle;
+    use hausdorff::space::s2::Cap;
     let c = p(10.0, 20.0);
     assert!(Cap::empty(c).is_empty() && Cap::empty(c).area() == 0.0);
     assert!(Cap::full(c).is_full() && (Cap::full(c).area() - 4.0 * PI).abs() < 1e-12);
@@ -183,7 +186,7 @@ fn cap_empty_full_and_complement() {
 
 #[test]
 fn polygon_area_subtracts_holes_and_contains() {
-    use hausdorff::s2::{Loop, Polygon};
+    use hausdorff::space::s2::{Loop, Polygon};
     // big shell triangle (an octant), with a small triangular hole inside it
     let shell = Loop::new(vec![p(1.0, 1.0), p(1.0, 80.0), p(80.0, 1.0)]);
     let hole = Loop::new(vec![p(20.0, 20.0), p(20.0, 30.0), p(30.0, 20.0)]);
@@ -203,8 +206,8 @@ fn polygon_area_subtracts_holes_and_contains() {
 
 #[test]
 fn region_bounding_cap_contains_geometry() {
-    use hausdorff::s1::Angle;
-    use hausdorff::s2::{Cap, Loop, Region};
+    use hausdorff::space::s1::Angle;
+    use hausdorff::space::s2::{Cap, Loop, Region};
     let lp = Loop::new(vec![p(0.0, 0.0), p(0.0, 30.0), p(20.0, 15.0)]);
     let cap = lp.bounding_cap();
     for v in lp.vertices() {
@@ -222,7 +225,7 @@ fn region_bounding_cap_contains_geometry() {
 
 #[test]
 fn edge_crossing_and_intersection() {
-    use hausdorff::s2::{Crossing, crossing_sign, intersection};
+    use hausdorff::space::s2::{Crossing, crossing_sign, intersection};
     // AB: the equator from lon 0 to lon 90.  CD: a meridian arc at lon 45.
     let (a, b) = (p(0.0, 0.0), p(0.0, 90.0));
     let (c, d) = (p(-10.0, 45.0), p(10.0, 45.0));
@@ -246,7 +249,7 @@ fn edge_crossing_and_intersection() {
 
 #[test]
 fn loop_intersects() {
-    use hausdorff::s2::Loop;
+    use hausdorff::space::s2::Loop;
     let a = Loop::new(vec![p(0.0, 0.0), p(0.0, 20.0), p(20.0, 10.0)]);
     let overlapping = Loop::new(vec![p(5.0, 5.0), p(5.0, 25.0), p(25.0, 15.0)]);
     let disjoint = Loop::new(vec![p(0.0, 60.0), p(0.0, 80.0), p(20.0, 70.0)]);

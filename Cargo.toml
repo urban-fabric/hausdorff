@@ -9,22 +9,33 @@ description = "Internal geospatial primitives and index implementations for Urba
 [dependencies]
 # Backing the canonical GeoPoint/FixedGeoPoint newtypes (POD layout + JSON).
 bytemuck = { version = "1.25", features = ["derive"] }
+# Bundled-TOML config loader (the `hausdorff.toml` tuning parameters).
+cavalieri = { git = "ssh://git@github.com/urban-fabric/cavalieri.git", branch = "main" }
 euclid = { git = "ssh://git@github.com/urban-fabric/euclid.git", branch = "main" }
 serde = { version = "1", features = ["derive"] }
 # Generic JSON layer for the native GeoJSON codec (r2_format::geojson) — not a
 # geo crate; replaces the `geojson` crate's JSON handling.
 serde_json = "1"
-# The lightweight `geo-types` structs are kept as a runtime dependency only for
-# the compat I/O bridge (to_geo_geometry / from_geo_geometry) at the WKB/shapefile
-# edges. The heavy `geo` algorithm crate is NOT a runtime dependency — every
-# kernel is native now; geo appears only as a dev-dependency oracle below.
-geo-types = "0.7"
+# Optional: data-parallel execution of the batch (SoA) kernels, gated behind the
+# `parallel` feature (off by default). The scalar path is the reference.
+rayon = { version = "1.12", optional = true }
+
+# No external geometry crate is a runtime dependency: every kernel/codec is
+# native. `geo`/`geo-types` appear only as dev-dependency conformance oracles.
+
+[features]
+# Run independent per-element batch kernels (distance fans, batch H3 encode) on
+# rayon's thread pool instead of sequentially. Results are identical either way.
+parallel = ["dep:rayon"]
 
 [dev-dependencies]
 h3o = "0.10.0"
 # Reference oracles — used only to conformance-check the native kernels/codecs
 # (the same role h3o plays for the H3 core). Never runtime dependencies.
 geo = "0.33"
+# `geo-types` is the bridge type for the conformance oracle (tests/common); it
+# backs `geojson`'s `geo-types` feature too. Test-only — not a runtime dep.
+geo-types = "0.7"
 geo-traits = "0.3"
 geojson = { version = "1.0", features = ["geo-types"] }
 geohash = "0.13"
@@ -36,3 +47,9 @@ wkt = "0.14"
 # Also needed by the relocated tests/ integration suite, which names the typed
 # LengthMeters returned across the public API (e.g. RadialGrid construction).
 euclid = { git = "ssh://git@github.com/urban-fabric/euclid.git", branch = "main" }
+
+# Wall-clock comparison of hausdorff's kernels against the external reference
+# libraries (geo, h3o, geohash). Run: `cargo bench --bench vs_external`.
+[[bench]]
+name = "vs_external"
+harness = false

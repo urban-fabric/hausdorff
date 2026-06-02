@@ -3,7 +3,7 @@
 
 use std::str::FromStr;
 
-use hausdorff::h3::{
+use hausdorff::index::h3::{
     H3Cell, H3CompactionError, H3DirectedEdge, H3Polygon, H3PolygonError, H3Vertex,
 };
 
@@ -98,6 +98,18 @@ fn resolution_metadata_matches_h3_reference_constants() {
     );
     assert_eq!(H3Cell::average_hexagon_area_km2(16), None);
     assert_eq!(H3Cell::average_hexagon_edge_length_km(16), None);
+
+    // The typed (euclid) accessors wrap the same Earth-dimensioned values, so
+    // they agree with the raw `f64` forms exactly — no tolerance needed.
+    assert_eq!(
+        H3Cell::average_hexagon_edge_length(9).map(|l| l.as_meters()),
+        H3Cell::average_hexagon_edge_length_m(9),
+    );
+    assert_eq!(
+        H3Cell::average_hexagon_area(15).map(|a| a.as_square_meters()),
+        H3Cell::average_hexagon_area_m2(15),
+    );
+    assert_eq!(H3Cell::average_hexagon_area(16), None);
 }
 
 #[test]
@@ -139,6 +151,24 @@ fn center_matches_h3o() {
             ll.lng()
         );
     }
+}
+
+#[test]
+fn for_point_rejects_out_of_range_and_nonfinite() {
+    // a valid point indexes fine
+    assert!(H3Cell::for_point(52.52, 13.405, 9).is_some());
+    // out-of-range latitude / longitude are rejected
+    assert!(H3Cell::for_point(90.001, 0.0, 9).is_none());
+    assert!(H3Cell::for_point(-90.001, 0.0, 9).is_none());
+    assert!(H3Cell::for_point(0.0, 180.001, 9).is_none());
+    assert!(H3Cell::for_point(0.0, -180.001, 9).is_none());
+    // non-finite coordinates and out-of-range resolution are rejected
+    assert!(H3Cell::for_point(f64::NAN, 0.0, 9).is_none());
+    assert!(H3Cell::for_point(0.0, f64::INFINITY, 9).is_none());
+    assert!(H3Cell::for_point(0.0, 0.0, 16).is_none());
+    // inclusive bounds (the poles / antimeridian) are accepted
+    assert!(H3Cell::for_point(90.0, 180.0, 0).is_some());
+    assert!(H3Cell::for_point(-90.0, -180.0, 0).is_some());
 }
 
 #[test]
@@ -486,6 +516,8 @@ fn directed_edge_geometry_matches_h3o() {
                 "edge length m {:#x}",
                 edge.as_u64()
             );
+            // Typed LengthMeters wraps the same kernel — exact.
+            assert_eq!(edge.length().as_meters(), edge.length_m());
         }
     }
 }
@@ -714,6 +746,9 @@ fn exact_cell_area_matches_h3o() {
             ours.area_m2(),
             oracle.area_m2()
         );
+        // Typed AreaSquareMeters wraps the same kernel — exact, not just within
+        // the oracle tolerance above.
+        assert_eq!(ours.area().as_square_meters(), ours.area_m2());
     }
 }
 
