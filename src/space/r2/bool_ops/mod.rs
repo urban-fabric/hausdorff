@@ -17,11 +17,13 @@
 //! reads the live arena (the comparison keys can change as segments are divided,
 //! exactly as the reference algorithm assumes).
 //!
-//! **Known limitation:** a *T-vertex* — a vertex of one polygon lying exactly on
-//! the interior of the other's edge — can mislabel the sweep's in/out fields and
-//! drop part of the result. This is rare for real (float lon/lat) geometry but
-//! common on integer grids. [`crate::space::r2::relate`] avoids the clipper for this
-//! reason; the overlay kernels do not yet handle it.
+//! **T-vertices.** A *T-vertex* — a vertex of one polygon lying exactly on the
+//! interior of the other's edge — is handled by the overlay: the touching,
+//! integer-grid-tiling, overlapping, and many-vertex staircase configurations are
+//! regression-tested against `geo` across all four ops (the `t_vertex_*` cases in
+//! `tests/bool_ops.rs`). Beyond those, exact-coincidence robustness is the usual
+//! caveat of a floating-point sweep; for purely topological queries,
+//! [`crate::space::r2::relate`] stays clipper-free.
 
 use std::cmp::Ordering;
 
