@@ -52,10 +52,11 @@ treat this as guidance, not a guarantee):
   `similarity`), and `algebra`. The `space::r2` trait names intentionally mirror
   `geo` as **migration shims** — they exist so callers can swap the import path,
   and may diverge from `geo` over time.
-- **Experimental** — `space::s2::RegionCoverer`. Its cell-intersection test is a
-  heuristic that biases toward over-covering but can under-cover cells meeting the
-  region only along a shared boundary, so it is not yet a provably conservative
-  coverer. Don't rely on it for correctness-critical covers.
+- **Experimental** — `space::s2::RegionCoverer`. Its cell-intersection test is
+  conservative — it counts boundary touches and either-way nesting, so it
+  over-covers rather than dropping boundary-coincident cells — but it still uses a
+  soft cell budget and an approximate `Cap` bound and is not tuned for minimal
+  covers. Good for bucketing/partitioning; not yet a minimal-cover engine.
 
 ### Semantics worth knowing
 

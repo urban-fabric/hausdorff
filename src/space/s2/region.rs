@@ -20,13 +20,12 @@ pub trait Region {
     /// A spherical cap that bounds the region (not necessarily the tightest).
     fn bounding_cap(&self) -> Cap;
 
-    /// True iff the region may intersect `cell`. The coverer biases toward
-    /// *over*-covering — it would rather keep a cell than drop one — but this is
-    /// a heuristic, not a strict guarantee: it rests on point-in-loop and
-    /// edge-crossing predicates whose results on exact boundary coincidences are
-    /// not guaranteed, so a cell meeting the region only along a shared boundary
-    /// can occasionally be dropped. Robust for typical float lon/lat data away
-    /// from such coincidences.
+    /// True iff the region may intersect `cell`. **Conservative:** an
+    /// implementation must return `true` whenever the cell and region share any
+    /// point, so the coverer never prunes a cell it should keep (over-covering at
+    /// worst). The [`Loop`]/[`Polygon`] impls achieve this by counting any
+    /// boundary contact — a crossing *or* a touch — plus either-way vertex
+    /// nesting; the [`Cap`] impl is approximate (see its note).
     fn intersects_cell(&self, cell: S2CellId) -> bool;
 
     /// True iff the region fully contains `cell`. **Strict:** a `false` result
@@ -59,15 +58,16 @@ fn loop_edges(l: &Loop) -> impl Iterator<Item = (S2Point, S2Point)> + '_ {
     (0..n).map(move |i| (v[i], v[(i + 1) % n]))
 }
 
-/// True iff any edge of `a` crosses any edge of `b` at a point interior to both
-/// (not merely a shared/touching vertex).
-fn boundary_crosses(a: &Loop, b: &Loop) -> bool {
+/// True iff any edge of `a` meets any edge of `b` — a proper interior crossing or
+/// a shared/touching vertex ([`Crossing::Maybe`]). Used to deny "fully contains"
+/// the moment boundaries touch, so the coverer keeps subdividing (the safe way).
+fn boundaries_meet(a: &Loop, b: &Loop) -> bool {
     if a.num_vertices() < 2 || b.num_vertices() < 2 {
         return false;
     }
     for (a0, a1) in loop_edges(a) {
         for (b0, b1) in loop_edges(b) {
-            if crossing_sign(a0, a1, b0, b1) == Crossing::Cross {
+            if crossing_sign(a0, a1, b0, b1) != Crossing::DoNotCross {
                 return true;
             }
         }
@@ -76,9 +76,30 @@ fn boundary_crosses(a: &Loop, b: &Loop) -> bool {
 }
 
 /// True iff `inner` lies entirely within `outer`: every `inner` vertex is inside
-/// `outer` and their boundaries do not cross.
+/// `outer` and their boundaries do not meet.
 fn loop_contains_loop(outer: &Loop, inner: &Loop) -> bool {
-    inner.vertices().iter().all(|&v| outer.contains_point(v)) && !boundary_crosses(outer, inner)
+    inner.vertices().iter().all(|&v| outer.contains_point(v)) && !boundaries_meet(outer, inner)
+}
+
+/// True iff loops `a` and `b` share any point — a proper crossing, a boundary
+/// *touch* ([`Crossing::Maybe`]), or one loop nested in the other. Conservative:
+/// counting touches means a coverer never prunes a cell that merely grazes the
+/// region.
+fn loops_overlap(a: &Loop, b: &Loop) -> bool {
+    if a.num_vertices() < 3 || b.num_vertices() < 3 {
+        return false;
+    }
+    for (a0, a1) in loop_edges(a) {
+        for (b0, b1) in loop_edges(b) {
+            if crossing_sign(a0, a1, b0, b1) != Crossing::DoNotCross {
+                return true;
+            }
+        }
+    }
+    // No boundary contact ⇒ disjoint or nested; with no contact every vertex is
+    // strictly inside or outside, so one interior vertex of either settles it.
+    b.vertices().iter().any(|&v| a.contains_point(v))
+        || a.vertices().iter().any(|&v| b.contains_point(v))
 }
 
 /// The bounding cap of a set of points: centered on their normalized vector mean,
@@ -131,8 +152,8 @@ impl Region for Loop {
         bounding_cap_of(self.vertices())
     }
     fn intersects_cell(&self, cell: S2CellId) -> bool {
-        // `Loop::intersects` is true on a boundary crossing or either-way nesting.
-        self.intersects(&cell_loop(cell))
+        // Conservative: any boundary contact (crossing or touch) or nesting.
+        loops_overlap(self, &cell_loop(cell))
     }
     fn contains_cell(&self, cell: S2CellId) -> bool {
         loop_contains_loop(self, &cell_loop(cell))
@@ -148,12 +169,13 @@ impl Region for Polygon {
     }
     fn intersects_cell(&self, cell: S2CellId) -> bool {
         let cl = cell_loop(cell);
-        // Touches the shell and is not swallowed whole by a hole.
-        self.shell().intersects(&cl) && !self.holes().iter().any(|h| loop_contains_loop(h, &cl))
+        // Meets the shell and is not swallowed whole by a hole.
+        loops_overlap(self.shell(), &cl) && !self.holes().iter().any(|h| loop_contains_loop(h, &cl))
     }
     fn contains_cell(&self, cell: S2CellId) -> bool {
         let cl = cell_loop(cell);
-        loop_contains_loop(self.shell(), &cl) && !self.holes().iter().any(|h| h.intersects(&cl))
+        // Inside the shell and not even touched by a hole.
+        loop_contains_loop(self.shell(), &cl) && !self.holes().iter().any(|h| loops_overlap(h, &cl))
     }
 }
 
@@ -341,5 +363,20 @@ mod tests {
         let clamped = RegionCoverer::at_level(40);
         assert_eq!(clamped.min_level, MAX_LEVEL);
         assert_eq!(clamped.max_level, MAX_LEVEL);
+    }
+
+    #[test]
+    fn boundary_coincident_neighbour_is_not_dropped() {
+        // A region coinciding exactly with cell `c`: each edge-neighbour shares a
+        // whole edge with the region but has no interior overlap. A conservative
+        // intersects_cell must keep them (a boundary touch), never prune them.
+        let c = S2CellId::from_geo_point_at_level(GeoPoint::from_lat_lon(12.0, 34.0), 10);
+        let region = cell_loop(c);
+        for n in c.edge_neighbors() {
+            assert!(
+                region.intersects_cell(n),
+                "edge-neighbour sharing a boundary with the region was dropped"
+            );
+        }
     }
 }
