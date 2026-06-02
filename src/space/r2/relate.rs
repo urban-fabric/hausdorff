@@ -379,6 +379,8 @@ struct Decomposed {
     segments: Vec<Seg>,
     polygons: Vec<Polygon>,
     dim: i8,
+    /// Ring-edge spatial index for O(log n) areal point location, built once.
+    areal_index: Option<ArealIndex>,
 }
 
 impl Decomposed {
@@ -389,8 +391,10 @@ impl Decomposed {
             segments: Vec::new(),
             polygons: Vec::new(),
             dim: dimension(g),
+            areal_index: None,
         };
         d.add(g);
+        d.areal_index = ArealIndex::build(&d.polygons);
         d
     }
 
@@ -486,31 +490,34 @@ impl Decomposed {
 
     /// Location of `p` relative to this geometry.
     fn locate(&self, p: Coord) -> Loc {
-        // areal: inside / on-ring / outside dominates
+        // areal: inside / on-ring / outside dominates. Indexed when available
+        // (the index reproduces the per-polygon boundary-first, interior-wins
+        // combination of `locate_in_polygon` / `locate_areal`).
         if !self.polygons.is_empty() {
-            let mut on_boundary = false;
-            let mut inside = false;
-            for poly in &self.polygons {
-                match locate_in_polygon(p, poly) {
-                    Loc::Boundary => on_boundary = true,
-                    Loc::Interior => inside = true,
-                    Loc::Exterior => {}
-                }
-            }
-            if inside {
-                return Loc::Interior;
-            }
-            if on_boundary {
-                return Loc::Boundary;
+            let areal = match &self.areal_index {
+                Some(idx) => idx.locate(p),
+                None => locate_areal(p, &self.polygons),
+            };
+            match areal {
+                Loc::Interior => return Loc::Interior,
+                Loc::Boundary => return Loc::Boundary,
+                Loc::Exterior => {}
             }
         }
-        // linear: boundary endpoints, then segment interiors / vertices
+        // linear: boundary endpoints, then segment interiors / vertices. When
+        // polygons are present their ring edges (Boundary owner) are already
+        // covered by the areal branch above, and a point that reaches here is
+        // exterior to them — so skip ring edges and test only linear components.
         if !self.segments.is_empty() {
             let bpts = self.boundary_points();
             if bpts.contains(&p) {
                 return Loc::Boundary;
             }
+            let areal = !self.polygons.is_empty();
             for s in &self.segments {
+                if areal && s.owner == Loc::Boundary {
+                    continue;
+                }
                 if p == s.a || p == s.b || point_on_segment_interior(p, s.a, s.b) {
                     return s.owner;
                 }
@@ -800,6 +807,91 @@ fn node_segments(sa: &[Seg], sb: &[Seg], out: &mut Vec<Coord>) {
             });
         }
     }
+}
+
+/// Spatial index of a geometry's polygon ring edges for `O(log n)` areal point
+/// location. A point-box query answers "on a ring?" (boundary); a rightward-ray
+/// query gives each polygon's crossing parity ("inside?"). Reproduces exactly
+/// the result of scanning every ring with [`locate_in_polygon`].
+struct ArealIndex {
+    /// Ring edge `(a, b)` tagged with its owning polygon's index.
+    tree: StrTree<(Coord, Coord, u32)>,
+    n_polys: usize,
+}
+
+impl ArealIndex {
+    fn build(polygons: &[Polygon]) -> Option<ArealIndex> {
+        if polygons.is_empty() {
+            return None;
+        }
+        let mut items: Vec<(Rect, (Coord, Coord, u32))> = Vec::new();
+        for (pi, poly) in polygons.iter().enumerate() {
+            let rings = std::iter::once(&poly.exterior().0).chain(poly.interiors().iter().map(|r| &r.0));
+            for ring in rings {
+                let v = ring_vertices(ring);
+                let n = v.len();
+                for i in 0..n {
+                    let (a, b) = (v[i], v[(i + 1) % n]);
+                    if a != b {
+                        items.push((padded_box(a, b), (a, b, pi as u32)));
+                    }
+                }
+            }
+        }
+        (!items.is_empty()).then(|| ArealIndex { tree: StrTree::new(items), n_polys: polygons.len() })
+    }
+
+    /// Boundary if `p` lies on any ring, else Interior if it is inside any
+    /// polygon (per-polygon even-odd over that polygon's rings, so holes
+    /// subtract), else Exterior. Interior of one polygon wins over Boundary of
+    /// another, matching `locate_areal`.
+    fn locate(&self, p: Coord) -> Loc {
+        let bq = padded_box(p, p);
+        let ray = Rect::new(p, Coord::new(f64::INFINITY, p.y));
+
+        // Single polygon (the common case): scalars, no per-call allocation.
+        if self.n_polys == 1 {
+            let mut on = false;
+            self.tree.query_each(bq, |_, &(a, b, _)| on |= point_on_segment(p, a, b));
+            if on {
+                return Loc::Boundary;
+            }
+            let mut crossings = 0u32;
+            self.tree.query_each(ray, |_, &(a, b, _)| crossings += u32::from(ray_crosses(p, a, b)));
+            return if crossings % 2 == 1 { Loc::Interior } else { Loc::Exterior };
+        }
+
+        // Multi-polygon: per-polygon boundary flag and crossing parity.
+        let mut on_poly = vec![false; self.n_polys];
+        self.tree.query_each(bq, |_, &(a, b, poly)| {
+            on_poly[poly as usize] |= point_on_segment(p, a, b);
+        });
+        let mut cross = vec![0u32; self.n_polys];
+        self.tree.query_each(ray, |_, &(a, b, poly)| {
+            cross[poly as usize] += u32::from(ray_crosses(p, a, b));
+        });
+        let mut any_boundary = false;
+        for poly in 0..self.n_polys {
+            if on_poly[poly] {
+                any_boundary = true;
+            } else if cross[poly] % 2 == 1 {
+                return Loc::Interior; // interior of some polygon wins
+            }
+        }
+        if any_boundary { Loc::Boundary } else { Loc::Exterior }
+    }
+}
+
+/// Does a rightward horizontal ray from `p` cross segment `a`–`b`? Half-open in
+/// `y` (`[min_y, max_y)`), the crossing-number convention [`point_in_ring`] uses
+/// (a shared vertex counts once).
+fn ray_crosses(p: Coord, a: Coord, b: Coord) -> bool {
+    let (lo, hi) = if a.y <= b.y { (a, b) } else { (b, a) };
+    if p.y < lo.y || p.y >= hi.y {
+        return false;
+    }
+    let t = (p.y - lo.y) / (hi.y - lo.y);
+    lo.x + t * (hi.x - lo.x) > p.x
 }
 
 /// Proper + collinear intersection points of two segments.
