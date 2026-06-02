@@ -61,7 +61,11 @@ pub struct MinDistanceCost {
 
 impl Default for MinDistanceCost {
     fn default() -> Self {
-        Self { index_build_weight: 6.0, index_query_weight: 6.0, prune_pair_threshold: 256 }
+        Self {
+            index_build_weight: 6.0,
+            index_query_weight: 6.0,
+            prune_pair_threshold: 256,
+        }
     }
 }
 

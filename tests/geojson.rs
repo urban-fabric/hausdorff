@@ -20,9 +20,11 @@ fn fixtures() -> Vec<Geometry> {
             vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
             vec![(1.0, 1.0), (2.0, 1.0), (2.0, 2.0), (1.0, 2.0)],
         ])),
-        Geometry::MultiPolygon(MultiPolygon::new(vec![
-            poly(vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]]),
-        ])),
+        Geometry::MultiPolygon(MultiPolygon::new(vec![poly(vec![vec![
+            (0.0, 0.0),
+            (1.0, 0.0),
+            (1.0, 1.0),
+        ]])])),
         Geometry::GeometryCollection(vec![Geometry::Point(Point::new(-3.0, 7.0))]),
     ]
 }
@@ -51,7 +53,11 @@ fn matches_geojson_reference_crate() {
         let geo_g = common::to_geo_geometry(&g);
         // reference GeoJSON (the `geojson` crate) parses through native to g
         let reference = geojson::GeometryValue::from(&geo_g).to_string();
-        assert_eq!(from_geojson(&reference).unwrap(), g, "native parse of reference GeoJSON");
+        assert_eq!(
+            from_geojson(&reference).unwrap(),
+            g,
+            "native parse of reference GeoJSON"
+        );
         // native GeoJSON parses through the `geojson` crate back to g
         let parsed: geojson::Geometry = to_geojson(&g).parse().unwrap();
         let geo_parsed = geo_types::Geometry::<f64>::try_from(parsed.value).unwrap();

@@ -60,7 +60,11 @@ fn matches_wkt_reference_crate() {
     for g in fixtures() {
         // reference WKT (the `wkt` crate, via geo_types) parses through native to g
         let reference = common::to_geo_geometry(&g).wkt_string();
-        assert_eq!(from_wkt(&reference).unwrap(), g, "native parse of reference WKT");
+        assert_eq!(
+            from_wkt(&reference).unwrap(),
+            g,
+            "native parse of reference WKT"
+        );
         // native WKT parses through the `wkt` crate back to g
         let parsed = geo_types::Geometry::<f64>::try_from_wkt_str(&to_wkt(&g)).unwrap();
         assert_eq!(

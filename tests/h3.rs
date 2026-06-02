@@ -887,7 +887,10 @@ fn line_cover_endpoints_are_vertex_cells_and_path_is_connected() {
     // Every vertex's cell is covered.
     for &(lat, lng) in &vertices {
         let cell = H3Cell::for_point(lat, lng, resolution).expect("vertex cell");
-        assert!(cells.contains(&cell), "vertex cell {cell} missing from cover");
+        assert!(
+            cells.contains(&cell),
+            "vertex cell {cell} missing from cover"
+        );
     }
 
     // No duplicates, and (the polyline does not self-cross) the cover is a
@@ -955,7 +958,10 @@ fn line_cover_matches_concatenated_segment_grid_paths() {
 
 #[test]
 fn line_cover_validates_input() {
-    assert_eq!(H3Line::new(Vec::<(f64, f64)>::new()), Err(H3LineError::Empty));
+    assert_eq!(
+        H3Line::new(Vec::<(f64, f64)>::new()),
+        Err(H3LineError::Empty)
+    );
     assert_eq!(
         H3Line::new(vec![(40.0, -74.0), (f64::NAN, 0.0)]),
         Err(H3LineError::InvalidCoordinate)

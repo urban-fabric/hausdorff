@@ -14,7 +14,12 @@ fn orient(a: Coord, b: Coord, c: Coord) -> f64 {
 
 /// Two segments share a strictly-interior point (no shared endpoints).
 fn proper_cross(a: Coord, b: Coord, c: Coord, d: Coord) -> bool {
-    let (d1, d2, d3, d4) = (orient(a, b, c), orient(a, b, d), orient(c, d, a), orient(c, d, b));
+    let (d1, d2, d3, d4) = (
+        orient(a, b, c),
+        orient(a, b, d),
+        orient(c, d, a),
+        orient(c, d, b),
+    );
     d1 != 0.0
         && d2 != 0.0
         && d3 != 0.0
@@ -59,8 +64,7 @@ fn covered(ring: &[Coord], p: Coord) -> bool {
     let mut j = n - 1;
     for i in 0..n {
         let (pi, pj) = (ring[i], ring[j]);
-        if (pi.y > p.y) != (pj.y > p.y)
-            && p.x < (pj.x - pi.x) * (p.y - pi.y) / (pj.y - pi.y) + pi.x
+        if (pi.y > p.y) != (pj.y > p.y) && p.x < (pj.x - pi.x) * (p.y - pi.y) / (pj.y - pi.y) + pi.x
         {
             inside = !inside;
         }
@@ -90,7 +94,10 @@ fn covers_all_points_and_is_simple() {
     assert_eq!(ring.first(), ring.last(), "ring must be closed");
     assert!(is_simple(ring), "concave hull must be a simple polygon");
     for &(x, y) in &pts {
-        assert!(covered(ring, Coord::new(x, y)), "point ({x},{y}) not covered");
+        assert!(
+            covered(ring, Coord::new(x, y)),
+            "point ({x},{y}) not covered"
+        );
     }
 }
 
@@ -115,17 +122,32 @@ fn never_exceeds_convex_hull_area() {
 
 #[test]
 fn large_concavity_degenerates_to_convex_hull() {
-    let pts = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0), (5.0, 1.0)];
+    let pts = [
+        (0.0, 0.0),
+        (10.0, 0.0),
+        (10.0, 10.0),
+        (0.0, 10.0),
+        (5.0, 1.0),
+    ];
     let convex = mp(&pts).convex_hull().unsigned_area();
     let concave = mp(&pts).concave_hull(1.0e6).unsigned_area();
-    assert!((concave - convex).abs() < 1e-9, "huge concavity should equal convex hull");
+    assert!(
+        (concave - convex).abs() < 1e-9,
+        "huge concavity should equal convex hull"
+    );
 }
 
 #[test]
 fn small_concavity_digs_in() {
     // square corners + a point just inside the bottom edge: a low concavity
     // should pull the long bottom edge in to that point, shrinking the area.
-    let pts = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0), (5.0, 1.0)];
+    let pts = [
+        (0.0, 0.0),
+        (10.0, 0.0),
+        (10.0, 10.0),
+        (0.0, 10.0),
+        (5.0, 1.0),
+    ];
     let convex = mp(&pts).convex_hull().unsigned_area();
     let concave = mp(&pts).concave_hull(2.0).unsigned_area();
     assert!(

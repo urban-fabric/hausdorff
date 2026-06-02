@@ -4,8 +4,9 @@
 
 use super::convex_hull::convex_hull_coords;
 use super::{
-    Area, BoundingRect, Centroid, ChamberlainDuquetteArea, ConvexHull, Coord, CoordsIter, Euclidean,
-    Geometry, Length, LineString, MultiPoint, MultiPolygon, Point, Polygon, Rect, Simplify, Winding,
+    Area, BoundingRect, Centroid, ChamberlainDuquetteArea, ConvexHull, Coord, CoordsIter,
+    Euclidean, Geometry, Length, LineString, MultiPoint, MultiPolygon, Point, Polygon, Rect,
+    Simplify, Winding,
 };
 
 impl ChamberlainDuquetteArea for Geometry {
@@ -15,9 +16,10 @@ impl ChamberlainDuquetteArea for Geometry {
             Geometry::MultiPolygon(g) => g.chamberlain_duquette_signed_area(),
             Geometry::Rect(g) => g.to_polygon().chamberlain_duquette_signed_area(),
             Geometry::Triangle(g) => g.to_polygon().chamberlain_duquette_signed_area(),
-            Geometry::GeometryCollection(gs) => {
-                gs.iter().map(ChamberlainDuquetteArea::chamberlain_duquette_signed_area).sum()
-            }
+            Geometry::GeometryCollection(gs) => gs
+                .iter()
+                .map(ChamberlainDuquetteArea::chamberlain_duquette_signed_area)
+                .sum(),
             _ => 0.0,
         }
     }

@@ -103,8 +103,13 @@ fn err<T>(msg: &str) -> Result<T, GeoJsonError> {
 }
 
 fn parse_coord(v: &Value) -> Result<Coord, GeoJsonError> {
-    let a = v.as_array().ok_or_else(|| GeoJsonError("coordinate not an array".into()))?;
-    match (a.first().and_then(Value::as_f64), a.get(1).and_then(Value::as_f64)) {
+    let a = v
+        .as_array()
+        .ok_or_else(|| GeoJsonError("coordinate not an array".into()))?;
+    match (
+        a.first().and_then(Value::as_f64),
+        a.get(1).and_then(Value::as_f64),
+    ) {
         (Some(x), Some(y)) => Ok(Coord::new(x, y)),
         _ => err("coordinate needs two numbers"),
     }
@@ -128,7 +133,9 @@ fn parse_rings(v: &Value) -> Result<Vec<Vec<Coord>>, GeoJsonError> {
 
 fn parse_polygon(v: &Value) -> Result<Polygon, GeoJsonError> {
     let mut rings = parse_rings(v)?.into_iter();
-    let exterior = rings.next().map_or_else(|| LineString::new(vec![]), LineString::new);
+    let exterior = rings
+        .next()
+        .map_or_else(|| LineString::new(vec![]), LineString::new);
     Ok(Polygon::new(exterior, rings.map(LineString::new).collect()))
 }
 
@@ -143,13 +150,18 @@ fn value_to_geom(v: &Value) -> Result<Geometry, GeoJsonError> {
     };
     match type_name {
         "Point" => Ok(Geometry::Point(Point(parse_coord(coords()?)?))),
-        "LineString" => Ok(Geometry::LineString(LineString::new(parse_coords(coords()?)?))),
+        "LineString" => Ok(Geometry::LineString(LineString::new(parse_coords(
+            coords()?,
+        )?))),
         "Polygon" => Ok(Geometry::Polygon(parse_polygon(coords()?)?)),
         "MultiPoint" => Ok(Geometry::MultiPoint(MultiPoint::new(
             parse_coords(coords()?)?.into_iter().map(Point).collect(),
         ))),
         "MultiLineString" => Ok(Geometry::MultiLineString(MultiLineString::new(
-            parse_rings(coords()?)?.into_iter().map(LineString::new).collect(),
+            parse_rings(coords()?)?
+                .into_iter()
+                .map(LineString::new)
+                .collect(),
         ))),
         "MultiPolygon" => {
             let polys = coords()?

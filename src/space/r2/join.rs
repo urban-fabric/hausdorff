@@ -90,11 +90,20 @@ impl<P: Copy> GeometryIndex<P> {
         let entries: Vec<Indexed<P>> = items
             .into_iter()
             .filter_map(|(geom, payload)| {
-                geom.bounding_rect().map(|rect| Indexed { rect, geom, payload })
+                geom.bounding_rect().map(|rect| Indexed {
+                    rect,
+                    geom,
+                    payload,
+                })
             })
             .collect();
-        let tree =
-            StrTree::new(entries.iter().enumerate().map(|(i, e)| (e.rect, i as u32)).collect());
+        let tree = StrTree::new(
+            entries
+                .iter()
+                .enumerate()
+                .map(|(i, e)| (e.rect, i as u32))
+                .collect(),
+        );
         Self { entries, tree }
     }
 
@@ -175,7 +184,13 @@ mod payload_join_tests {
 
     fn square(x: f64, y: f64) -> Geometry {
         Geometry::Polygon(Polygon::new(
-            LineString::from(vec![(x, y), (x + 1.0, y), (x + 1.0, y + 1.0), (x, y + 1.0), (x, y)]),
+            LineString::from(vec![
+                (x, y),
+                (x + 1.0, y),
+                (x + 1.0, y + 1.0),
+                (x, y + 1.0),
+                (x, y),
+            ]),
             vec![],
         ))
     }
@@ -183,13 +198,17 @@ mod payload_join_tests {
     #[test]
     fn index_and_nested_loop_agree_with_payloads() {
         // Build side tagged with row ids 10, 20, 30; probe side with 1, 2.
-        let build =
-            vec![(square(0.0, 0.0), 10u32), (square(5.0, 5.0), 20), (square(-0.5, -0.5), 30)];
+        let build = vec![
+            (square(0.0, 0.0), 10u32),
+            (square(5.0, 5.0), 20),
+            (square(-0.5, -0.5), 30),
+        ];
         let probe = vec![
             (Geometry::Point(Point(Coord::new(0.4, 0.4))), 1u32),
             (Geometry::Point(Point(Coord::new(100.0, 100.0))), 2),
         ];
-        let pred = |a: &Geometry, b: &Geometry| crate::space::r2::SpatialPredicate::Intersects.eval(a, b);
+        let pred =
+            |a: &Geometry, b: &Geometry| crate::space::r2::SpatialPredicate::Intersects.eval(a, b);
 
         let idx = GeometryIndex::build(build.clone());
         assert_eq!(idx.len(), 3);

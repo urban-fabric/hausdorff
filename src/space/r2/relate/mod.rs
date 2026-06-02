@@ -15,15 +15,18 @@ use super::{Coord, Geometry, Polygon, Rect, StrTree};
 mod matrix;
 mod predicate;
 pub use matrix::IntersectionMatrix;
-pub use predicate::SpatialPredicate;
 use matrix::{B, E, I, Loc};
+pub use predicate::SpatialPredicate;
 
 /// Topological dimension of a geometry (max over components): 0/1/2, or -1 empty.
 fn dimension(g: &Geometry) -> i8 {
     match g {
         Geometry::Point(_) | Geometry::MultiPoint(_) => 0,
         Geometry::Line(_) | Geometry::LineString(_) | Geometry::MultiLineString(_) => 1,
-        Geometry::Polygon(_) | Geometry::MultiPolygon(_) | Geometry::Rect(_) | Geometry::Triangle(_) => 2,
+        Geometry::Polygon(_)
+        | Geometry::MultiPolygon(_)
+        | Geometry::Rect(_)
+        | Geometry::Triangle(_) => 2,
         Geometry::GeometryCollection(gs) => gs.iter().map(dimension).max().unwrap_or(-1),
     }
 }
@@ -272,7 +275,11 @@ impl Decomposed {
             Geometry::MultiPoint(mp) => self.points.extend(mp.0.iter().map(|p| p.0)),
             Geometry::Line(l) => {
                 if l.start != l.end {
-                    self.segments.push(Seg { a: l.start, b: l.end, owner: Loc::Interior });
+                    self.segments.push(Seg {
+                        a: l.start,
+                        b: l.end,
+                        owner: Loc::Interior,
+                    });
                     self.add_line_boundary(&[l.start, l.end]);
                 } else {
                     // degenerate zero-length line behaves as a point
@@ -304,7 +311,11 @@ impl Decomposed {
     fn add_linestring(&mut self, coords: &[Coord]) {
         for w in coords.windows(2) {
             if w[0] != w[1] {
-                self.segments.push(Seg { a: w[0], b: w[1], owner: Loc::Interior });
+                self.segments.push(Seg {
+                    a: w[0],
+                    b: w[1],
+                    owner: Loc::Interior,
+                });
             }
         }
         if coords.len() >= 2 {
@@ -417,7 +428,11 @@ fn ring_segments(coords: &[Coord], out: &mut Vec<Seg>) {
     for i in 0..n {
         let (a, b) = (v[i], v[(i + 1) % n]);
         if a != b {
-            out.push(Seg { a, b, owner: Loc::Boundary });
+            out.push(Seg {
+                a,
+                b,
+                owner: Loc::Boundary,
+            });
         }
     }
 }
@@ -552,7 +567,11 @@ fn representative_interior_point(poly: &Polygon) -> Option<Coord> {
     let next = v[(k + 1) % n];
     let u = |a: Coord| {
         let l = (a.x * a.x + a.y * a.y).sqrt();
-        if l < 1e-12 { (0.0, 0.0) } else { (a.x / l, a.y / l) }
+        if l < 1e-12 {
+            (0.0, 0.0)
+        } else {
+            (a.x / l, a.y / l)
+        }
     };
     let (u1x, u1y) = u(Coord::new(prev.x - cur.x, prev.y - cur.y));
     let (u2x, u2y) = u(Coord::new(next.x - cur.x, next.y - cur.y));
@@ -565,7 +584,9 @@ fn representative_interior_point(poly: &Polygon) -> Option<Coord> {
         bx /= bl;
         by /= bl;
     }
-    let elen = (prev.x - cur.x).hypot(prev.y - cur.y).min((next.x - cur.x).hypot(next.y - cur.y));
+    let elen = (prev.x - cur.x)
+        .hypot(prev.y - cur.y)
+        .min((next.x - cur.x).hypot(next.y - cur.y));
     let step = elen * 1e-3;
     let cand = Coord::new(cur.x + bx * step, cur.y + by * step);
     if locate_in_polygon(cand, poly) == Loc::Interior {
@@ -641,7 +662,12 @@ fn padded_box(a: Coord, b: Coord) -> Rect {
 
 /// Index a segment list by padded bounding box for spatial queries.
 fn segment_index(segs: &[Seg]) -> StrTree<usize> {
-    StrTree::new(segs.iter().enumerate().map(|(i, s)| (padded_box(s.a, s.b), i)).collect())
+    StrTree::new(
+        segs.iter()
+            .enumerate()
+            .map(|(i, s)| (padded_box(s.a, s.b), i))
+            .collect(),
+    )
 }
 
 /// Node two segment sets: collect every pairwise intersection point, but only
@@ -686,7 +712,8 @@ impl ArealIndex {
         }
         let mut items: Vec<(Rect, (Coord, Coord, u32))> = Vec::new();
         for (pi, poly) in polygons.iter().enumerate() {
-            let rings = std::iter::once(&poly.exterior().0).chain(poly.interiors().iter().map(|r| &r.0));
+            let rings =
+                std::iter::once(&poly.exterior().0).chain(poly.interiors().iter().map(|r| &r.0));
             for ring in rings {
                 let v = ring_vertices(ring);
                 let n = v.len();
@@ -698,7 +725,10 @@ impl ArealIndex {
                 }
             }
         }
-        (!items.is_empty()).then(|| ArealIndex { tree: StrTree::new(items), n_polys: polygons.len() })
+        (!items.is_empty()).then(|| ArealIndex {
+            tree: StrTree::new(items),
+            n_polys: polygons.len(),
+        })
     }
 
     /// Boundary if `p` lies on any ring, else Interior if it is inside any
@@ -712,13 +742,20 @@ impl ArealIndex {
         // Single polygon (the common case): scalars, no per-call allocation.
         if self.n_polys == 1 {
             let mut on = false;
-            self.tree.query_each(bq, |_, &(a, b, _)| on |= point_on_segment(p, a, b));
+            self.tree
+                .query_each(bq, |_, &(a, b, _)| on |= point_on_segment(p, a, b));
             if on {
                 return Loc::Boundary;
             }
             let mut crossings = 0u32;
-            self.tree.query_each(ray, |_, &(a, b, _)| crossings += u32::from(ray_crosses(p, a, b)));
-            return if crossings % 2 == 1 { Loc::Interior } else { Loc::Exterior };
+            self.tree.query_each(ray, |_, &(a, b, _)| {
+                crossings += u32::from(ray_crosses(p, a, b))
+            });
+            return if crossings % 2 == 1 {
+                Loc::Interior
+            } else {
+                Loc::Exterior
+            };
         }
 
         // Multi-polygon: per-polygon boundary flag and crossing parity.
@@ -738,7 +775,11 @@ impl ArealIndex {
                 return Loc::Interior; // interior of some polygon wins
             }
         }
-        if any_boundary { Loc::Boundary } else { Loc::Exterior }
+        if any_boundary {
+            Loc::Boundary
+        } else {
+            Loc::Exterior
+        }
     }
 }
 
@@ -765,7 +806,10 @@ fn collect_intersections(a1: Coord, a2: Coord, b1: Coord, b2: Coord, out: &mut V
         let denom = (a1.x - a2.x) * (b1.y - b2.y) - (a1.y - a2.y) * (b1.x - b2.x);
         if denom != 0.0 {
             let t = ((a1.x - b1.x) * (b1.y - b2.y) - (a1.y - b1.y) * (b1.x - b2.x)) / denom;
-            out.push(Coord::new(a1.x + t * (a2.x - a1.x), a1.y + t * (a2.y - a1.y)));
+            out.push(Coord::new(
+                a1.x + t * (a2.x - a1.x),
+                a1.y + t * (a2.y - a1.y),
+            ));
         }
     }
     // collinear / touching endpoints
@@ -908,7 +952,12 @@ fn add_exterior_cells(
     }
 
     // 0-D / 1-D interior of `from` outside other (points & lines)
-    if from.dim == 0 && from.points.iter().any(|&p| other.locate(p) == Loc::Exterior) {
+    if from.dim == 0
+        && from
+            .points
+            .iter()
+            .any(|&p| other.locate(p) == Loc::Exterior)
+    {
         set(im, I, 0);
     }
     if from.dim == 1

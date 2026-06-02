@@ -105,7 +105,10 @@ mod tests {
     fn point_polygon_cover_and_line_skip() {
         // Point → its containing cell.
         let pt = Geometry::Point(Point::new(10.0, 50.0));
-        assert_eq!(cover_r2_geometry_at_level(&pt, 12).unwrap(), vec![at(10.0, 50.0, 12)]);
+        assert_eq!(
+            cover_r2_geometry_at_level(&pt, 12).unwrap(),
+            vec![at(10.0, 50.0, 12)]
+        );
 
         // Polygon → boundary-complete cover including an interior point's cell.
         let level = 8;

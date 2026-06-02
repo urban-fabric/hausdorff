@@ -52,7 +52,10 @@ fn row(name: &str, ext_name: &str, iters: u64, haus: impl FnMut(), ext: impl FnM
 struct Rng(u64);
 impl Rng {
     fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.0 = self
+            .0
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.0 >> 33
     }
     fn f(&mut self, half: f64) -> f64 {
@@ -66,15 +69,26 @@ fn geo_ring(coords: &[(f64, f64)]) -> geo::LineString<f64> {
 }
 
 fn main() {
-    println!("\nhausdorff vs external reference libraries (per-call mean via huygens; lower = faster)\n");
-    println!("  {:<26} {:>14}   {:<8} {:>14}", "kernel", "hausdorff", "external", "");
+    println!(
+        "\nhausdorff vs external reference libraries (per-call mean via huygens; lower = faster)\n"
+    );
+    println!(
+        "  {:<26} {:>14}   {:<8} {:>14}",
+        "kernel", "hausdorff", "external", ""
+    );
     println!("  {}", "-".repeat(88));
 
     let mut rng = Rng(0x00C0_FFEE_1234_5678);
 
     // ---- haversine great-circle distance (vs geo) --------------------------
-    let (a, b) = (GeoPoint::from_lat_lon(52.52, 13.405), GeoPoint::from_lat_lon(48.857, 2.352));
-    let (ga, gb) = (geo::Point::new(13.405, 52.52), geo::Point::new(2.352, 48.857));
+    let (a, b) = (
+        GeoPoint::from_lat_lon(52.52, 13.405),
+        GeoPoint::from_lat_lon(48.857, 2.352),
+    );
+    let (ga, gb) = (
+        geo::Point::new(13.405, 52.52),
+        geo::Point::new(2.352, 48.857),
+    );
     row(
         "haversine_distance",
         "geo",
@@ -137,8 +151,18 @@ fn main() {
     let cloud_b: Vec<(f64, f64)> = (0..1000).map(|_| (rng.f(100.0), rng.f(100.0))).collect();
     let hca = Geometry::MultiPoint(MultiPoint::from(cloud_a.clone()));
     let hcb = Geometry::MultiPoint(MultiPoint::from(cloud_b.clone()));
-    let gca = geo::Geometry::MultiPoint(cloud_a.iter().map(|&(x, y)| geo::Point::new(x, y)).collect());
-    let gcb = geo::Geometry::MultiPoint(cloud_b.iter().map(|&(x, y)| geo::Point::new(x, y)).collect());
+    let gca = geo::Geometry::MultiPoint(
+        cloud_a
+            .iter()
+            .map(|&(x, y)| geo::Point::new(x, y))
+            .collect(),
+    );
+    let gcb = geo::Geometry::MultiPoint(
+        cloud_b
+            .iter()
+            .map(|&(x, y)| geo::Point::new(x, y))
+            .collect(),
+    );
     row(
         "min_dist clouds x1000",
         "geo",
@@ -152,7 +176,9 @@ fn main() {
     );
 
     // ---- batch distance fan: SIMD vs a geo per-point loop ------------------
-    let coords: Vec<Coord> = (0..1024).map(|_| Coord::new(rng.f(1000.0), rng.f(1000.0))).collect();
+    let coords: Vec<Coord> = (0..1024)
+        .map(|_| Coord::new(rng.f(1000.0), rng.f(1000.0)))
+        .collect();
     let batch = PointBatch::from_coords(&coords);
     let gpts: Vec<geo::Point<f64>> = coords.iter().map(|c| geo::Point::new(c.x, c.y)).collect();
     let (tgt, gtgt) = (Coord::new(3.0, -7.0), geo::Point::new(3.0, -7.0));
@@ -172,7 +198,10 @@ fn main() {
     // ---- convex hull over 500 random points (vs geo) ----------------------
     let hull_pts: Vec<(f64, f64)> = (0..500).map(|_| (rng.f(100.0), rng.f(100.0))).collect();
     let hmp = MultiPoint::from(hull_pts.clone());
-    let gmp: geo::MultiPoint<f64> = hull_pts.iter().map(|&(x, y)| geo::Point::new(x, y)).collect();
+    let gmp: geo::MultiPoint<f64> = hull_pts
+        .iter()
+        .map(|&(x, y)| geo::Point::new(x, y))
+        .collect();
     row(
         "convex_hull x500",
         "geo",
@@ -186,8 +215,9 @@ fn main() {
     );
 
     // ---- RDP simplify of a 1000-vertex wiggly line (vs geo) ---------------
-    let wiggly: Vec<(f64, f64)> =
-        (0..1000).map(|i| (i as f64 * 0.1, (i as f64 * 0.3).sin() * 5.0)).collect();
+    let wiggly: Vec<(f64, f64)> = (0..1000)
+        .map(|i| (i as f64 * 0.1, (i as f64 * 0.3).sin() * 5.0))
+        .collect();
     let hls = LineString::from(wiggly.clone());
     let gls = geo_ring(&wiggly);
     row(
@@ -223,7 +253,11 @@ fn main() {
         "geohash",
         1_000_000,
         || {
-            black_box(hausdorff::index::geohash::encode(black_box(lon), black_box(lat), 9));
+            black_box(hausdorff::index::geohash::encode(
+                black_box(lon),
+                black_box(lat),
+                9,
+            ));
         },
         || {
             black_box(geohash::encode(geohash::Coord { x: lon, y: lat }, 9).unwrap());

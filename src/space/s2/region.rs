@@ -304,7 +304,10 @@ mod tests {
     #[test]
     fn covering_contains_interior_excludes_exterior() {
         let region = square(-1.0, -1.0, 1.0, 1.0);
-        assert!(region.contains_point(pt(0.0, 0.0)), "origin inside the loop");
+        assert!(
+            region.contains_point(pt(0.0, 0.0)),
+            "origin inside the loop"
+        );
         assert!(!region.contains_point(pt(20.0, 20.0)), "far point outside");
 
         let cover = RegionCoverer::at_level(8).covering(&region);

@@ -286,7 +286,10 @@ impl Parser<'_> {
             }
             "POLYGON" => {
                 if self.empty() {
-                    return Ok(Geometry::Polygon(Polygon::new(LineString::new(vec![]), vec![])));
+                    return Ok(Geometry::Polygon(Polygon::new(
+                        LineString::new(vec![]),
+                        vec![],
+                    )));
                 }
                 let rings = self.ring_seq()?;
                 Ok(Geometry::Polygon(make_polygon(rings)))

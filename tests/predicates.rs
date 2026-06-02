@@ -13,7 +13,10 @@ use hausdorff::{Contains, Coord, Geometry, LineString, Point, Polygon};
 struct Rng(u64);
 impl Rng {
     fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.0 = self
+            .0
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.0 >> 33
     }
     fn f(&mut self, half: f64) -> f64 {
@@ -34,13 +37,7 @@ fn make(rng: &mut Rng, kind: u64) -> Geometry {
             let (x, y) = (rng.f(8.0), rng.f(8.0));
             let (w, h) = (1.0 + rng.f(4.0).abs(), 1.0 + rng.f(4.0).abs());
             Geometry::Polygon(Polygon::new(
-                LineString::from(vec![
-                    (x, y),
-                    (x + w, y),
-                    (x + w, y + h),
-                    (x, y + h),
-                    (x, y),
-                ]),
+                LineString::from(vec![(x, y), (x + w, y), (x + w, y + h), (x, y + h), (x, y)]),
                 vec![],
             ))
         }
@@ -81,19 +78,55 @@ fn eval_agrees_with_relate_and_transpose_holds() {
         // The predicates whose `is_*` take no dimension argument: eval must equal
         // the matrix exactly, including the Intersects/Disjoint and point-in-areal
         // Contains/Within short-circuits.
-        assert_eq!(SpatialPredicate::Intersects.eval(&a, &b), m.is_intersects(), "intersects");
-        assert_eq!(SpatialPredicate::Disjoint.eval(&a, &b), m.is_disjoint(), "disjoint");
-        assert_eq!(SpatialPredicate::Contains.eval(&a, &b), m.is_contains(), "contains");
-        assert_eq!(SpatialPredicate::Within.eval(&a, &b), m.is_within(), "within");
-        assert_eq!(SpatialPredicate::Covers.eval(&a, &b), m.is_covers(), "covers");
-        assert_eq!(SpatialPredicate::CoveredBy.eval(&a, &b), m.is_coveredby(), "coveredby");
-        assert_eq!(SpatialPredicate::Touches.eval(&a, &b), m.is_touches(), "touches");
-        assert_eq!(SpatialPredicate::Equals.eval(&a, &b), m.is_equal_topo(), "equals");
+        assert_eq!(
+            SpatialPredicate::Intersects.eval(&a, &b),
+            m.is_intersects(),
+            "intersects"
+        );
+        assert_eq!(
+            SpatialPredicate::Disjoint.eval(&a, &b),
+            m.is_disjoint(),
+            "disjoint"
+        );
+        assert_eq!(
+            SpatialPredicate::Contains.eval(&a, &b),
+            m.is_contains(),
+            "contains"
+        );
+        assert_eq!(
+            SpatialPredicate::Within.eval(&a, &b),
+            m.is_within(),
+            "within"
+        );
+        assert_eq!(
+            SpatialPredicate::Covers.eval(&a, &b),
+            m.is_covers(),
+            "covers"
+        );
+        assert_eq!(
+            SpatialPredicate::CoveredBy.eval(&a, &b),
+            m.is_coveredby(),
+            "coveredby"
+        );
+        assert_eq!(
+            SpatialPredicate::Touches.eval(&a, &b),
+            m.is_touches(),
+            "touches"
+        );
+        assert_eq!(
+            SpatialPredicate::Equals.eval(&a, &b),
+            m.is_equal_topo(),
+            "equals"
+        );
 
         // `a P b` ⟺ `b P.transpose() a` for every predicate (covers Crosses /
         // Overlaps symmetry too).
         for p in ALL {
-            assert_eq!(p.eval(&a, &b), p.transpose().eval(&b, &a), "transpose {p:?}");
+            assert_eq!(
+                p.eval(&a, &b),
+                p.transpose().eval(&b, &a),
+                "transpose {p:?}"
+            );
         }
     }
 }
@@ -101,7 +134,13 @@ fn eval_agrees_with_relate_and_transpose_holds() {
 #[test]
 fn geometry_contains_point_is_areal_only() {
     let sq = Geometry::Polygon(Polygon::new(
-        LineString::from(vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0), (0.0, 0.0)]),
+        LineString::from(vec![
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (4.0, 4.0),
+            (0.0, 4.0),
+            (0.0, 0.0),
+        ]),
         vec![],
     ));
     assert!(sq.contains(&Coord::new(2.0, 2.0)));

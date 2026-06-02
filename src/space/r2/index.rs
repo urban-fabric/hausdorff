@@ -59,18 +59,33 @@ impl<T> StrTree<T> {
         let cap = node_capacity.max(1);
         let len = items.len();
         if items.is_empty() {
-            return Self { root: None, len, node_capacity: cap };
+            return Self {
+                root: None,
+                len,
+                node_capacity: cap,
+            };
         }
         // Bottom-up: pack items into leaves, then pack levels until one root.
-        let mut level = str_pack(items, cap, |(r, _)| *r, |chunk| {
-            Node::Leaf { bbox: union(chunk.iter().map(|(r, _)| *r)), items: chunk }
-        });
+        let mut level = str_pack(
+            items,
+            cap,
+            |(r, _)| *r,
+            |chunk| Node::Leaf {
+                bbox: union(chunk.iter().map(|(r, _)| *r)),
+                items: chunk,
+            },
+        );
         while level.len() > 1 {
-            level = str_pack(level, cap, Node::bbox, |chunk| {
-                Node::Internal { bbox: union(chunk.iter().map(Node::bbox)), children: chunk }
+            level = str_pack(level, cap, Node::bbox, |chunk| Node::Internal {
+                bbox: union(chunk.iter().map(Node::bbox)),
+                children: chunk,
             });
         }
-        Self { root: level.into_iter().next(), len, node_capacity: cap }
+        Self {
+            root: level.into_iter().next(),
+            len,
+            node_capacity: cap,
+        }
     }
 
     /// Number of indexed items.
@@ -357,7 +372,10 @@ mod tests {
     struct Lcg(u64);
     impl Lcg {
         fn f(&mut self) -> f64 {
-            self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            self.0 = self
+                .0
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             f64::from((self.0 >> 40) as u32 & 0xFFFF)
         }
     }
@@ -366,8 +384,11 @@ mod tests {
     fn k_nearest_matches_brute_force() {
         let mut rng = Lcg(0x1357_9BDF_2468_ACE0);
         let pts: Vec<Coord> = (0..400).map(|_| Coord::new(rng.f(), rng.f())).collect();
-        let items: Vec<(Rect, usize)> =
-            pts.iter().enumerate().map(|(i, &p)| (Rect::new(p, p), i)).collect();
+        let items: Vec<(Rect, usize)> = pts
+            .iter()
+            .enumerate()
+            .map(|(i, &p)| (Rect::new(p, p), i))
+            .collect();
         let tree = StrTree::new(items);
         let q = Coord::new(30000.0, 12345.0);
         let dist_sq = |p: Coord| (p.x - q.x).powi(2) + (p.y - q.y).powi(2);

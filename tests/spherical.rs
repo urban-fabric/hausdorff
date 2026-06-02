@@ -130,8 +130,8 @@ fn loop_contains_and_perimeter() {
 
 #[test]
 fn sphere_is_planet_flexible() {
-    use hausdorff::space::s1::Angle;
     use hausdorff::earth::sphere::Sphere;
+    use hausdorff::space::s1::Angle;
 
     // arc length of one radian equals the radius
     assert!(

@@ -21,10 +21,6 @@ mod validity;
 
 pub use bits::MAX_RESOLUTION;
 // Codec helpers the sibling h3 modules reach via the `index::` path.
-pub(super) use bits::{
-    DEFAULT_CELL_INDEX, clr_direction, first_axe, get_base_cell, get_direction, get_resolution,
-    pentagon_rotate60, rotate60, rotate_direction, set_base_cell, set_direction, set_resolution,
-};
 use area::{
     AVG_HEXAGON_AREA_KM2, AVG_HEXAGON_AREA_M2, AVG_HEXAGON_EDGE_LENGTH_KM,
     AVG_HEXAGON_EDGE_LENGTH_M, EARTH_RADIUS_KM, distance_rads, linear_ring_area_rads2,
@@ -32,6 +28,10 @@ use area::{
 use bits::{
     CELL_MODE, DIRECTED_EDGE_MODE, K_AXIS_DIGIT, VERTEX_MODE, get_digit, get_reserved_bits,
     has_nonzero_digit, set_mode, set_reserved_bits, set_unused,
+};
+pub(super) use bits::{
+    DEFAULT_CELL_INDEX, clr_direction, first_axe, get_base_cell, get_direction, get_resolution,
+    pentagon_rotate60, rotate_direction, rotate60, set_base_cell, set_direction, set_resolution,
 };
 use validity::{is_valid_cell, is_valid_directed_edge, is_valid_vertex};
 

@@ -51,7 +51,11 @@ fn matches_wkb_reference_crate() {
             &WriteOptions::default(),
         )
         .unwrap();
-        assert_eq!(from_wkb(&reference).unwrap(), g, "native decode of reference WKB");
+        assert_eq!(
+            from_wkb(&reference).unwrap(),
+            g,
+            "native decode of reference WKB"
+        );
         // native bytes decode through the `wkb` crate back to g
         let decoded = wkb::reader::read_wkb(&to_wkb(&g)).unwrap().to_geometry();
         assert_eq!(
@@ -68,7 +72,10 @@ fn reads_big_endian() {
     let mut bytes = vec![0u8, 0, 0, 0, 1];
     bytes.extend_from_slice(&1.0f64.to_be_bytes());
     bytes.extend_from_slice(&2.0f64.to_be_bytes());
-    assert_eq!(from_wkb(&bytes).unwrap(), Geometry::Point(Point::new(1.0, 2.0)));
+    assert_eq!(
+        from_wkb(&bytes).unwrap(),
+        Geometry::Point(Point::new(1.0, 2.0))
+    );
 }
 
 #[test]

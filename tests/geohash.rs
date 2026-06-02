@@ -6,7 +6,7 @@ use hausdorff::index::geohash::{decode, encode, try_encode};
 #[test]
 fn matches_geohash_crate() {
     let samples = [
-        (13.405, 52.52),   // Berlin
+        (13.405, 52.52), // Berlin
         (-0.1278, 51.5074),
         (151.2093, -33.8688),
         (0.0, 0.0),
@@ -16,7 +16,10 @@ fn matches_geohash_crate() {
         for prec in [1usize, 5, 9, 12] {
             let ours = encode(lon, lat, prec);
             let theirs = geohash::encode(geohash::Coord { x: lon, y: lat }, prec).unwrap();
-            assert_eq!(ours, theirs, "geohash mismatch at ({lon},{lat}) prec {prec}");
+            assert_eq!(
+                ours, theirs,
+                "geohash mismatch at ({lon},{lat}) prec {prec}"
+            );
         }
     }
 }

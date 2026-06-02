@@ -20,7 +20,10 @@ pub trait ConcaveHull {
 impl ConcaveHull for MultiPoint {
     fn concave_hull(&self, concavity: f64) -> Polygon {
         let coords: Vec<Coord> = self.0.iter().map(|p| p.0).collect();
-        Polygon::new(LineString::new(concave_hull_coords(&coords, concavity)), vec![])
+        Polygon::new(
+            LineString::new(concave_hull_coords(&coords, concavity)),
+            vec![],
+        )
     }
 }
 
@@ -42,8 +45,7 @@ pub(crate) fn concave_hull_coords(points: &[Coord], concavity: f64) -> Vec<Coord
     if boundary.len() >= 2 && boundary[0] == *boundary.last().unwrap() {
         boundary.pop();
     }
-    let on_hull: std::collections::HashSet<(u64, u64)> =
-        boundary.iter().map(|c| key(*c)).collect();
+    let on_hull: std::collections::HashSet<(u64, u64)> = boundary.iter().map(|c| key(*c)).collect();
     let mut interior: Vec<Coord> = pts
         .iter()
         .copied()
@@ -113,7 +115,12 @@ fn nearest_to_edge(interior: &[Coord], a: Coord, b: Coord) -> Option<(usize, f64
 
 /// Proper crossing: segments share an interior point (no shared endpoints).
 fn proper_cross(a: Coord, b: Coord, c: Coord, d: Coord) -> bool {
-    let (d1, d2, d3, d4) = (orient(a, b, c), orient(a, b, d), orient(c, d, a), orient(c, d, b));
+    let (d1, d2, d3, d4) = (
+        orient(a, b, c),
+        orient(a, b, d),
+        orient(c, d, a),
+        orient(c, d, b),
+    );
     d1 != 0.0
         && d2 != 0.0
         && d3 != 0.0

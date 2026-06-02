@@ -12,7 +12,13 @@ use hausdorff::{Coord, Geometry, LineString, MultiLineString, MultiPolygon, Poin
 fn length_is_linear_and_perimeter_is_areal() {
     // Polygon: no curve length; its ring boundary is the perimeter (2×2 square → 8).
     let square = Geometry::Polygon(Polygon::new(
-        LineString::from(vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0), (0.0, 0.0)]),
+        LineString::from(vec![
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (2.0, 2.0),
+            (0.0, 2.0),
+            (0.0, 0.0),
+        ]),
         vec![],
     ));
     assert_eq!(Euclidean.length(&square), 0.0);
@@ -33,7 +39,13 @@ fn length_is_linear_and_perimeter_is_areal() {
     let gc = Geometry::GeometryCollection(vec![
         Geometry::LineString(LineString::from(vec![(0.0, 0.0), (3.0, 0.0), (3.0, 4.0)])),
         Geometry::Polygon(Polygon::new(
-            LineString::from(vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0), (0.0, 0.0)]),
+            LineString::from(vec![
+                (0.0, 0.0),
+                (2.0, 0.0),
+                (2.0, 2.0),
+                (0.0, 2.0),
+                (0.0, 0.0),
+            ]),
             vec![],
         )),
     ]);
@@ -56,12 +68,21 @@ fn rect_intersects_is_box_overlap() {
 fn orient_for_geometry_reorients_areal_only() {
     // A clockwise exterior ring; Default orientation wants it counter-clockwise.
     let cw = Polygon::new(
-        LineString::from(vec![(0.0, 0.0), (0.0, 2.0), (2.0, 2.0), (2.0, 0.0), (0.0, 0.0)]),
+        LineString::from(vec![
+            (0.0, 0.0),
+            (0.0, 2.0),
+            (2.0, 2.0),
+            (2.0, 0.0),
+            (0.0, 0.0),
+        ]),
         vec![],
     );
     match Geometry::Polygon(cw).orient(Direction::Default) {
         Geometry::Polygon(p) => {
-            assert_eq!(p.exterior().winding_order(), Some(WindingOrder::CounterClockwise));
+            assert_eq!(
+                p.exterior().winding_order(),
+                Some(WindingOrder::CounterClockwise)
+            );
         }
         _ => panic!("polygon stays a polygon"),
     }
@@ -81,15 +102,31 @@ fn collection_area_sums_absolute_parts() {
     // Two unit squares of opposite winding: `|Σ signed|` would cancel to 0, but
     // the unsigned area must be 2.
     let ccw = Geometry::Polygon(Polygon::new(
-        LineString::from(vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (0.0, 0.0)]),
+        LineString::from(vec![
+            (0.0, 0.0),
+            (1.0, 0.0),
+            (1.0, 1.0),
+            (0.0, 1.0),
+            (0.0, 0.0),
+        ]),
         vec![],
     ));
     let cw = Geometry::Polygon(Polygon::new(
-        LineString::from(vec![(2.0, 0.0), (2.0, 1.0), (3.0, 1.0), (3.0, 0.0), (2.0, 0.0)]),
+        LineString::from(vec![
+            (2.0, 0.0),
+            (2.0, 1.0),
+            (3.0, 1.0),
+            (3.0, 0.0),
+            (2.0, 0.0),
+        ]),
         vec![],
     ));
     let gc = Geometry::GeometryCollection(vec![ccw, cw]);
-    assert!((gc.unsigned_area() - 2.0).abs() < 1e-9, "got {}", gc.unsigned_area());
+    assert!(
+        (gc.unsigned_area() - 2.0).abs() < 1e-9,
+        "got {}",
+        gc.unsigned_area()
+    );
 }
 
 #[test]
@@ -100,7 +137,11 @@ fn collection_centroid_is_mean_of_all_coords() {
         Geometry::Point(Point::new(2.0, 6.0)),
     ]);
     let c = gc.centroid().unwrap();
-    assert!((c.0.x - 2.0).abs() < 1e-9 && (c.0.y - 2.0).abs() < 1e-9, "got {:?}", c.0);
+    assert!(
+        (c.0.x - 2.0).abs() < 1e-9 && (c.0.y - 2.0).abs() < 1e-9,
+        "got {:?}",
+        c.0
+    );
 }
 
 #[test]
@@ -111,7 +152,11 @@ fn multilinestring_centroid_is_length_weighted() {
     let short = LineString::from(vec![(0.0, 10.0), (1.0, 10.0)]);
     let mls = Geometry::MultiLineString(MultiLineString::new(vec![long, short]));
     let c = mls.centroid().unwrap();
-    assert!((c.0.y - 10.0 / 11.0).abs() < 1e-9, "weighted y={}, not the mean 5", c.0.y);
+    assert!(
+        (c.0.y - 10.0 / 11.0).abs() < 1e-9,
+        "weighted y={}, not the mean 5",
+        c.0.y
+    );
 }
 
 #[test]
@@ -135,8 +180,20 @@ fn simplify_recurses_into_collection() {
 fn geometry_accessors_and_classifiers() {
     // Polygon with one hole; exterior constructed counter-clockwise.
     let poly = Geometry::Polygon(Polygon::new(
-        LineString::from(vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0), (0.0, 0.0)]),
-        vec![LineString::from(vec![(1.0, 1.0), (2.0, 1.0), (2.0, 2.0), (1.0, 2.0), (1.0, 1.0)])],
+        LineString::from(vec![
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (4.0, 4.0),
+            (0.0, 4.0),
+            (0.0, 0.0),
+        ]),
+        vec![LineString::from(vec![
+            (1.0, 1.0),
+            (2.0, 1.0),
+            (2.0, 2.0),
+            (1.0, 2.0),
+            (1.0, 1.0),
+        ])],
     ));
     assert_eq!(poly.exterior_ring().unwrap().0.len(), 5);
     assert_eq!(poly.num_interior_rings(), Some(1));
@@ -161,14 +218,23 @@ fn geometry_accessors_and_classifiers() {
     assert!(line.as_multi_polygon().is_none());
 
     let ring = Geometry::LineString(LineString::from(vec![
-        (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 0.0),
+        (0.0, 0.0),
+        (1.0, 0.0),
+        (1.0, 1.0),
+        (0.0, 0.0),
     ]));
     assert_eq!(ring.is_closed(), Some(true));
 
     // Multi-geometry: count, nth member, areal coercion.
     let mp = Geometry::MultiPolygon(MultiPolygon::new(vec![
-        Polygon::new(LineString::from(vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 0.0)]), vec![]),
-        Polygon::new(LineString::from(vec![(2.0, 2.0), (3.0, 2.0), (3.0, 3.0), (2.0, 2.0)]), vec![]),
+        Polygon::new(
+            LineString::from(vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 0.0)]),
+            vec![],
+        ),
+        Polygon::new(
+            LineString::from(vec![(2.0, 2.0), (3.0, 2.0), (3.0, 3.0), (2.0, 2.0)]),
+            vec![],
+        ),
     ]));
     assert_eq!(mp.geometry_type(), "MultiPolygon");
     assert_eq!(mp.num_geometries(), 2);

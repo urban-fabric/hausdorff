@@ -151,21 +151,37 @@ fn compare_events(events: &[Event], e1: u32, e2: u32) -> Ordering {
         return Ordering::Less;
     }
     if a.point.y != b.point.y {
-        return if a.point.y > b.point.y { Ordering::Greater } else { Ordering::Less };
+        return if a.point.y > b.point.y {
+            Ordering::Greater
+        } else {
+            Ordering::Less
+        };
     }
     // same point
     if a.left != b.left {
-        return if a.left { Ordering::Greater } else { Ordering::Less };
+        return if a.left {
+            Ordering::Greater
+        } else {
+            Ordering::Less
+        };
     }
     // both left or both right at the same point: the lower segment is processed
     // first (matches Martinez `!e1.isBelow(e2.other)`).
     let s = signed_area(a.point, other_point(events, e1), other_point(events, e2));
     if s != 0.0 {
-        return if s > 0.0 { Ordering::Less } else { Ordering::Greater };
+        return if s > 0.0 {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        };
     }
     // collinear at the same point: subject before clipping
     if a.subject != b.subject {
-        return if a.subject { Ordering::Less } else { Ordering::Greater };
+        return if a.subject {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        };
     }
     // Fully tied: break by arena index for a strict, stable total order. The
     // index min-heap relies on a total order (it has no implicit insertion-order
@@ -233,13 +249,25 @@ fn compare_segments(events: &[Event], le1: u32, le2: u32) -> Ordering {
         // not collinear
         if p1 == p2 {
             // same left endpoint: order by the right endpoints
-            return if below(p1, p1o, p2o) { Ordering::Less } else { Ordering::Greater };
+            return if below(p1, p1o, p2o) {
+                Ordering::Less
+            } else {
+                Ordering::Greater
+            };
         }
         if compare_events(events, le1, le2) == Ordering::Greater {
             // le1 is processed after le2: is le2's segment below le1's left point?
-            return if !below(p2, p2o, p1) { Ordering::Less } else { Ordering::Greater };
+            return if !below(p2, p2o, p1) {
+                Ordering::Less
+            } else {
+                Ordering::Greater
+            };
         }
-        return if below(p1, p1o, p2) { Ordering::Less } else { Ordering::Greater };
+        return if below(p1, p1o, p2) {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        };
     }
     // collinear segments
     let (s1, s2) = (events[le1 as usize].subject, events[le2 as usize].subject);
@@ -568,8 +596,11 @@ fn possible_intersection(events: &mut Vec<Event>, queue: &mut Vec<u32>, e1: u32,
         // the other carries the overlap transition.
         events[e2 as usize].edge_type = EdgeType::NonContributing;
         let same = events[e2 as usize].in_out == events[e1 as usize].in_out;
-        events[e1 as usize].edge_type =
-            if same { EdgeType::SameTransition } else { EdgeType::DifferentTransition };
+        events[e1 as usize].edge_type = if same {
+            EdgeType::SameTransition
+        } else {
+            EdgeType::DifferentTransition
+        };
         if !right_coincide {
             // trim the longer segment at the shorter one's right endpoint
             let target = events[order[1] as usize].other.unwrap();
@@ -642,8 +673,7 @@ fn connect_edges(events: &[Event], sorted: &[u32]) -> Vec<Polygon> {
         .copied()
         .filter(|&e| {
             let ev = &events[e as usize];
-            (ev.left && ev.in_result)
-                || (!ev.left && events[ev.other.unwrap() as usize].in_result)
+            (ev.left && ev.in_result) || (!ev.left && events[ev.other.unwrap() as usize].in_result)
         })
         .collect();
     result.sort_by(|&a, &b| compare_events(events, a, b));
@@ -663,7 +693,11 @@ fn connect_edges(events: &[Event], sorted: &[u32]) -> Vec<Polygon> {
         .map(|&e| {
             let other = events[e as usize].other.unwrap();
             let p = index_of[other as usize];
-            if p == u32::MAX { usize::MAX } else { p as usize }
+            if p == u32::MAX {
+                usize::MAX
+            } else {
+                p as usize
+            }
         })
         .collect();
     if other_pos.contains(&usize::MAX) {

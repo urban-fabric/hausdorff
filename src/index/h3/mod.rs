@@ -16,8 +16,8 @@
 
 mod base_cells;
 mod children;
-mod cover;
 mod coord;
+mod cover;
 mod face;
 mod faceijk;
 mod grid;
@@ -25,10 +25,10 @@ mod index;
 mod line;
 mod polygon;
 
+pub use cover::cover_geometry;
 pub use index::{
     H3Cell, H3CompactionError, H3DirectedEdge, H3LocalIJ, H3Vertex, InvalidH3Cell,
     InvalidH3DirectedEdge, InvalidH3Vertex, MAX_RESOLUTION,
 };
-pub use cover::cover_geometry;
 pub use line::{H3Line, H3LineError};
 pub use polygon::{H3BoundaryRing, H3Polygon, H3PolygonError};

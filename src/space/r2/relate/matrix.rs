@@ -90,11 +90,7 @@ impl IntersectionMatrix {
     /// `A` equals `B` (same point set): `T*F**FFF*`.
     #[must_use]
     pub fn is_equal_topo(&self) -> bool {
-        self.is_t(I, I)
-            && self.is_f(I, E)
-            && self.is_f(E, I)
-            && self.is_f(B, E)
-            && self.is_f(E, B)
+        self.is_t(I, I) && self.is_f(I, E) && self.is_f(E, I) && self.is_f(B, E) && self.is_f(E, B)
     }
 
     /// `A` touches `B`: interiors disjoint, some boundary contact.
@@ -110,10 +106,7 @@ impl IntersectionMatrix {
     #[allow(clippy::nonminimal_bool)]
     #[must_use]
     pub fn is_crosses(&self, dim_a: i8, dim_b: i8) -> bool {
-        if (dim_a == 0 && dim_b == 1)
-            || (dim_a == 0 && dim_b == 2)
-            || (dim_a == 1 && dim_b == 2)
-        {
+        if (dim_a == 0 && dim_b == 1) || (dim_a == 0 && dim_b == 2) || (dim_a == 1 && dim_b == 2) {
             self.is_t(I, I) && self.is_t(I, E)
         } else if (dim_a == 1 && dim_b == 0)
             || (dim_a == 2 && dim_b == 0)

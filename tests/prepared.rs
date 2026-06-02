@@ -7,7 +7,10 @@ use hausdorff::{Contains, Coord, Geometry, Intersects, LineString, Polygon};
 struct Lcg(u64);
 impl Lcg {
     fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.0 = self
+            .0
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         self.0 >> 33
     }
     fn coord(&mut self, n: u64) -> f64 {
@@ -34,9 +37,16 @@ fn prepared_distance_within_intersects_match_oneshot() {
 
         let pd = prepared.distance(&other);
         let od = euclidean_distance(&base, &other);
-        assert!((pd - od).abs() <= 1e-9 * od.max(1.0), "distance prepared={pd} one-shot={od}");
+        assert!(
+            (pd - od).abs() <= 1e-9 * od.max(1.0),
+            "distance prepared={pd} one-shot={od}"
+        );
 
-        assert_eq!(prepared.intersects(&other), base.intersects(&other), "intersects");
+        assert_eq!(
+            prepared.intersects(&other),
+            base.intersects(&other),
+            "intersects"
+        );
 
         for d in [0.0, 2.0, 5.0, 50.0] {
             assert_eq!(
@@ -73,10 +83,15 @@ fn prepared_batch_predicates_match_per_call() {
         assert_eq!(within[i], prepared.within(o, d), "within_each[{i}]");
         assert_eq!(inter[i], prepared.intersects(o), "intersects_each[{i}]");
         let pd = prepared.distance(o);
-        assert!((dist[i] - pd).abs() <= 1e-12 * pd.max(1.0), "distance_each[{i}]");
+        assert!(
+            (dist[i] - pd).abs() <= 1e-12 * pd.max(1.0),
+            "distance_each[{i}]"
+        );
     }
 
-    let coords: Vec<Coord> = (0..1000).map(|_| Coord::new(rng.coord(24), rng.coord(24))).collect();
+    let coords: Vec<Coord> = (0..1000)
+        .map(|_| Coord::new(rng.coord(24), rng.coord(24)))
+        .collect();
     let batch = PointBatch::from_coords(&coords);
     let mask = prepared.contains_points(&batch);
     assert_eq!(mask.len(), coords.len());
@@ -87,7 +102,13 @@ fn prepared_batch_predicates_match_per_call() {
 
 #[test]
 fn prepared_contains_point_matches_polygon_with_hole() {
-    let shell = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0), (0.0, 0.0)];
+    let shell = [
+        (0.0, 0.0),
+        (10.0, 0.0),
+        (10.0, 10.0),
+        (0.0, 10.0),
+        (0.0, 0.0),
+    ];
     let hole = [(3.0, 3.0), (7.0, 3.0), (7.0, 7.0), (3.0, 7.0), (3.0, 3.0)];
     let donut = Geometry::Polygon(Polygon::new(
         LineString::from(shell.to_vec()),

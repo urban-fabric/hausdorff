@@ -85,6 +85,9 @@ impl PointBatch {
             min_y = min_y.min(y);
             max_y = max_y.max(y);
         }
-        Some(Rect::new(Coord::new(min_x, min_y), Coord::new(max_x, max_y)))
+        Some(Rect::new(
+            Coord::new(min_x, min_y),
+            Coord::new(max_x, max_y),
+        ))
     }
 }

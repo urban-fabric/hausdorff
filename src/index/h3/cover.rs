@@ -83,7 +83,12 @@ fn cover_polygon(poly: &Polygon, res: u8, out: &mut BTreeSet<H3Cell>) -> Option<
     let holes: Vec<Vec<(f64, f64)>> = poly.interiors().iter().map(lat_lng).collect();
 
     // Interior fill: cells whose centre is inside the polygon.
-    out.extend(H3Polygon::new(exterior.clone(), holes.clone()).ok()?.to_cells(res).ok()?);
+    out.extend(
+        H3Polygon::new(exterior.clone(), holes.clone())
+            .ok()?
+            .to_cells(res)
+            .ok()?,
+    );
 
     // Boundary completion: the grid-path cover of every ring catches the
     // edge-straddling cells the centroid fill omits, making the cover

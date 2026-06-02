@@ -164,8 +164,8 @@ fn prefer_indexed(n: usize, m: usize, boxes_overlap: bool) -> bool {
     let weights = crate::config::config().cost_model.min_distance;
     let (nf, mf) = (n as f64, m as f64);
     let brute_cost = nf * mf;
-    let index_cost =
-        weights.index_build_weight * mf + weights.index_query_weight * nf * (m.max(2) as f64).log2();
+    let index_cost = weights.index_build_weight * mf
+        + weights.index_query_weight * nf * (m.max(2) as f64).log2();
     index_cost < brute_cost
 }
 
@@ -180,7 +180,12 @@ fn brute_min_sq(
     // Small inputs: the per-pair bbox bookkeeping (building B's boxes, two
     // `box_gap_sq` tests per pair) costs more than the few segment gaps it would
     // save, so run a tight unpruned scan. The threshold is machine-tunable.
-    if sa.len() * sb.len() <= crate::config::config().cost_model.min_distance.prune_pair_threshold {
+    if sa.len() * sb.len()
+        <= crate::config::config()
+            .cost_model
+            .min_distance
+            .prune_pair_threshold
+    {
         return brute_min_sq_unpruned(sa, sb);
     }
     sb_boxes.clear();
@@ -229,7 +234,12 @@ fn within_brute(
     sb_boxes: &mut Vec<(Coord, Coord)>,
     d_sq: f64,
 ) -> bool {
-    if sa.len() * sb.len() <= crate::config::config().cost_model.min_distance.prune_pair_threshold {
+    if sa.len() * sb.len()
+        <= crate::config::config()
+            .cost_model
+            .min_distance
+            .prune_pair_threshold
+    {
         for &(a1, a2) in sa {
             for &(b1, b2) in sb {
                 if segment_gap_sq(a1, a2, b1, b2) <= d_sq {

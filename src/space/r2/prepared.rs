@@ -35,7 +35,12 @@ impl<'a> PreparedGeometry<'a> {
             .collect();
         let bbox = bbox_of(&segs);
         let index = StrTree::new(items);
-        Self { geom, segments: segs, index, bbox }
+        Self {
+            geom,
+            segments: segs,
+            index,
+            bbox,
+        }
     }
 
     /// The geometry this index was built over.
@@ -59,7 +64,10 @@ impl<'a> PreparedGeometry<'a> {
         for &(a1, a2) in &other_segs {
             let (lo, hi) = seg_box(a1, a2);
             let d = min_sq.sqrt();
-            let q = Rect::new(Coord::new(lo.x - d, lo.y - d), Coord::new(hi.x + d, hi.y + d));
+            let q = Rect::new(
+                Coord::new(lo.x - d, lo.y - d),
+                Coord::new(hi.x + d, hi.y + d),
+            );
             self.index.query_each(q, |_, &j| {
                 let (b1, b2) = self.segments[j];
                 min_sq = min_sq.min(segment_gap_sq(a1, a2, b1, b2));
@@ -88,7 +96,10 @@ impl<'a> PreparedGeometry<'a> {
                 break;
             }
             let (lo, hi) = seg_box(a1, a2);
-            let q = Rect::new(Coord::new(lo.x - d, lo.y - d), Coord::new(hi.x + d, hi.y + d));
+            let q = Rect::new(
+                Coord::new(lo.x - d, lo.y - d),
+                Coord::new(hi.x + d, hi.y + d),
+            );
             self.index.query_each(q, |_, &j| {
                 let (b1, b2) = self.segments[j];
                 if segment_gap_sq(a1, a2, b1, b2) <= d_sq {
@@ -144,7 +155,9 @@ impl<'a> PreparedGeometry<'a> {
     /// columnar batch: the point-in-polygon join.
     #[must_use]
     pub fn contains_points(&self, points: &PointBatch) -> Vec<bool> {
-        (0..points.len()).map(|i| self.contains_point(points.coord(i))).collect()
+        (0..points.len())
+            .map(|i| self.contains_point(points.coord(i)))
+            .collect()
     }
 
     /// For each geometry in `others`, whether it is within `d` of this prepared

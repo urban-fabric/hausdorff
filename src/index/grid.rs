@@ -26,13 +26,19 @@ const DENSE_MIN_CELLS: i128 = 4096;
 /// correct for any coordinate sign.
 #[inline]
 fn cell(lat: f64, lon: f64, cell_deg: f64) -> (i64, i64) {
-    ((lat / cell_deg).floor() as i64, (lon / cell_deg).floor() as i64)
+    (
+        (lat / cell_deg).floor() as i64,
+        (lon / cell_deg).floor() as i64,
+    )
 }
 
 /// Great-circle distance in metres between two lon/lat points.
 #[inline]
 fn distance_m(a_lat: f64, a_lon: f64, b_lat: f64, b_lon: f64) -> f64 {
-    haversine_m(GeoPoint::from_lat_lon(a_lat, a_lon), GeoPoint::from_lat_lon(b_lat, b_lon))
+    haversine_m(
+        GeoPoint::from_lat_lon(a_lat, a_lon),
+        GeoPoint::from_lat_lon(b_lat, b_lon),
+    )
 }
 
 struct GridPoint<P> {
@@ -85,7 +91,9 @@ impl Buckets {
         if cell_count > budget {
             let mut map: HashMap<(i64, i64), Vec<u32>> = HashMap::with_capacity(points.len());
             for (point_idx, p) in points.iter().enumerate() {
-                map.entry(cell(p.lat, p.lon, cell_deg)).or_default().push(point_idx as u32);
+                map.entry(cell(p.lat, p.lon, cell_deg))
+                    .or_default()
+                    .push(point_idx as u32);
             }
             return Buckets::Sparse(map);
         }
@@ -113,7 +121,14 @@ impl Buckets {
             cursor[s] += 1;
         }
 
-        Buckets::Dense(DenseGrid { min_row, min_col, rows, cols, starts, items })
+        Buckets::Dense(DenseGrid {
+            min_row,
+            min_col,
+            rows,
+            cols,
+            starts,
+            items,
+        })
     }
 
     /// The point indices bucketed into cell `(row, col)`, or an empty slice when
@@ -156,7 +171,11 @@ impl<P: Copy> PointGrid<P> {
             .map(|(lat, lon, payload)| GridPoint { lat, lon, payload })
             .collect();
         let buckets = Buckets::build(&points, cell_deg);
-        Some(Self { cell_deg, points, buckets })
+        Some(Self {
+            cell_deg,
+            points,
+            buckets,
+        })
     }
 
     /// Number of indexed points.
@@ -262,11 +281,19 @@ mod tests {
     use super::*;
 
     fn pts(lat: &[f64], lon: &[f64]) -> Vec<(f64, f64, u32)> {
-        lat.iter().zip(lon).enumerate().map(|(i, (&y, &x))| (y, x, i as u32)).collect()
+        lat.iter()
+            .zip(lon)
+            .enumerate()
+            .map(|(i, (&y, &x))| (y, x, i as u32))
+            .collect()
     }
 
     /// O(n·m) reference: every (probe, point) pair within `meters`.
-    fn brute(probe: &[(f64, f64, u32)], points: &[(f64, f64, u32)], meters: f64) -> BTreeSet<(u32, u32)> {
+    fn brute(
+        probe: &[(f64, f64, u32)],
+        points: &[(f64, f64, u32)],
+        meters: f64,
+    ) -> BTreeSet<(u32, u32)> {
         let mut pairs = BTreeSet::new();
         for &(ly, lx, li) in probe {
             for &(ry, rx, ri) in points {
@@ -278,8 +305,14 @@ mod tests {
         pairs
     }
 
-    fn within_pairs(grid: &PointGrid<u32>, probe: &[(f64, f64, u32)], meters: f64) -> BTreeSet<(u32, u32)> {
-        grid.within(probe.iter().copied(), meters).into_iter().collect()
+    fn within_pairs(
+        grid: &PointGrid<u32>,
+        probe: &[(f64, f64, u32)],
+        meters: f64,
+    ) -> BTreeSet<(u32, u32)> {
+        grid.within(probe.iter().copied(), meters)
+            .into_iter()
+            .collect()
     }
 
     #[test]
@@ -291,14 +324,20 @@ mod tests {
         let r = pts(&[0.0, 1.2, 2.1, 1.1], &[0.0, 0.2, 0.1, 2.2]);
         let l = pts(&[0.05, 1.15], &[0.05, 0.15]);
         let grid = PointGrid::build(r.iter().copied(), cell_deg).expect("valid cell_deg");
-        assert!(matches!(grid.buckets, Buckets::Dense(_)), "expected dense path");
+        assert!(
+            matches!(grid.buckets, Buckets::Dense(_)),
+            "expected dense path"
+        );
         assert_eq!(within_pairs(&grid, &l, meters), brute(&l, &r, meters));
 
         // Two clusters at opposite ends of the globe -> sparse hash fallback.
         let r = pts(&[0.0, 0.001, 70.0, 70.001], &[0.0, 0.001, 170.0, 170.001]);
         let l = pts(&[0.0005, 70.0005], &[0.0005, 170.0005]);
         let grid = PointGrid::build(r.iter().copied(), cell_deg).expect("valid cell_deg");
-        assert!(matches!(grid.buckets, Buckets::Sparse(_)), "expected sparse path");
+        assert!(
+            matches!(grid.buckets, Buckets::Sparse(_)),
+            "expected sparse path"
+        );
         assert_eq!(within_pairs(&grid, &l, meters), brute(&l, &r, meters));
     }
 

@@ -113,7 +113,13 @@ fn point_line() {
 
 #[test]
 fn polygon_with_hole() {
-    let outer = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0), (0.0, 0.0)];
+    let outer = [
+        (0.0, 0.0),
+        (10.0, 0.0),
+        (10.0, 10.0),
+        (0.0, 10.0),
+        (0.0, 0.0),
+    ];
     let hole = [(3.0, 3.0), (7.0, 3.0), (7.0, 7.0), (3.0, 7.0), (3.0, 3.0)];
     let donut = Geometry::Polygon(Polygon::new(
         LineString::from(outer.to_vec()),
@@ -132,7 +138,13 @@ fn adversarial_areal_relate_matches_geo() {
             vec![LineString::from(hole.to_vec())],
         ))
     };
-    let shell = [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0), (0.0, 0.0)];
+    let shell = [
+        (0.0, 0.0),
+        (10.0, 0.0),
+        (10.0, 10.0),
+        (0.0, 10.0),
+        (0.0, 0.0),
+    ];
     let hole = [(3.0, 3.0), (7.0, 3.0), (7.0, 7.0), (3.0, 7.0), (3.0, 3.0)];
     let donut = holed(&shell, &hole);
 
@@ -152,8 +164,20 @@ fn adversarial_areal_relate_matches_geo() {
     check2(&donut, &holed(&shell, &hole));
     // two donuts whose holes overlap but bodies also overlap
     let donut2 = holed(
-        &[(5.0, 5.0), (15.0, 5.0), (15.0, 15.0), (5.0, 15.0), (5.0, 5.0)],
-        &[(8.0, 8.0), (12.0, 8.0), (12.0, 12.0), (8.0, 12.0), (8.0, 8.0)],
+        &[
+            (5.0, 5.0),
+            (15.0, 5.0),
+            (15.0, 15.0),
+            (5.0, 15.0),
+            (5.0, 5.0),
+        ],
+        &[
+            (8.0, 8.0),
+            (12.0, 8.0),
+            (12.0, 12.0),
+            (8.0, 12.0),
+            (8.0, 8.0),
+        ],
     );
     check2(&donut, &donut2);
 }
@@ -161,8 +185,26 @@ fn adversarial_areal_relate_matches_geo() {
 #[test]
 fn multipolygon_cases() {
     let mp = Geometry::MultiPolygon(MultiPolygon::new(vec![
-        Polygon::new(LineString::from(vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0), (0.0, 0.0)]), vec![]),
-        Polygon::new(LineString::from(vec![(5.0, 5.0), (7.0, 5.0), (7.0, 7.0), (5.0, 7.0), (5.0, 5.0)]), vec![]),
+        Polygon::new(
+            LineString::from(vec![
+                (0.0, 0.0),
+                (2.0, 0.0),
+                (2.0, 2.0),
+                (0.0, 2.0),
+                (0.0, 0.0),
+            ]),
+            vec![],
+        ),
+        Polygon::new(
+            LineString::from(vec![
+                (5.0, 5.0),
+                (7.0, 5.0),
+                (7.0, 7.0),
+                (5.0, 7.0),
+                (5.0, 5.0),
+            ]),
+            vec![],
+        ),
     ]));
     check2(&mp, &pt(1.0, 1.0)); // inside first
     check2(&mp, &pt(6.0, 6.0)); // inside second
@@ -175,7 +217,10 @@ fn multipolygon_cases() {
 struct Lcg(u64);
 impl Lcg {
     fn next_u32(&mut self) -> u32 {
-        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.0 = self
+            .0
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         (self.0 >> 33) as u32
     }
     fn n(&mut self, m: i64) -> f64 {

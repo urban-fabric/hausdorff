@@ -40,14 +40,26 @@ fn check(a: &Geometry, b: &Geometry) {
         "distance native={ours} geo={theirs}\n  A={a:?}\n  B={b:?}"
     );
     // symmetric
-    assert!((euclidean_distance(b, a) - ours).abs() < 1e-9, "asymmetric distance");
+    assert!(
+        (euclidean_distance(b, a) - ours).abs() < 1e-9,
+        "asymmetric distance"
+    );
     // DWithin is consistent with the computed distance. (`ours` is √(min_sq);
     // squaring it back inside `within` can round a hair under the exact min, so
     // test just above the distance.)
-    assert!(euclidean_within(a, b, ours + 1e-9 * ours.max(1.0)), "within its own distance");
-    assert!(!euclidean_within(a, b, -1.0), "never within a negative radius");
+    assert!(
+        euclidean_within(a, b, ours + 1e-9 * ours.max(1.0)),
+        "within its own distance"
+    );
+    assert!(
+        !euclidean_within(a, b, -1.0),
+        "never within a negative radius"
+    );
     if ours > 1e-6 {
-        assert!(!euclidean_within(a, b, ours - 1e-6), "not within less than the gap");
+        assert!(
+            !euclidean_within(a, b, ours - 1e-6),
+            "not within less than the gap"
+        );
     }
 }
 
@@ -91,7 +103,13 @@ fn polygon_polygon() {
 #[test]
 fn polygon_with_hole() {
     let donut = holed(
-        &[(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0), (0.0, 0.0)],
+        &[
+            (0.0, 0.0),
+            (10.0, 0.0),
+            (10.0, 10.0),
+            (0.0, 10.0),
+            (0.0, 0.0),
+        ],
         &[(3.0, 3.0), (7.0, 3.0), (7.0, 7.0), (3.0, 7.0), (3.0, 3.0)],
     );
     check(&donut, &pt(5.0, 5.0)); // in the hole → distance to hole ring (2)
@@ -104,7 +122,10 @@ fn polygon_with_hole() {
 struct Lcg(u64);
 impl Lcg {
     fn next_u32(&mut self) -> u32 {
-        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.0 = self
+            .0
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         (self.0 >> 33) as u32
     }
     fn coord(&mut self, n: i64) -> f64 {
@@ -126,10 +147,22 @@ fn large_polygons_use_index_and_match_geo() {
     };
     let mk = |c: Vec<(f64, f64)>| Geometry::Polygon(Polygon::new(LineString::from(c), vec![]));
 
-    check(&mk(ring(0.0, 0.0, 10.0, 200)), &mk(ring(40.0, 5.0, 8.0, 200))); // disjoint
-    check(&mk(ring(0.0, 0.0, 20.0, 200)), &mk(ring(2.0, 1.0, 5.0, 150))); // nested → 0
-    check(&mk(ring(0.0, 0.0, 10.0, 200)), &mk(ring(15.0, 0.0, 10.0, 180))); // overlap → 0
-    check(&mk(ring(0.0, 0.0, 10.0, 128)), &mk(ring(0.0, 30.0, 10.0, 128))); // stacked, gap 10
+    check(
+        &mk(ring(0.0, 0.0, 10.0, 200)),
+        &mk(ring(40.0, 5.0, 8.0, 200)),
+    ); // disjoint
+    check(
+        &mk(ring(0.0, 0.0, 20.0, 200)),
+        &mk(ring(2.0, 1.0, 5.0, 150)),
+    ); // nested → 0
+    check(
+        &mk(ring(0.0, 0.0, 10.0, 200)),
+        &mk(ring(15.0, 0.0, 10.0, 180)),
+    ); // overlap → 0
+    check(
+        &mk(ring(0.0, 0.0, 10.0, 128)),
+        &mk(ring(0.0, 30.0, 10.0, 128)),
+    ); // stacked, gap 10
 }
 
 #[test]
@@ -139,7 +172,9 @@ fn index_path_scattered_points_match_geo() {
     let mut rng = Lcg(0x1357_9BDF_2468_ACE0);
     let cloud = |rng: &mut Lcg, n: usize| -> Geometry {
         Geometry::MultiPoint(hausdorff::MultiPoint::from(
-            (0..n).map(|_| (rng.coord(100), rng.coord(100))).collect::<Vec<_>>(),
+            (0..n)
+                .map(|_| (rng.coord(100), rng.coord(100)))
+                .collect::<Vec<_>>(),
         ))
     };
     for _ in 0..20 {
@@ -178,8 +213,14 @@ fn convex_fast_path_matches_geo() {
         check(&a, &b);
     }
     // Large convex rings well separated: pure GJK, no intersects involvement.
-    check(&ngon(0.0, 0.0, 5.0, 256, 0.1), &ngon(30.0, 4.0, 4.0, 512, 0.7));
-    check(&ngon(0.0, 0.0, 5.0, 512, 0.0), &ngon(0.0, 25.0, 5.0, 200, 1.3)); // stacked
+    check(
+        &ngon(0.0, 0.0, 5.0, 256, 0.1),
+        &ngon(30.0, 4.0, 4.0, 512, 0.7),
+    );
+    check(
+        &ngon(0.0, 0.0, 5.0, 512, 0.0),
+        &ngon(0.0, 25.0, 5.0, 200, 1.3),
+    ); // stacked
 }
 
 #[test]
@@ -197,10 +238,17 @@ fn workspace_matches_free_functions() {
     // Two passes over the same workspace to confirm buffer reuse is stateless.
     for _ in 0..2 {
         for (a, b) in &cases {
-            assert_eq!(ws.distance(a, b), euclidean_distance(a, b), "distance reuse mismatch");
+            assert_eq!(
+                ws.distance(a, b),
+                euclidean_distance(a, b),
+                "distance reuse mismatch"
+            );
             let d = euclidean_distance(a, b);
             assert_eq!(ws.within(a, b, d + 0.5), euclidean_within(a, b, d + 0.5));
-            assert_eq!(ws.within(a, b, (d - 0.5).max(0.0)), euclidean_within(a, b, (d - 0.5).max(0.0)));
+            assert_eq!(
+                ws.within(a, b, (d - 0.5).max(0.0)),
+                euclidean_within(a, b, (d - 0.5).max(0.0))
+            );
         }
     }
 }

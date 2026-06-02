@@ -33,7 +33,9 @@ pub(super) fn assemble(rings: Vec<Vec<Coord>>) -> Vec<Polygon> {
             continue; // hole; handled by its parent shell
         }
         let holes: Vec<LineString> = (0..n)
-            .filter(|&h| depth[h] == depth[i] + 1 && immediate_parent(&rings, &reps, &depth, h) == Some(i))
+            .filter(|&h| {
+                depth[h] == depth[i] + 1 && immediate_parent(&rings, &reps, &depth, h) == Some(i)
+            })
             .map(|h| LineString::new(oriented(rings[h].clone(), false)))
             .collect();
         polys.push(Polygon::new(

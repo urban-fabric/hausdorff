@@ -6,7 +6,10 @@ use hausdorff::space::r2::{Coord, Rect, StrTree};
 struct Rng(u64);
 impl Rng {
     fn f(&mut self, half: f64) -> f64 {
-        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.0 = self
+            .0
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         let r = ((self.0 >> 33) & 0xFFFF_FFFF) as f64 / 4_294_967_295.0;
         (r * 2.0 - 1.0) * half
     }
@@ -46,13 +49,28 @@ fn empty_and_singleton() {
 fn query_matches_brute_force() {
     let mut rng = Rng(0xA11C_E202_4EC6);
     let items: Vec<(Rect, usize)> = (0..1500)
-        .map(|i| (rect(rng.f(500.0), rng.f(500.0), 1.0 + rng.f(10.0).abs(), 1.0 + rng.f(10.0).abs()), i))
+        .map(|i| {
+            (
+                rect(
+                    rng.f(500.0),
+                    rng.f(500.0),
+                    1.0 + rng.f(10.0).abs(),
+                    1.0 + rng.f(10.0).abs(),
+                ),
+                i,
+            )
+        })
         .collect();
     let tree = StrTree::new(items.clone());
     assert_eq!(tree.len(), items.len());
 
     for _ in 0..300 {
-        let q = rect(rng.f(500.0), rng.f(500.0), rng.f(60.0).abs(), rng.f(60.0).abs());
+        let q = rect(
+            rng.f(500.0),
+            rng.f(500.0),
+            rng.f(60.0).abs(),
+            rng.f(60.0).abs(),
+        );
         let mut got: Vec<usize> = tree.query(q).into_iter().copied().collect();
         got.sort_unstable();
         let mut want: Vec<usize> = items
@@ -85,13 +103,18 @@ fn nearest_matches_brute_force_on_points() {
             .iter()
             .map(|(r, _)| dist_sq(q, r.min()))
             .fold(f64::INFINITY, f64::min);
-        assert!((got_d - brute_d).abs() < 1e-9, "nearest {got_d} vs brute {brute_d}");
+        assert!(
+            (got_d - brute_d).abs() < 1e-9,
+            "nearest {got_d} vs brute {brute_d}"
+        );
     }
 }
 
 #[test]
 fn query_each_visits_the_same_items() {
-    let items: Vec<(Rect, usize)> = (0..200).map(|i| (rect(i as f64, 0.0, 1.0, 1.0), i)).collect();
+    let items: Vec<(Rect, usize)> = (0..200)
+        .map(|i| (rect(i as f64, 0.0, 1.0, 1.0), i))
+        .collect();
     let tree = StrTree::new(items);
     let q = rect(10.5, -1.0, 5.0, 3.0); // spans x in [10.5, 15.5]
     let mut via_each: Vec<usize> = Vec::new();

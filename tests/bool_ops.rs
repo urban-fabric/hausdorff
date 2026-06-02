@@ -9,11 +9,15 @@ use hausdorff::{Area, LineString, MultiPolygon, Polygon};
 
 fn hpoly(rings: &[&[(f64, f64)]]) -> Polygon {
     let ext = LineString::from(rings[0].to_vec());
-    let holes = rings[1..].iter().map(|r| LineString::from(r.to_vec())).collect();
+    let holes = rings[1..]
+        .iter()
+        .map(|r| LineString::from(r.to_vec()))
+        .collect();
     Polygon::new(ext, holes)
 }
 fn gpoly(rings: &[&[(f64, f64)]]) -> geo::Polygon<f64> {
-    let ring = |r: &[(f64, f64)]| geo::LineString(r.iter().map(|&(x, y)| geo::Coord { x, y }).collect());
+    let ring =
+        |r: &[(f64, f64)]| geo::LineString(r.iter().map(|&(x, y)| geo::Coord { x, y }).collect());
     geo::Polygon::new(ring(rings[0]), rings[1..].iter().map(|r| ring(r)).collect())
 }
 
@@ -57,7 +61,10 @@ fn check(a: &[&[&[(f64, f64)]]], b: &[&[&[(f64, f64)]]]) {
 
     // set-algebra invariants (independent of geo)
     let area_a = ha(&ha_);
-    assert!((uni - (area_a + ha(&hb_) - inter)).abs() < EPS, "A∪B = A+B-A∩B");
+    assert!(
+        (uni - (area_a + ha(&hb_) - inter)).abs() < EPS,
+        "A∪B = A+B-A∩B"
+    );
     assert!((diff - (area_a - inter)).abs() < EPS, "A\\B = A - A∩B");
     assert!((xor - (uni - inter)).abs() < EPS, "A⊕B = A∪B - A∩B");
 }
@@ -73,7 +80,10 @@ fn disjoint() {
 
 #[test]
 fn nested() {
-    check(&[&[&sq(0.0, 0.0, 10.0, 10.0)]], &[&[&sq(2.0, 2.0, 4.0, 4.0)]]);
+    check(
+        &[&[&sq(0.0, 0.0, 10.0, 10.0)]],
+        &[&[&sq(2.0, 2.0, 4.0, 4.0)]],
+    );
 }
 
 #[test]
@@ -148,8 +158,22 @@ fn t_vertex_staircase_union_matches_geo() {
 
 #[test]
 fn concave_l_shapes() {
-    let l1 = [(0.0, 0.0), (6.0, 0.0), (6.0, 2.0), (2.0, 2.0), (2.0, 6.0), (0.0, 6.0)];
-    let l2 = [(1.0, 1.0), (5.0, 1.0), (5.0, 5.0), (3.0, 5.0), (3.0, 3.0), (1.0, 3.0)];
+    let l1 = [
+        (0.0, 0.0),
+        (6.0, 0.0),
+        (6.0, 2.0),
+        (2.0, 2.0),
+        (2.0, 6.0),
+        (0.0, 6.0),
+    ];
+    let l2 = [
+        (1.0, 1.0),
+        (5.0, 1.0),
+        (5.0, 5.0),
+        (3.0, 5.0),
+        (3.0, 3.0),
+        (1.0, 3.0),
+    ];
     check(&[&[&l1]], &[&[&l2]]);
 }
 
@@ -180,7 +204,10 @@ fn multipolygon_inputs() {
 struct Lcg(u64);
 impl Lcg {
     fn next_u32(&mut self) -> u32 {
-        self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.0 = self
+            .0
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         (self.0 >> 33) as u32
     }
     fn coord(&mut self, n: i64) -> f64 {

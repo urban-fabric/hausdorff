@@ -52,7 +52,11 @@ fn lonlat_batch_h3_matches_scalar() {
     for res in [0u8, 5, 9, 15] {
         let cells = b.h3_cells(res);
         for (i, p) in pts.iter().enumerate() {
-            assert_eq!(cells[i], H3Cell::for_point(p.lat, p.lon, res), "res {res} point {i}");
+            assert_eq!(
+                cells[i],
+                H3Cell::for_point(p.lat, p.lon, res),
+                "res {res} point {i}"
+            );
         }
     }
     // out-of-range coordinates yield per-point None, same as the scalar path

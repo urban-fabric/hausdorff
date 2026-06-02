@@ -53,9 +53,16 @@ fn wkb_len(geom: &Geometry) -> usize {
         Geometry::Polygon(p) => polygon_len(p),
         Geometry::MultiPoint(mp) => WKB_HDR + WKB_COUNT + mp.0.len() * (WKB_HDR + WKB_COORD),
         Geometry::MultiLineString(mls) => {
-            WKB_HDR + WKB_COUNT + mls.iter().map(|ls| WKB_HDR + ring_len(ls.0.len())).sum::<usize>()
+            WKB_HDR
+                + WKB_COUNT
+                + mls
+                    .iter()
+                    .map(|ls| WKB_HDR + ring_len(ls.0.len()))
+                    .sum::<usize>()
         }
-        Geometry::MultiPolygon(mp) => WKB_HDR + WKB_COUNT + mp.iter().map(polygon_len).sum::<usize>(),
+        Geometry::MultiPolygon(mp) => {
+            WKB_HDR + WKB_COUNT + mp.iter().map(polygon_len).sum::<usize>()
+        }
         Geometry::Rect(r) => polygon_len(&r.to_polygon()),
         Geometry::Triangle(t) => polygon_len(&t.to_polygon()),
         Geometry::GeometryCollection(gs) => {
@@ -71,7 +78,10 @@ fn polygon_len(p: &Polygon) -> usize {
     WKB_HDR
         + WKB_COUNT
         + ring_len(p.exterior().0.len())
-        + p.interiors().iter().map(|h| ring_len(h.0.len())).sum::<usize>()
+        + p.interiors()
+            .iter()
+            .map(|h| ring_len(h.0.len()))
+            .sum::<usize>()
 }
 
 fn hdr(out: &mut Vec<u8>, type_code: u32) {
@@ -250,7 +260,10 @@ impl Reader<'_> {
         let ewkb_m = raw & 0x4000_0000 != 0;
         let base = (raw & 0x0000_ffff) % 1000;
         let iso = (raw & 0x0000_ffff) / 1000; // 0=2D, 1=Z, 2=M, 3=ZM
-        let extra = usize::from(ewkb_z) + usize::from(ewkb_m) + usize::from(iso == 1 || iso == 2) + 2 * usize::from(iso == 3);
+        let extra = usize::from(ewkb_z)
+            + usize::from(ewkb_m)
+            + usize::from(iso == 1 || iso == 2)
+            + 2 * usize::from(iso == 3);
         Ok((le, base, extra))
     }
 
@@ -272,7 +285,9 @@ impl Reader<'_> {
         let (le, base, extra) = self.header()?;
         match base {
             1 => Ok(Geometry::Point(Point(self.coord(le, extra)?))),
-            2 => Ok(Geometry::LineString(LineString::new(self.coords(le, extra)?))),
+            2 => Ok(Geometry::LineString(LineString::new(
+                self.coords(le, extra)?,
+            ))),
             3 => Ok(Geometry::Polygon(self.polygon(le, extra)?)),
             4 => {
                 let n = self.u32(le)? as usize;
@@ -291,7 +306,9 @@ impl Reader<'_> {
                 for _ in 0..n {
                     match self.geometry()? {
                         Geometry::LineString(ls) => lines.push(ls),
-                        _ => return Err(WkbError("MultiLineString member not a LineString".into())),
+                        _ => {
+                            return Err(WkbError("MultiLineString member not a LineString".into()));
+                        }
                     }
                 }
                 Ok(Geometry::MultiLineString(MultiLineString::new(lines)))
