@@ -5,8 +5,8 @@
 //! the icosahedral FaceIJK gnomonic projection (`for_point` / `center`),
 //! `parent` / `children`, child positions, compaction/uncompaction, `grid_disk`
 //! (k-ring), `grid_distance`, local IJ, grid paths, directed edges, canonical
-//! vertices, exact cell area, centroid polygon cover, cell-set boundary
-//! dissolve, `is_pentagon`, and cell/edge boundaries.
+//! vertices, exact cell area, centroid polygon cover, grid-path polyline cover,
+//! cell-set boundary dissolve, `is_pentagon`, and cell/edge boundaries.
 //!
 //! Every operation is differential-tested against `h3o` (kept as a
 //! dev-dependency oracle only) plus a random-index validity sweep — see
@@ -21,10 +21,12 @@ mod face;
 mod faceijk;
 mod grid;
 mod index;
+mod line;
 mod polygon;
 
 pub use index::{
     H3Cell, H3CompactionError, H3DirectedEdge, H3LocalIJ, H3Vertex, InvalidH3Cell,
     InvalidH3DirectedEdge, InvalidH3Vertex, MAX_RESOLUTION,
 };
+pub use line::{H3Line, H3LineError};
 pub use polygon::{H3BoundaryRing, H3Polygon, H3PolygonError};
