@@ -269,10 +269,12 @@ mod similarity {
     #[test]
     fn hausdorff_is_symmetric_and_zero_on_equal_sets() {
         let a = [pt(0.0, 0.0), pt(0.0, 1.0), pt(1.0, 1.0)];
-        assert_eq!(hausdorff_distance_m(&a, &a), 0.0);
+        assert_eq!(hausdorff_distance_m(&a, &a), Some(0.0));
 
         let b = [pt(0.0, 0.0), pt(0.0, 1.0)];
-        assert!((hausdorff_distance_m(&a, &b) - hausdorff_distance_m(&b, &a)).abs() < 1e-9);
+        let ab = hausdorff_distance_m(&a, &b).expect("non-empty");
+        let ba = hausdorff_distance_m(&b, &a).expect("non-empty");
+        assert!((ab - ba).abs() < 1e-9);
     }
 
     #[test]
@@ -282,20 +284,20 @@ mod similarity {
         let a = [pt(0.0, 0.0), pt(0.0, 1.0)];
         let b = [pt(0.0, 0.0)];
         let expected = haversine_m(pt(0.0, 1.0), pt(0.0, 0.0));
-        assert!((hausdorff_distance_m(&a, &b) - expected).abs() < 1e-6);
+        assert!((hausdorff_distance_m(&a, &b).expect("non-empty") - expected).abs() < 1e-6);
     }
 
     #[test]
-    fn empty_sets_are_zero() {
+    fn empty_sets_are_none() {
         let a = [pt(1.0, 2.0)];
-        assert_eq!(hausdorff_distance_m(&a, &[]), 0.0);
-        assert_eq!(frechet_distance_m(&[], &a), 0.0);
+        assert_eq!(hausdorff_distance_m(&a, &[]), None);
+        assert_eq!(frechet_distance_m(&[], &a), None);
     }
 
     #[test]
     fn frechet_zero_on_identical_path() {
         let path = [pt(0.0, 0.0), pt(0.0, 1.0), pt(1.0, 1.0)];
-        assert!(frechet_distance_m(&path, &path) < 1e-6);
+        assert!(frechet_distance_m(&path, &path).expect("non-empty") < 1e-6);
     }
 
     #[test]
@@ -305,7 +307,7 @@ mod similarity {
         let lower = [pt(0.0, 0.0), pt(0.0, 1.0), pt(0.0, 2.0)];
         let upper = [pt(1.0, 0.0), pt(1.0, 1.0), pt(1.0, 2.0)];
         let gap = haversine_m(pt(0.0, 0.0), pt(1.0, 0.0));
-        assert!((frechet_distance_m(&lower, &upper) - gap).abs() < 1.0);
+        assert!((frechet_distance_m(&lower, &upper).expect("non-empty") - gap).abs() < 1.0);
     }
 
     #[test]
@@ -314,7 +316,7 @@ mod similarity {
         // two end points.
         let p = [pt(0.0, 0.0), pt(2.0, 3.0)];
         let q = [pt(1.0, 1.0), pt(3.0, 5.0)];
-        let d = frechet_distance_m(&p, &q);
+        let d = frechet_distance_m(&p, &q).expect("non-empty");
         assert!(d >= haversine_m(p[0], q[0]) - 1e-6);
         assert!(d >= haversine_m(p[1], q[1]) - 1e-6);
     }
@@ -324,12 +326,12 @@ mod similarity {
         let a = [pt(0.0, 0.0), pt(0.0, 1.0)];
         let b = [pt(0.5, 0.5)];
         assert_eq!(
-            hausdorff_distance(&a, &b).as_meters(),
-            hausdorff_distance_m(&a, &b)
+            hausdorff_distance(&a, &b).expect("non-empty").as_meters(),
+            hausdorff_distance_m(&a, &b).expect("non-empty")
         );
         assert_eq!(
-            frechet_distance(&a, &b).as_meters(),
-            frechet_distance_m(&a, &b)
+            frechet_distance(&a, &b).expect("non-empty").as_meters(),
+            frechet_distance_m(&a, &b).expect("non-empty")
         );
     }
 }

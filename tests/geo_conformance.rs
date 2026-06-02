@@ -214,7 +214,8 @@ fn frechet_distance_matches_geo() {
     let ours = frechet_distance_m(
         &path_a.map(|(la, lo)| GeoPoint::from_lat_lon(la, lo)),
         &path_b.map(|(la, lo)| GeoPoint::from_lat_lon(la, lo)),
-    );
+    )
+    .expect("non-empty paths");
     // geo coords are (x = lon, y = lat).
     let ga = geo::LineString(
         path_a
