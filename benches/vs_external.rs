@@ -247,6 +247,52 @@ fn main() {
         },
     );
 
+    // ---- H3 cell assignment over a 1000-point column: batch vs scalar loop -
+    let h3_lats: Vec<f64> = (0..1000).map(|_| rng.f(85.0)).collect();
+    let h3_lons: Vec<f64> = (0..1000).map(|_| rng.f(180.0)).collect();
+    row(
+        "h3_for_point x1000",
+        "loop",
+        2_000,
+        || {
+            black_box(H3Cell::for_points(
+                black_box(&h3_lats),
+                black_box(&h3_lons),
+                9,
+            ));
+        },
+        || {
+            let v: Vec<_> = h3_lats
+                .iter()
+                .zip(&h3_lons)
+                .map(|(&la, &lo)| H3Cell::for_point(la, lo, 9))
+                .collect();
+            black_box(v);
+        },
+    );
+
+    // ---- approximate (tan(acos) identity) batch vs the exact scalar loop ---
+    row(
+        "h3_for_point x1000 approx",
+        "exact",
+        2_000,
+        || {
+            black_box(H3Cell::for_points_approx(
+                black_box(&h3_lats),
+                black_box(&h3_lons),
+                9,
+            ));
+        },
+        || {
+            let v: Vec<_> = h3_lats
+                .iter()
+                .zip(&h3_lons)
+                .map(|(&la, &lo)| H3Cell::for_point(la, lo, 9))
+                .collect();
+            black_box(v);
+        },
+    );
+
     // ---- geohash encode at precision 9 (vs the geohash crate) -------------
     row(
         "geohash_encode (p9)",

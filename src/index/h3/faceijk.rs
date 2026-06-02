@@ -58,6 +58,15 @@ impl FaceIJK {
         Self::new(face, coord)
     }
 
+    /// As [`from_vec3d`](Self::from_vec3d) but via the faster gnomonic radial
+    /// factor ([`coord::Vec2d::from_vec3d_fast`]); equal except at the last ULPs,
+    /// so a result can shift to an adjacent cell only for a near-boundary point.
+    pub(super) fn from_vec3d_fast(value: Vec3d, res: usize) -> Self {
+        let (face, distance) = value.closest_face();
+        let coord = Vec2d::from_vec3d_fast(value, res, face, distance).into();
+        Self::new(face, coord)
+    }
+
     /// 60° CCW rotation count into the base cell's coordinate system here.
     fn base_cell_rotation(&self) -> Rotation {
         let i = self.coord.i() as usize;

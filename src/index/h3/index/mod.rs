@@ -174,6 +174,71 @@ impl H3Cell {
         Self::for_point(point.lat, point.lon, resolution)
     }
 
+    /// The cells for a column of `(latitude, longitude)` points in degrees — the
+    /// batch form of [`for_point`](Self::for_point) over the struct-of-arrays
+    /// layout a column-oriented caller already has. `lats` and `lngs` are zipped
+    /// to the shorter length; the per-point rule is identical to `for_point`
+    /// (`None` for a non-finite or out-of-range coordinate), and the result is
+    /// all-`None` when `resolution` is out of range. The resolution is validated
+    /// once and the output is written contiguously; the per-point projection is
+    /// the same code as `for_point`, so results are bit-identical.
+    #[must_use]
+    pub fn for_points(lats: &[f64], lngs: &[f64], resolution: u8) -> Vec<Option<Self>> {
+        let n = lats.len().min(lngs.len());
+        if resolution > MAX_RESOLUTION {
+            return vec![None; n];
+        }
+        let res = resolution as usize;
+        lats.iter()
+            .zip(lngs)
+            .map(|(&lat, &lng)| {
+                if !lat.is_finite()
+                    || !lng.is_finite()
+                    || !(-90.0..=90.0).contains(&lat)
+                    || !(-180.0..=180.0).contains(&lng)
+                {
+                    return None;
+                }
+                let v = coord::Vec3d::from_lat_lng_rad(lat.to_radians(), lng.to_radians());
+                let bits = faceijk::FaceIJK::from_vec3d(v, res).to_cell_bits(res);
+                Self::try_new(bits)
+            })
+            .collect()
+    }
+
+    /// As [`for_points`](Self::for_points) but using the faster, approximate
+    /// gnomonic projection: it trades the exact `acos` + `tan` for the identity
+    /// `tan(acos(x)) = sqrt(1 - x²)/x` (one `sqrt` + a divide). Results are
+    /// identical to [`for_points`](Self::for_points) for points in a cell's
+    /// interior and can differ only for a point essentially on a cell boundary,
+    /// where it lands in an adjacent — still valid — cell. Prefer it for
+    /// bucketing / partitioning where that boundary-epsilon difference is
+    /// acceptable; use [`for_points`](Self::for_points) when you need the exact
+    /// standard cell.
+    #[must_use]
+    pub fn for_points_approx(lats: &[f64], lngs: &[f64], resolution: u8) -> Vec<Option<Self>> {
+        let n = lats.len().min(lngs.len());
+        if resolution > MAX_RESOLUTION {
+            return vec![None; n];
+        }
+        let res = resolution as usize;
+        lats.iter()
+            .zip(lngs)
+            .map(|(&lat, &lng)| {
+                if !lat.is_finite()
+                    || !lng.is_finite()
+                    || !(-90.0..=90.0).contains(&lat)
+                    || !(-180.0..=180.0).contains(&lng)
+                {
+                    return None;
+                }
+                let v = coord::Vec3d::from_lat_lng_rad(lat.to_radians(), lng.to_radians());
+                let bits = faceijk::FaceIJK::from_vec3d_fast(v, res).to_cell_bits(res);
+                Self::try_new(bits)
+            })
+            .collect()
+    }
+
     /// The parent cell at `resolution` (coarser-or-equal), or `None`.
     pub fn parent(self, resolution: u8) -> Option<Self> {
         (resolution <= self.resolution()).then(|| {

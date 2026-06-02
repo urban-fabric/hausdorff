@@ -973,3 +973,62 @@ fn line_cover_validates_input() {
     let line = H3Line::new(vec![(40.0, -74.0), (41.0, -73.0)]).expect("line");
     assert_eq!(line.to_cells(16), Err(H3LineError::InvalidResolution(16)));
 }
+
+#[test]
+fn for_points_batch_matches_scalar() {
+    // The batch column kernel must be bit-identical to the per-point path,
+    // including the invalid-coordinate (None) and out-of-range-resolution rules.
+    let lats = [0.0, 12.3, -45.6, 80.0, 91.0, f64::NAN, 51.5];
+    let lngs = [0.0, 34.5, -120.0, 179.9, 10.0, 0.0, -0.12];
+    for res in [0u8, 5, 9, 15] {
+        let batch = H3Cell::for_points(&lats, &lngs, res);
+        let scalar: Vec<_> = lats
+            .iter()
+            .zip(&lngs)
+            .map(|(&la, &lo)| H3Cell::for_point(la, lo, res))
+            .collect();
+        assert_eq!(batch, scalar, "batch != scalar at res {res}");
+    }
+    // Out-of-range resolution → all None; mismatched lengths zip to the shorter.
+    assert_eq!(H3Cell::for_points(&lats, &lngs, 16), vec![None; lats.len()]);
+    assert_eq!(H3Cell::for_points(&lats, &lngs[..2], 9).len(), 2);
+}
+
+#[test]
+fn for_points_approx_is_exact_or_edge_neighbour() {
+    // The approximate projection (tan(acos) identity) must match the exact cell
+    // for cell-interior points and, where float noise flips a near-boundary point,
+    // differ only to an edge-neighbour — never a wrong cell. Sweep the globe.
+    let mut lats = Vec::new();
+    let mut lngs = Vec::new();
+    let mut lat = -85.0;
+    while lat <= 85.0 {
+        let mut lng = -175.0;
+        while lng <= 175.0 {
+            lats.push(lat);
+            lngs.push(lng);
+            lng += 7.3;
+        }
+        lat += 5.1;
+    }
+
+    for res in [0u8, 5, 9, 12, 15] {
+        let approx = H3Cell::for_points_approx(&lats, &lngs, res);
+        let exact = H3Cell::for_points(&lats, &lngs, res);
+        for ((a, e), (&la, &lo)) in approx.iter().zip(&exact).zip(lats.iter().zip(&lngs)) {
+            match (a, e) {
+                (Some(a), Some(e)) => assert!(
+                    a == e || a.is_neighbor_with(*e),
+                    "approx {a} vs exact {e} at ({lo},{la}) res {res}: not equal or adjacent"
+                ),
+                (None, None) => {}
+                _ => panic!("approx/exact disagree on validity at ({lo},{la}) res {res}"),
+            }
+        }
+    }
+
+    assert_eq!(
+        H3Cell::for_points_approx(&lats, &lngs, 16),
+        vec![None; lats.len()]
+    );
+}

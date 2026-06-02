@@ -270,6 +270,33 @@ impl Vec2d {
         Self::new(r * theta.cos(), r * theta.sin())
     }
 
+    /// As [`from_vec3d`](Self::from_vec3d) but computing the gnomonic radial
+    /// factor via the identity `tan(acos(x)) = sqrt(1 - x²)/x`, trading the exact
+    /// path's `acos` + `tan` for one `sqrt` and a divide. It is mathematically
+    /// equal; only the last ULPs can differ (`1 - x²` is evaluated as the
+    /// cancellation-free `distance·(1 - distance/4)`, since `x ≈ 1` in the common
+    /// small-angle case), so a cell assignment can shift to an adjacent — still
+    /// valid — cell only for a point essentially on a boundary.
+    pub(super) fn from_vec3d_fast(value: Vec3d, res: usize, face: usize, distance: f64) -> Self {
+        let r = {
+            let x = distance.mul_add(-0.5, 1.0);
+            let one_minus_x2 = distance * 0.25_f64.mul_add(-distance, 1.0);
+            let tan_r = one_minus_x2.sqrt() / x;
+            if tan_r < EPSILON {
+                return Self::new(0.0, 0.0);
+            }
+            (tan_r * INV_RES0_U_GNOMONIC) * SQRT7_POWERS[res]
+        };
+        let theta = {
+            let mut theta = face::AXES_AZ_RADS_CII[face] - face::CENTER_POINT[face].azimuth(&value);
+            if is_class3(res) {
+                theta -= AP7_ROT_RADS;
+            }
+            theta
+        };
+        Self::new(r * theta.cos(), r * theta.sin())
+    }
+
     pub(super) fn intersection(line1: (Self, Self), line2: (Self, Self)) -> Self {
         let s1 = Self::new(line1.1.x - line1.0.x, line1.1.y - line1.0.y);
         let s2 = Self::new(line2.1.x - line2.0.x, line2.1.y - line2.0.y);
