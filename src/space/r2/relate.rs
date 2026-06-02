@@ -215,8 +215,12 @@ pub fn relate(a: &Geometry, b: &Geometry) -> IntersectionMatrix {
     // consecutive split points, classifying its midpoint.
     {
         let _s = crate::profile::span("edges");
-        contribute_edges(&ga, &gb, &pts, &mut im, false);
-        contribute_edges(&gb, &ga, &pts, &mut im, true);
+        // Index the test points so each edge gathers only the split points within
+        // its bounding box, instead of scanning every test point.
+        let pts_index: StrTree<Coord> =
+            StrTree::new(pts.iter().map(|&p| (Rect::new(p, p), p)).collect());
+        contribute_edges(&ga, &gb, &pts_index, &mut im, false);
+        contribute_edges(&gb, &ga, &pts_index, &mut im, true);
     }
 
     // 2-D contributions and exterior cells from interiors.
@@ -529,6 +533,15 @@ impl Decomposed {
         }
         Loc::Exterior
     }
+
+    /// Indexed areal-only location of `p` (ignoring any linear/puntal parts) —
+    /// the accelerated equivalent of `locate_areal(p, &self.polygons)`.
+    fn locate_areal_only(&self, p: Coord) -> Loc {
+        match &self.areal_index {
+            Some(idx) => idx.locate(p),
+            None => locate_areal(p, &self.polygons),
+        }
+    }
 }
 
 fn ring_segments(coords: &[Coord], out: &mut Vec<Seg>) {
@@ -617,6 +630,13 @@ fn interior_samples(poly: &Polygon) -> Vec<Coord> {
     if n < 3 {
         return Vec::new();
     }
+    // Verify each candidate against an index built once for this polygon, so the
+    // per-edge interior tests are O(log n) rather than an O(n) ring scan each.
+    let index = ArealIndex::build(std::slice::from_ref(poly));
+    let inside = |p: Coord| match &index {
+        Some(idx) => idx.locate(p) == Loc::Interior,
+        None => locate_in_polygon(p, poly) == Loc::Interior,
+    };
     let mut out = Vec::new();
     if let Some(p) = representative_interior_point(poly) {
         out.push(p);
@@ -626,7 +646,7 @@ fn interior_samples(poly: &Polygon) -> Vec<Coord> {
         v.iter().map(|c| c.y).sum::<f64>() / n as f64,
     );
     let centroid = Coord::new(cx, cy);
-    if locate_in_polygon(centroid, poly) == Loc::Interior {
+    if inside(centroid) {
         out.push(centroid);
     }
     for i in 0..n {
@@ -641,7 +661,7 @@ fn interior_samples(poly: &Polygon) -> Vec<Coord> {
         let step = len * 1e-3;
         for s in [step, -step] {
             let p = Coord::new(mid.x + nx * s, mid.y + ny * s);
-            if locate_in_polygon(p, poly) == Loc::Interior {
+            if inside(p) {
                 out.push(p);
                 break;
             }
@@ -931,19 +951,20 @@ fn dedup_coords(pts: &mut Vec<Coord>) {
 fn contribute_edges(
     from: &Decomposed,
     other: &Decomposed,
-    pts: &[Coord],
+    pts_index: &StrTree<Coord>,
     im: &mut IntersectionMatrix,
     swapped: bool,
 ) {
     for seg in &from.segments {
         let (a, b) = (seg.a, seg.b);
-        // split points on this edge, ordered along it
+        // split points on this edge, ordered along it — only the test points
+        // within the edge's box can lie on it, so query rather than scan all.
         let mut on: Vec<Coord> = vec![a, b];
-        for &p in pts {
+        pts_index.query_each(padded_box(a, b), |_, &p| {
             if point_on_segment_interior(p, a, b) {
                 on.push(p);
             }
-        }
+        });
         on.sort_by(|p, q| {
             let dp = (p.x - a.x).powi(2) + (p.y - a.y).powi(2);
             let dq = (q.x - a.x).powi(2) + (q.y - a.y).powi(2);
@@ -971,14 +992,32 @@ fn contribute_areas(ga: &Decomposed, gb: &Decomposed, im: &mut IntersectionMatri
     if a_areal && b_areal {
         // Probe each areal interior at many points (vertices, edge-midpoints,
         // centroids), and detect boundary crossings. A proper ring crossing means
-        // each interior straddles the other's boundary.
-        let a_samples: Vec<Coord> = ga.polygons.iter().flat_map(interior_samples).collect();
-        let b_samples: Vec<Coord> = gb.polygons.iter().flat_map(interior_samples).collect();
+        // each interior straddles the other's boundary. Each sample is classified
+        // once through the indexed areal locate, short-circuiting once both an
+        // inside and an outside sample are seen.
         let cross = rings_cross(ga, gb);
-        let a_in = a_samples.iter().any(|&p| locate_areal(p, &gb.polygons) == Loc::Interior);
-        let a_out = a_samples.iter().any(|&p| locate_areal(p, &gb.polygons) == Loc::Exterior);
-        let b_in = b_samples.iter().any(|&p| locate_areal(p, &ga.polygons) == Loc::Interior);
-        let b_out = b_samples.iter().any(|&p| locate_areal(p, &ga.polygons) == Loc::Exterior);
+        let (mut a_in, mut a_out) = (false, false);
+        for p in ga.polygons.iter().flat_map(interior_samples) {
+            match gb.locate_areal_only(p) {
+                Loc::Interior => a_in = true,
+                Loc::Exterior => a_out = true,
+                Loc::Boundary => {}
+            }
+            if a_in && a_out {
+                break;
+            }
+        }
+        let (mut b_in, mut b_out) = (false, false);
+        for p in gb.polygons.iter().flat_map(interior_samples) {
+            match ga.locate_areal_only(p) {
+                Loc::Interior => b_in = true,
+                Loc::Exterior => b_out = true,
+                Loc::Boundary => {}
+            }
+            if b_in && b_out {
+                break;
+            }
+        }
         if cross || a_in || b_in {
             im.set_at_least(I, I, 2);
         }
