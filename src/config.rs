@@ -52,11 +52,16 @@ pub struct MinDistanceCost {
     pub index_build_weight: f64,
     /// Per-query weight (× `log₂` of the indexed set) of querying it.
     pub index_query_weight: f64,
+    /// Segment-pair count (`n·m`) at or below which the brute scan skips its
+    /// per-pair bounding-box pruning: for small operands the prune bookkeeping
+    /// costs more than the few distance evaluations it saves, so a tight
+    /// unpruned `O(n·m)` scan is faster.
+    pub prune_pair_threshold: usize,
 }
 
 impl Default for MinDistanceCost {
     fn default() -> Self {
-        Self { index_build_weight: 6.0, index_query_weight: 6.0 }
+        Self { index_build_weight: 6.0, index_query_weight: 6.0, prune_pair_threshold: 256 }
     }
 }
 

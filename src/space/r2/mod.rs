@@ -61,7 +61,7 @@ pub use intersects::Intersects;
 pub use geodesic_area::ChamberlainDuquetteArea;
 pub use index::StrTree;
 pub use line_measures::{Bearing, Destination, Distance, Euclidean, Haversine, Length};
-pub use min_distance::{euclidean_distance, euclidean_within};
+pub use min_distance::{MinDistanceWorkspace, euclidean_distance, euclidean_within};
 pub use prepared::PreparedGeometry;
 pub use set_distance::{directed_hausdorff_distance, frechet_distance, hausdorff_distance};
 pub use simplify::Simplify;

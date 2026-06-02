@@ -2,7 +2,7 @@
 //! `ST_DWithin` substrate) against geo's Euclidean geometry-to-geometry distance.
 
 use geo::{Distance as _, Euclidean};
-use hausdorff::space::r2::{euclidean_distance, euclidean_within};
+use hausdorff::space::r2::{MinDistanceWorkspace, euclidean_distance, euclidean_within};
 use hausdorff::{Coord, Geometry, Line, LineString, Point, Polygon};
 
 mod common;
@@ -146,6 +146,62 @@ fn index_path_scattered_points_match_geo() {
         let a = cloud(&mut rng, 150);
         let b = cloud(&mut rng, 150);
         check(&a, &b);
+    }
+}
+
+/// A regular `n`-gon (always convex) — closed ring, arbitrary rotation. Drives
+/// the convex GJK fast path at the vertex counts the brute scan struggles with.
+fn ngon(cx: f64, cy: f64, r: f64, n: usize, rot: f64) -> Geometry {
+    let coords: Vec<(f64, f64)> = (0..=n)
+        .map(|i| {
+            let t = rot + i as f64 / n as f64 * std::f64::consts::TAU;
+            (cx + r * t.cos(), cy + r * t.sin())
+        })
+        .collect();
+    poly(&coords)
+}
+
+#[test]
+fn convex_fast_path_matches_geo() {
+    // Random convex polygons (regular n-gons, varied size/rotation/position):
+    // disjoint pairs take the O(n+m) GJK path, touching/overlapping pairs the
+    // intersects short-circuit — both must agree with geo, and with the squares
+    // and triangles already covered by `polygon_polygon` / the stress test.
+    let mut rng = Lcg(0x00C0_FFEE_1234_5678);
+    for _ in 0..400 {
+        let n1 = 3 + (rng.next_u32() % 32) as usize;
+        let n2 = 3 + (rng.next_u32() % 32) as usize;
+        let r1 = 1.0 + rng.coord(8).abs();
+        let r2 = 1.0 + rng.coord(8).abs();
+        let a = ngon(rng.coord(40), rng.coord(40), r1, n1, rng.coord(7));
+        let b = ngon(rng.coord(40), rng.coord(40), r2, n2, rng.coord(7));
+        check(&a, &b);
+    }
+    // Large convex rings well separated: pure GJK, no intersects involvement.
+    check(&ngon(0.0, 0.0, 5.0, 256, 0.1), &ngon(30.0, 4.0, 4.0, 512, 0.7));
+    check(&ngon(0.0, 0.0, 5.0, 512, 0.0), &ngon(0.0, 25.0, 5.0, 200, 1.3)); // stacked
+}
+
+#[test]
+fn workspace_matches_free_functions() {
+    // A reused workspace must return exactly what the one-shot free functions do,
+    // across a heterogeneous batch (small, convex, point-cloud) of queries.
+    let mut ws = MinDistanceWorkspace::new();
+    let cases: Vec<(Geometry, Geometry)> = vec![
+        (pt(0.0, 0.0), pt(3.0, 4.0)),
+        (sq(0.0, 0.0, 2.0, 2.0), sq(5.0, 0.0, 7.0, 2.0)),
+        (ngon(0.0, 0.0, 5.0, 64, 0.0), ngon(20.0, 3.0, 4.0, 64, 0.0)),
+        (line(0.0, 0.0, 4.0, 0.0), pt(2.0, 3.0)),
+        (sq(0.0, 0.0, 10.0, 10.0), sq(3.0, 3.0, 7.0, 7.0)), // nested → 0
+    ];
+    // Two passes over the same workspace to confirm buffer reuse is stateless.
+    for _ in 0..2 {
+        for (a, b) in &cases {
+            assert_eq!(ws.distance(a, b), euclidean_distance(a, b), "distance reuse mismatch");
+            let d = euclidean_distance(a, b);
+            assert_eq!(ws.within(a, b, d + 0.5), euclidean_within(a, b, d + 0.5));
+            assert_eq!(ws.within(a, b, (d - 0.5).max(0.0)), euclidean_within(a, b, (d - 0.5).max(0.0)));
+        }
     }
 }
 
