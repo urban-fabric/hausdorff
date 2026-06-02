@@ -1,13 +1,12 @@
 //! Uniform lon/lat grid index over a point set, for radius (`ST_DWithin`) and
 //! k-nearest-neighbour joins. Points are bucketed into `cell_deg`-degree cells;
-//! a probe point scans its own cell and the eight neighbours, refined by
-//! great-circle ([`crate::earth::haversine_m`]) distance. **`cell_deg` must be
-//! `>=` the search radius in degrees** for the radius join to be complete —
-//! otherwise matches more than one cell away are missed. A degree of longitude
-//! shrinks with latitude, so the safe value is the radius in degrees of
-//! *longitude* at the working latitude, `meters / (111_320 · cos lat)` (it
-//! reduces to `meters / 111_320` near the equator); using the equatorial value
-//! can miss matches in longitude at high latitude.
+//! a radius probe scans the block of cells the search radius can reach — sized
+//! from the radius and `cell_deg`, and widened in longitude toward the poles —
+//! then refines by great-circle ([`crate::earth::haversine_m`]) distance. So
+//! `cell_deg` is only a bucketing granularity (it trades cells-scanned-per-probe
+//! against memory) and need not match the radius. This is a **flat** lon/lat
+//! grid: it does not wrap the antimeridian and degrades within one cell of a
+//! pole. [`PointGrid::build`] rejects a non-finite or non-positive `cell_deg`.
 //!
 //! Buckets are a **dense** CSR grid when the occupied cell box is compact, or a
 //! **sparse** hash map when the points are scattered, so memory stays ~`O(points)`
@@ -144,14 +143,20 @@ pub struct PointGrid<P> {
 }
 
 impl<P: Copy> PointGrid<P> {
-    /// Index `(latitude, longitude, payload)` points into a `cell_deg`-degree grid.
-    pub fn build(points: impl IntoIterator<Item = (f64, f64, P)>, cell_deg: f64) -> Self {
+    /// Index `(latitude, longitude, payload)` points into a `cell_deg`-degree
+    /// grid. Returns `None` unless `cell_deg` is finite and positive (a zero,
+    /// negative, or `NaN` cell size would produce nonsense buckets).
+    #[must_use]
+    pub fn build(points: impl IntoIterator<Item = (f64, f64, P)>, cell_deg: f64) -> Option<Self> {
+        if !cell_deg.is_finite() || cell_deg <= 0.0 {
+            return None;
+        }
         let points: Vec<GridPoint<P>> = points
             .into_iter()
             .map(|(lat, lon, payload)| GridPoint { lat, lon, payload })
             .collect();
         let buckets = Buckets::build(&points, cell_deg);
-        Self { cell_deg, points, buckets }
+        Some(Self { cell_deg, points, buckets })
     }
 
     /// Number of indexed points.
@@ -167,20 +172,37 @@ impl<P: Copy> PointGrid<P> {
     }
 
     /// `(probe_payload, point_payload)` for every probe point within `meters`
-    /// (great-circle) of an indexed point. Each probe scans its own cell and the
-    /// eight neighbours, so `cell_deg` must be `>=` the radius in degrees for
-    /// completeness.
+    /// (great-circle) of an indexed point. Each probe scans the block of cells the
+    /// radius can reach — `ceil(radius / cell)` rings in latitude, widened by
+    /// `1/cos(lat)` in longitude — then refines by great-circle distance, so the
+    /// result is complete for any positive `cell_deg` (a smaller one just scans
+    /// more cells). Ring counts are capped at half the grid, so a pole-adjacent
+    /// probe stays bounded but may be incomplete there (a flat grid can't
+    /// represent a pole neighbourhood).
     #[must_use]
     pub fn within<Q: Copy>(
         &self,
         probe: impl IntoIterator<Item = (f64, f64, Q)>,
         meters: f64,
     ) -> Vec<(Q, P)> {
+        const DEG_PER_M: f64 = 1.0 / 111_320.0;
+        let radius_deg = meters * DEG_PER_M;
+        // cell_deg is finite and > 0 (enforced by `build`), so these are finite.
+        let max_rings = ((180.0 / self.cell_deg).ceil() as i64).max(1);
+        let lat_rings = ((radius_deg / self.cell_deg).ceil() as i64).clamp(1, max_rings);
         let mut out = Vec::new();
         for (lat, lon, q) in probe {
+            // A degree of longitude shrinks as cos(lat), so the radius spans more
+            // longitude cells nearer the poles.
+            let coslat = lat.to_radians().cos().abs();
+            let lon_rings = if coslat < 1e-9 {
+                max_rings
+            } else {
+                ((radius_deg / (coslat * self.cell_deg)).ceil() as i64).clamp(1, max_rings)
+            };
             let (cy, cx) = cell(lat, lon, self.cell_deg);
-            for dy in -1..=1 {
-                for dx in -1..=1 {
+            for dy in -lat_rings..=lat_rings {
+                for dx in -lon_rings..=lon_rings {
                     for &i in self.buckets.get(cy + dy, cx + dx) {
                         let p = &self.points[i as usize];
                         if distance_m(lat, lon, p.lat, p.lon) <= meters {
@@ -268,14 +290,14 @@ mod tests {
         // Compact cluster spanning a few cells -> dense CSR grid.
         let r = pts(&[0.0, 1.2, 2.1, 1.1], &[0.0, 0.2, 0.1, 2.2]);
         let l = pts(&[0.05, 1.15], &[0.05, 0.15]);
-        let grid = PointGrid::build(r.iter().copied(), cell_deg);
+        let grid = PointGrid::build(r.iter().copied(), cell_deg).expect("valid cell_deg");
         assert!(matches!(grid.buckets, Buckets::Dense(_)), "expected dense path");
         assert_eq!(within_pairs(&grid, &l, meters), brute(&l, &r, meters));
 
         // Two clusters at opposite ends of the globe -> sparse hash fallback.
         let r = pts(&[0.0, 0.001, 70.0, 70.001], &[0.0, 0.001, 170.0, 170.001]);
         let l = pts(&[0.0005, 70.0005], &[0.0005, 170.0005]);
-        let grid = PointGrid::build(r.iter().copied(), cell_deg);
+        let grid = PointGrid::build(r.iter().copied(), cell_deg).expect("valid cell_deg");
         assert!(matches!(grid.buckets, Buckets::Sparse(_)), "expected sparse path");
         assert_eq!(within_pairs(&grid, &l, meters), brute(&l, &r, meters));
     }
@@ -290,5 +312,26 @@ mod tests {
         assert_eq!((knn[0].0, knn[0].1), (0, 0));
         assert_eq!((knn[1].0, knn[1].1), (0, 1));
         assert!(knn[0].2 <= knn[1].2);
+    }
+
+    #[test]
+    fn within_is_complete_when_cell_deg_is_smaller_than_the_radius() {
+        // cell_deg (0.1°) far smaller than the ~0.45° radius: matches sit several
+        // cells away, so a fixed 3x3 probe would miss them — `within` must size
+        // its neighbourhood from the radius.
+        let cell_deg = 0.1;
+        let meters = 50_000.0;
+        let r = pts(&[0.0, 0.3, -0.25, 0.1], &[0.0, 0.2, 0.1, -0.3]);
+        let l = pts(&[0.05], &[0.05]);
+        let grid = PointGrid::build(r.iter().copied(), cell_deg).expect("valid cell_deg");
+        assert_eq!(within_pairs(&grid, &l, meters), brute(&l, &r, meters));
+    }
+
+    #[test]
+    fn build_rejects_invalid_cell_deg() {
+        let p = pts(&[0.0], &[0.0]);
+        assert!(PointGrid::build(p.iter().copied(), 0.0).is_none());
+        assert!(PointGrid::build(p.iter().copied(), -1.0).is_none());
+        assert!(PointGrid::build(p.iter().copied(), f64::NAN).is_none());
     }
 }
