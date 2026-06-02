@@ -4,8 +4,8 @@
 
 use super::convex_hull::convex_hull_coords;
 use super::{
-    Area, BoundingRect, Centroid, ChamberlainDuquetteArea, ConvexHull, Coord, CoordsIter, Geometry,
-    LineString, MultiPoint, Point, Polygon, Rect, Simplify,
+    Area, BoundingRect, Centroid, ChamberlainDuquetteArea, ConvexHull, Coord, CoordsIter, Euclidean,
+    Geometry, Length, LineString, MultiPoint, Point, Polygon, Rect, Simplify,
 };
 
 impl ChamberlainDuquetteArea for Geometry {
@@ -37,6 +37,15 @@ impl Area for Geometry {
             | Geometry::LineString(_)
             | Geometry::MultiPoint(_)
             | Geometry::MultiLineString(_) => 0.0,
+        }
+    }
+
+    fn unsigned_area(&self) -> f64 {
+        // A collection's unsigned area is the sum of its parts' *unsigned* areas,
+        // not `|Σ signed|` — members of opposite winding must not cancel.
+        match self {
+            Geometry::GeometryCollection(gs) => gs.iter().map(Area::unsigned_area).sum(),
+            other => other.signed_area().abs(),
         }
     }
 }
@@ -81,12 +90,34 @@ impl Centroid for Geometry {
             Geometry::Triangle(g) => g.to_polygon().centroid(),
             Geometry::Line(l) => Some(Point((l.start + l.end) / 2.0)),
             Geometry::MultiLineString(mls) => {
-                let pts: Vec<Point> = mls.iter().filter_map(Centroid::centroid).collect();
-                MultiPoint::new(pts).centroid()
+                // Length-weighted mean of the component centroids (a long line
+                // pulls the centroid more than a short one).
+                let mut acc = Coord::new(0.0, 0.0);
+                let mut total = 0.0;
+                for ls in mls.iter() {
+                    if let Some(c) = ls.centroid() {
+                        let len = Euclidean.length(ls);
+                        acc = acc + c.0 * len;
+                        total += len;
+                    }
+                }
+                if total > 0.0 {
+                    Some(Point(acc / total))
+                } else {
+                    // every component is zero-length: fall back to their mean
+                    let pts: Vec<Point> = mls.iter().filter_map(Centroid::centroid).collect();
+                    MultiPoint::new(pts).centroid()
+                }
             }
-            Geometry::GeometryCollection(gs) => {
-                let pts: Vec<Point> = gs.iter().filter_map(Centroid::centroid).collect();
-                MultiPoint::new(pts).centroid()
+            Geometry::GeometryCollection(_) => {
+                // The mean of every coordinate in the collection.
+                let mut sum = Coord::new(0.0, 0.0);
+                let mut n = 0.0;
+                for c in self.coords_iter() {
+                    sum = sum + c;
+                    n += 1.0;
+                }
+                (n > 0.0).then(|| Point(sum / n))
             }
         }
     }
@@ -99,7 +130,11 @@ impl Simplify for Geometry {
             Geometry::Polygon(g) => Geometry::Polygon(g.simplify(epsilon)),
             Geometry::MultiLineString(g) => Geometry::MultiLineString(g.simplify(epsilon)),
             Geometry::MultiPolygon(g) => Geometry::MultiPolygon(g.simplify(epsilon)),
-            // nothing to simplify on points / lines / rects / triangles / collections
+            // recurse into a collection, simplifying each member
+            Geometry::GeometryCollection(gs) => {
+                Geometry::GeometryCollection(gs.iter().map(|g| g.simplify(epsilon)).collect())
+            }
+            // nothing to simplify on points / lines / rects / triangles
             other => other.clone(),
         }
     }

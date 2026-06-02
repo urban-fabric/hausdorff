@@ -1,8 +1,11 @@
 //! Geometry-enum trait dispatch added for galois: `Length<Geometry>` (boundary
 //! length / perimeter), `Intersects for Rect`, and `Orient for Geometry`.
 
-use hausdorff::space::r2::{Direction, Euclidean, Intersects, Length, Orient, Winding, WindingOrder};
-use hausdorff::{Coord, Geometry, LineString, Point, Polygon, Rect};
+use hausdorff::space::r2::{
+    Area, Centroid, Direction, Euclidean, Intersects, Length, Orient, Simplify, Winding,
+    WindingOrder,
+};
+use hausdorff::{Coord, Geometry, LineString, MultiLineString, Point, Polygon, Rect};
 
 #[test]
 fn length_for_geometry_sums_boundaries() {
@@ -51,5 +54,60 @@ fn orient_for_geometry_reorients_areal_only() {
     match line.orient(Direction::Default) {
         Geometry::LineString(ls) => assert_eq!(ls.0.len(), 2),
         _ => panic!("line stays a line"),
+    }
+}
+
+// ---- refinements (galois-correct semantics for collections) ----------------
+
+#[test]
+fn collection_area_sums_absolute_parts() {
+    // Two unit squares of opposite winding: `|Σ signed|` would cancel to 0, but
+    // the unsigned area must be 2.
+    let ccw = Geometry::Polygon(Polygon::new(
+        LineString::from(vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (0.0, 0.0)]),
+        vec![],
+    ));
+    let cw = Geometry::Polygon(Polygon::new(
+        LineString::from(vec![(2.0, 0.0), (2.0, 1.0), (3.0, 1.0), (3.0, 0.0), (2.0, 0.0)]),
+        vec![],
+    ));
+    let gc = Geometry::GeometryCollection(vec![ccw, cw]);
+    assert!((gc.unsigned_area() - 2.0).abs() < 1e-9, "got {}", gc.unsigned_area());
+}
+
+#[test]
+fn collection_centroid_is_mean_of_all_coords() {
+    let gc = Geometry::GeometryCollection(vec![
+        Geometry::Point(Point::new(0.0, 0.0)),
+        Geometry::Point(Point::new(4.0, 0.0)),
+        Geometry::Point(Point::new(2.0, 6.0)),
+    ]);
+    let c = gc.centroid().unwrap();
+    assert!((c.0.x - 2.0).abs() < 1e-9 && (c.0.y - 2.0).abs() < 1e-9, "got {:?}", c.0);
+}
+
+#[test]
+fn multilinestring_centroid_is_length_weighted() {
+    // A long line on y=0 (length 10) and a short line on y=10 (length 1): the
+    // centroid's y is pulled toward 0, not the unweighted midpoint 5.
+    let long = LineString::from(vec![(0.0, 0.0), (10.0, 0.0)]);
+    let short = LineString::from(vec![(0.0, 10.0), (1.0, 10.0)]);
+    let mls = Geometry::MultiLineString(MultiLineString::new(vec![long, short]));
+    let c = mls.centroid().unwrap();
+    assert!((c.0.y - 10.0 / 11.0).abs() < 1e-9, "weighted y={}, not the mean 5", c.0.y);
+}
+
+#[test]
+fn simplify_recurses_into_collection() {
+    // A line with a redundant collinear midpoint, wrapped in a collection: the
+    // member must be simplified (the old dispatch cloned collections untouched).
+    let line = LineString::from(vec![(0.0, 0.0), (1.0, 0.0), (2.0, 0.0)]);
+    let gc = Geometry::GeometryCollection(vec![Geometry::LineString(line)]);
+    match gc.simplify(0.1) {
+        Geometry::GeometryCollection(members) => match &members[0] {
+            Geometry::LineString(ls) => assert_eq!(ls.0.len(), 2, "midpoint should drop"),
+            _ => panic!("member stays a line"),
+        },
+        _ => panic!("stays a collection"),
     }
 }
