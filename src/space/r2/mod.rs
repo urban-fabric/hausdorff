@@ -59,7 +59,7 @@ pub use convex_hull::ConvexHull;
 pub use coords_iter::CoordsIter;
 pub use dimensions::{Dimensions, HasDimensions};
 pub use intersects::Intersects;
-pub use join::{spatial_join, spatial_join_candidates};
+pub use join::{GeometryIndex, nested_loop_join, spatial_join, spatial_join_candidates};
 pub use geodesic_area::ChamberlainDuquetteArea;
 pub use index::StrTree;
 pub use line_measures::{Bearing, Destination, Distance, Euclidean, Haversine, Length, Perimeter};
