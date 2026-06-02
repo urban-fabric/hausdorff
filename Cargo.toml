@@ -22,9 +22,8 @@ rayon = { version = "1.12", optional = true }
 # Optional: in-process profiling (hierarchical span timing of the kernels) via
 # huygens, gated behind the `profiling` feature (off by default). When the
 # feature is off the span hooks compile to nothing, so normal builds carry zero
-# profiling overhead. A local path dependency for now — switch to the
-# `urban-fabric/huygens` git dependency once the crate is pushed to GitHub.
-huygens = { path = "../huygens-profiling-core", optional = true }
+# profiling overhead.
+huygens = { git = "ssh://git@github.com/urban-fabric/huygens.git", branch = "main", optional = true }
 
 # No external geometry crate is a runtime dependency: every kernel/codec is
 # native. `geo`/`geo-types` appear only as dev-dependency conformance oracles.
@@ -59,12 +58,17 @@ wkt = "0.14"
 euclid = { git = "ssh://git@github.com/urban-fabric/euclid.git", branch = "main" }
 # In-process benchmark harness (statistical per-call timing, TSC fast-clock,
 # comparison tables) — the shared replacement for the hand-rolled
-# std::time::Instant harness in benches/vs_external.rs. A local path dependency
-# for now; switch to the urban-fabric/huygens git dependency once published.
-huygens = { path = "../huygens-profiling-core" }
+# std::time::Instant harness in benches/vs_external.rs.
+huygens = { git = "ssh://git@github.com/urban-fabric/huygens.git", branch = "main" }
 
 # Wall-clock comparison of hausdorff's kernels against the external reference
 # libraries (geo, h3o, geohash). Run: `cargo bench --bench vs_external`.
 [[bench]]
 name = "vs_external"
 harness = false
+
+# Hierarchical span profile of the instrumented kernels (needs the profiling
+# feature). Run: `cargo run --release --example profile_kernels --features profiling`.
+[[example]]
+name = "profile_kernels"
+required-features = ["profiling"]

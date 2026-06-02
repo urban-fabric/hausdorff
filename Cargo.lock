@@ -483,6 +483,7 @@ dependencies = [
 [[package]]
 name = "huygens"
 version = "0.1.0"
+source = "git+ssh://git@github.com/urban-fabric/huygens.git?branch=main#1db9a25a875c1a0e38986169bb0f1c846ec4f237"
 dependencies = [
  "quanta",
  "serde",
