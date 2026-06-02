@@ -17,8 +17,11 @@ use super::{Loop, Polygon as S2Polygon, RegionCoverer, S2CellId, S2Point};
 /// - **lines** → `None` (a region cover is undefined for a 1-D geometry);
 /// - **collections** recurse.
 ///
-/// Returns `None` for a line geometry (above) or when `level` exceeds the leaf
-/// level (30). Non-finite or out-of-range point coordinates are skipped.
+/// Returns `None` for a line geometry (above), when `level` exceeds the leaf
+/// level (30), or when a polygon ring has a non-finite or out-of-range
+/// coordinate. An out-of-range *point* coordinate is skipped (a point is a single
+/// sample, not a malformed ring); a degenerate hole (fewer than three vertices,
+/// hence no area) is dropped.
 #[must_use]
 pub fn cover_r2_geometry_at_level(geom: &Geometry, level: u32) -> Option<Vec<S2CellId>> {
     if level > MAX_LEVEL {
@@ -37,14 +40,14 @@ fn collect(geom: &Geometry, level: u32, out: &mut BTreeSet<S2CellId>) -> Option<
                 insert_point(p.x(), p.y(), level, out);
             }
         }
-        Geometry::Polygon(poly) => cover_polygon(poly, level, out),
+        Geometry::Polygon(poly) => cover_polygon(poly, level, out)?,
         Geometry::MultiPolygon(mp) => {
             for poly in mp.iter() {
-                cover_polygon(poly, level, out);
+                cover_polygon(poly, level, out)?;
             }
         }
-        Geometry::Rect(r) => cover_polygon(&r.to_polygon(), level, out),
-        Geometry::Triangle(t) => cover_polygon(&t.to_polygon(), level, out),
+        Geometry::Rect(r) => cover_polygon(&r.to_polygon(), level, out)?,
+        Geometry::Triangle(t) => cover_polygon(&t.to_polygon(), level, out)?,
         Geometry::GeometryCollection(gs) => {
             for g in gs {
                 collect(g, level, out)?;
@@ -55,19 +58,36 @@ fn collect(geom: &Geometry, level: u32, out: &mut BTreeSet<S2CellId>) -> Option<
     Some(())
 }
 
+/// True iff `(lon, lat)` is a finite, in-range WGS84 coordinate.
+fn valid_lonlat(lon: f64, lat: f64) -> bool {
+    lon.is_finite()
+        && lat.is_finite()
+        && (-90.0..=90.0).contains(&lat)
+        && (-180.0..=180.0).contains(&lon)
+}
+
 fn insert_point(lon: f64, lat: f64, level: u32, out: &mut BTreeSet<S2CellId>) {
-    let gp = GeoPoint::from_lon_lat(lon, lat);
-    if gp.is_finite() && (-90.0..=90.0).contains(&gp.lat) && (-180.0..=180.0).contains(&gp.lon) {
+    if valid_lonlat(lon, lat) {
+        let gp = GeoPoint::from_lon_lat(lon, lat);
         out.insert(S2CellId::from_geo_point_at_level(gp, level));
     }
 }
 
-fn cover_polygon(poly: &Polygon, level: u32, out: &mut BTreeSet<S2CellId>) {
-    let Some(shell) = ring_loop(poly.exterior()) else {
-        return;
-    };
+fn cover_polygon(poly: &Polygon, level: u32, out: &mut BTreeSet<S2CellId>) -> Option<()> {
+    // Reject malformed rings up front: an out-of-range lat/lon would otherwise be
+    // silently wrapped by the trig in `S2Point::from_geo_point` rather than
+    // flagged. (Unlike a stray point, a bad polygon ring is fatal.)
+    for ring in std::iter::once(poly.exterior()).chain(poly.interiors()) {
+        if !ring.coords().all(|c| valid_lonlat(c.x, c.y)) {
+            return None;
+        }
+    }
+    let shell = ring_loop(poly.exterior())?;
+    // Holes have valid coordinates here; a degenerate one (<3 vertices, no area)
+    // simply drops.
     let holes: Vec<Loop> = poly.interiors().iter().filter_map(ring_loop).collect();
     out.extend(RegionCoverer::at_level(level).covering(&S2Polygon::new(shell, holes)));
+    Some(())
 }
 
 /// A lon/lat ring as a counter-clockwise spherical [`Loop`] (interior to the left
@@ -135,5 +155,22 @@ mod tests {
     fn level_above_leaf_is_none() {
         let pt = Geometry::Point(Point::new(10.0, 50.0));
         assert!(cover_r2_geometry_at_level(&pt, 31).is_none());
+    }
+
+    #[test]
+    fn polygon_with_out_of_range_coord_is_none() {
+        // Longitude 200° is out of range; the ring must be rejected, not silently
+        // wrapped through the projection's trig.
+        let poly = Geometry::Polygon(Polygon::new(
+            LineString::from(vec![
+                (0.0, 0.0),
+                (200.0, 0.0),
+                (200.0, 1.0),
+                (0.0, 1.0),
+                (0.0, 0.0),
+            ]),
+            vec![],
+        ));
+        assert!(cover_r2_geometry_at_level(&poly, 8).is_none());
     }
 }

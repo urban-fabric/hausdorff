@@ -193,11 +193,16 @@ impl<P: Copy> PointGrid<P> {
     /// `(probe_payload, point_payload)` for every probe point within `meters`
     /// (great-circle) of an indexed point. Each probe scans the block of cells the
     /// radius can reach — `ceil(radius / cell)` rings in latitude, widened by
-    /// `1/cos(lat)` in longitude — then refines by great-circle distance, so the
-    /// result is complete for any positive `cell_deg` (a smaller one just scans
-    /// more cells). Ring counts are capped at half the grid, so a pole-adjacent
-    /// probe stays bounded but may be incomplete there (a flat grid can't
-    /// represent a pole neighbourhood).
+    /// `1/cos(lat)` in longitude — then refines by great-circle distance.
+    ///
+    /// **Non-global contract.** This is a flat lon/lat grid with no wraparound, so
+    /// completeness holds only for query neighbourhoods clear of the ±180°
+    /// antimeridian and the poles: a match straddling the antimeridian seam (e.g.
+    /// `179.9°` vs `−179.9°`) is **missed**, and a pole-adjacent probe is capped
+    /// (ring counts are bounded at half the grid) and may be incomplete. Within
+    /// those limits the result is complete for any positive `cell_deg` (a smaller
+    /// one just scans more cells). For data crossing the seam, split or shift
+    /// longitudes before indexing.
     #[must_use]
     pub fn within<Q: Copy>(
         &self,

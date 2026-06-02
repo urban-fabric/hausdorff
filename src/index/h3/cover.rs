@@ -10,20 +10,27 @@ use crate::space::r2::{Geometry, LineString, Polygon};
 
 use super::{H3Cell, H3Line, H3Polygon};
 
-/// H3 cells at `resolution` covering `geom`:
+/// H3 cells *approximately* covering `geom` at `resolution`:
 /// - **points** → the containing cell;
-/// - **lines** → the grid-path cover ([`H3Line`]), every cell the path crosses;
-/// - **areal** → the interior centroid cells ([`H3Polygon::to_cells`]) **plus**
-///   the boundary rings' grid-path cover, so edge-overlapping cells (centre
-///   outside) are included — a boundary-complete cover, not a centroid one;
+/// - **lines** → the cells along the H3 grid path between consecutive vertex
+///   cells ([`H3Line`]);
+/// - **areal** → the interior centroid cells ([`H3Polygon::to_cells`]) plus the
+///   grid-path cover of the boundary rings, which pulls in many edge-straddling
+///   cells the centroid fill omits;
 /// - **collections** recurse.
 ///
-/// Returns `None` when no honest cover can be produced: a point is unmappable, a
+/// **This is an approximation, not a guaranteed superset.** The boundary is
+/// traced by [`H3Line`], which walks the *shortest H3 grid path* between
+/// consecutive vertex cells — not an exact segment↔cell intersection — so a cell
+/// the true edge clips can still be missed (and the centroid interior fill can
+/// miss thin features). It is suitable for bucketing / coarse partitioning; do
+/// **not** rely on it as a no-false-negative spatial index without first
+/// densifying toward a true boundary-intersection cover.
+///
+/// Returns `None` when no cover can be produced at all: a point is unmappable, a
 /// ring is invalid (degenerate, out-of-range coordinate, or transmeridian), a
-/// grid path is undefined (a line's or a polygon boundary's vertices are too far
-/// apart or split by a pentagon), or `resolution` is out of range. A polygon
-/// cover is all-or-nothing — if any boundary ring can't be grid-path covered the
-/// whole result is `None` — so a returned `Some` is genuinely boundary-complete.
+/// grid path is undefined (vertices too far apart or split by a pentagon), or
+/// `resolution` is out of range.
 #[must_use]
 pub fn cover_geometry(geom: &Geometry, resolution: u8) -> Option<Vec<H3Cell>> {
     let mut cells = BTreeSet::new();
@@ -90,12 +97,13 @@ fn cover_polygon(poly: &Polygon, res: u8, out: &mut BTreeSet<H3Cell>) -> Option<
             .ok()?,
     );
 
-    // Boundary completion: the grid-path cover of every ring catches the
-    // edge-straddling cells the centroid fill omits, making the cover
-    // boundary-complete. A ring whose grid path is undefined is fatal (`None`),
-    // matching line covers — a silently-incomplete cover would be unsafe to index
-    // against. The r2 rings are already closed (first == last), so every edge —
-    // including the closing one — is walked.
+    // Boundary completion: the grid-path cover of every ring pulls in many of the
+    // edge-straddling cells the centroid fill omits. This is an approximation —
+    // H3Line walks the shortest grid path between vertex cells, not an exact
+    // segment↔cell intersection — so it is not a guaranteed superset. A ring whose
+    // grid path is undefined is fatal (`None`), matching line covers. The r2 rings
+    // are already closed (first == last), so every edge — including the closing one
+    // — is walked.
     for ring in std::iter::once(exterior).chain(holes) {
         out.extend(H3Line::new(ring).ok()?.to_cells(res).ok()?);
     }
@@ -126,7 +134,7 @@ mod tests {
     }
 
     #[test]
-    fn polygon_cover_is_boundary_complete() {
+    fn polygon_cover_includes_boundary_vertex_cells() {
         let verts = vec![
             (9.5, 49.5),
             (10.5, 49.5),
