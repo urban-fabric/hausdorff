@@ -4,10 +4,17 @@
 //!
 //! Ported from the reference implementation by F. Martínez et al. (2009/2013);
 //! the [`BooleanOps`] trait mirrors `geo`'s so call sites migrate by import.
-//! Validated against `geo`'s `BooleanOps` over a battery of fixed configurations
-//! (disjoint, nested, crossing, concave, touching/collinear, identical, holes,
-//! multipolygons) plus ~900 randomized rectangle/triangle pairs; result areas
-//! and the set-algebra invariants match.
+//! Input winding is normalised (exterior CCW, holes CW) so arbitrarily-wound
+//! polygons work. Validated against `geo`'s `BooleanOps` over fixed
+//! configurations (disjoint, nested, crossing, concave, touching/collinear,
+//! identical, holes, multipolygons) plus ~900 randomized rectangle/triangle
+//! pairs; result areas and the set-algebra invariants match.
+//!
+//! **Known limitation:** a *T-vertex* — a vertex of one polygon lying exactly on
+//! the interior of the other's edge — can mislabel the sweep's in/out fields and
+//! drop part of the result. This is rare for real (float lon/lat) geometry but
+//! common on integer grids. [`crate::r2::relate`] avoids the clipper for this
+//! reason; the overlay kernels do not yet handle it.
 
 use std::cell::RefCell;
 use std::cmp::Ordering;
