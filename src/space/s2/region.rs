@@ -20,9 +20,13 @@ pub trait Region {
     /// A spherical cap that bounds the region (not necessarily the tightest).
     fn bounding_cap(&self) -> Cap;
 
-    /// True iff the region may intersect `cell`. **Conservative:** a `false`
-    /// result guarantees disjointness, so a coverer never drops a cell it should
-    /// keep (over-covering at worst).
+    /// True iff the region may intersect `cell`. The coverer biases toward
+    /// *over*-covering — it would rather keep a cell than drop one — but this is
+    /// a heuristic, not a strict guarantee: it rests on point-in-loop and
+    /// edge-crossing predicates whose results on exact boundary coincidences are
+    /// not guaranteed, so a cell meeting the region only along a shared boundary
+    /// can occasionally be dropped. Robust for typical float lon/lat data away
+    /// from such coincidences.
     fn intersects_cell(&self, cell: S2CellId) -> bool;
 
     /// True iff the region fully contains `cell`. **Strict:** a `false` result
@@ -168,7 +172,8 @@ impl Region for Polygon {
 pub struct RegionCoverer {
     /// Coarsest level a covering cell may have.
     pub min_level: u32,
-    /// Finest level a covering cell may have (refinement stops here).
+    /// Finest level a covering cell may have (refinement stops here). Values
+    /// above the leaf level (30) are treated as 30.
     pub max_level: u32,
     /// Soft cap on the number of cells.
     pub max_cells: usize,
@@ -188,8 +193,10 @@ impl RegionCoverer {
     /// A coverer that emits cells at exactly `level`: every level-`level` cell
     /// that intersects the region, with no coarsening and no cell budget. This is
     /// the fixed-resolution covering a partitioner uses to bucket a geometry.
+    /// `level` is clamped to the leaf level (30).
     #[must_use]
     pub fn at_level(level: u32) -> Self {
+        let level = level.min(MAX_LEVEL);
         Self {
             min_level: level,
             max_level: level,
@@ -212,8 +219,11 @@ impl RegionCoverer {
             return;
         }
         let level = cell.level();
+        // Never refine past a leaf: `S2CellId::children()` is undefined at the
+        // leaf level, so clamp the finest level regardless of `self.max_level`.
+        let max_level = self.max_level.min(MAX_LEVEL);
         let at_budget = out.len() >= self.max_cells;
-        if level >= self.max_level
+        if level >= max_level
             || (level >= self.min_level && (at_budget || region.contains_cell(cell)))
         {
             out.push(cell);
@@ -323,5 +333,13 @@ mod tests {
             !cover.iter().any(|c| c.contains(leaf(0.0, 0.0))),
             "deep-hole point should not be covered"
         );
+    }
+
+    #[test]
+    fn at_level_clamps_to_the_leaf() {
+        assert_eq!(RegionCoverer::at_level(7).max_level, 7);
+        let clamped = RegionCoverer::at_level(40);
+        assert_eq!(clamped.min_level, MAX_LEVEL);
+        assert_eq!(clamped.max_level, MAX_LEVEL);
     }
 }

@@ -2,9 +2,12 @@
 //! k-nearest-neighbour joins. Points are bucketed into `cell_deg`-degree cells;
 //! a probe point scans its own cell and the eight neighbours, refined by
 //! great-circle ([`crate::earth::haversine_m`]) distance. **`cell_deg` must be
-//! `>=` the search radius in degrees** (`meters / 111_320` near the equator) for
-//! the radius join to be complete — otherwise matches more than one cell away are
-//! missed.
+//! `>=` the search radius in degrees** for the radius join to be complete —
+//! otherwise matches more than one cell away are missed. A degree of longitude
+//! shrinks with latitude, so the safe value is the radius in degrees of
+//! *longitude* at the working latitude, `meters / (111_320 · cos lat)` (it
+//! reduces to `meters / 111_320` near the equator); using the equatorial value
+//! can miss matches in longitude at high latitude.
 //!
 //! Buckets are a **dense** CSR grid when the occupied cell box is compact, or a
 //! **sparse** hash map when the points are scattered, so memory stays ~`O(points)`

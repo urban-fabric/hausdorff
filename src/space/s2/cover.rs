@@ -7,6 +7,7 @@ use std::collections::BTreeSet;
 use crate::earth::GeoPoint;
 use crate::space::r2::{Geometry, LineString, Polygon};
 
+use super::coords::MAX_LEVEL;
 use super::{Loop, Polygon as S2Polygon, RegionCoverer, S2CellId, S2Point};
 
 /// S2 cells at `level` covering `geom`:
@@ -16,9 +17,13 @@ use super::{Loop, Polygon as S2Polygon, RegionCoverer, S2CellId, S2Point};
 /// - **lines** → `None` (a region cover is undefined for a 1-D geometry);
 /// - **collections** recurse.
 ///
-/// Non-finite or out-of-range point coordinates are skipped.
+/// Returns `None` for a line geometry (above) or when `level` exceeds the leaf
+/// level (30). Non-finite or out-of-range point coordinates are skipped.
 #[must_use]
 pub fn cover_r2_geometry_at_level(geom: &Geometry, level: u32) -> Option<Vec<S2CellId>> {
+    if level > MAX_LEVEL {
+        return None;
+    }
     let mut cells = BTreeSet::new();
     collect(geom, level, &mut cells)?;
     Some(cells.into_iter().collect())
@@ -121,5 +126,11 @@ mod tests {
         // Line → None.
         let line = Geometry::LineString(LineString::from(vec![(10.0, 50.0), (11.0, 50.0)]));
         assert!(cover_r2_geometry_at_level(&line, 12).is_none());
+    }
+
+    #[test]
+    fn level_above_leaf_is_none() {
+        let pt = Geometry::Point(Point::new(10.0, 50.0));
+        assert!(cover_r2_geometry_at_level(&pt, 31).is_none());
     }
 }

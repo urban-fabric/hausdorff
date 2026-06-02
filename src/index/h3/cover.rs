@@ -18,9 +18,12 @@ use super::{H3Cell, H3Line, H3Polygon};
 ///   outside) are included — a boundary-complete cover, not a centroid one;
 /// - **collections** recurse.
 ///
-/// Returns `None` when a point is unmappable, a polygon is invalid/transmeridian,
-/// a grid path is undefined (vertices too far apart or split by a pentagon), or
-/// `resolution` is out of range — i.e. when no honest cover can be produced.
+/// Returns `None` when no honest cover can be produced: a point is unmappable, a
+/// polygon's interior fill is invalid (a degenerate or transmeridian ring), a
+/// *line's* grid path is undefined (vertices too far apart or split by a
+/// pentagon), or `resolution` is out of range. A polygon's boundary completion is
+/// best-effort — a ring edge whose grid path is undefined is skipped, not fatal,
+/// since the interior fill already covers the polygon.
 #[must_use]
 pub fn cover_geometry(geom: &Geometry, resolution: u8) -> Option<Vec<H3Cell>> {
     let mut cells = BTreeSet::new();
@@ -87,10 +90,10 @@ fn cover_polygon(poly: &Polygon, res: u8, out: &mut BTreeSet<H3Cell>) -> Option<
     // closed (first == last), so every edge — including the closing one — is
     // walked.
     for ring in std::iter::once(exterior).chain(holes) {
-        if let Ok(line) = H3Line::new(ring) {
-            if let Ok(cells) = line.to_cells(res) {
-                out.extend(cells);
-            }
+        if let Ok(line) = H3Line::new(ring)
+            && let Ok(cells) = line.to_cells(res)
+        {
+            out.extend(cells);
         }
     }
     Some(())
