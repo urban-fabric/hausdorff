@@ -252,6 +252,10 @@ struct Decomposed {
     dim: i8,
     /// Ring-edge spatial index for O(log n) areal point location, built once.
     areal_index: Option<ArealIndex>,
+    /// True iff any segment is a line/curve edge (owner `Interior`) rather than a
+    /// polygon ring edge. When false, `locate`'s linear branch can't match, so it
+    /// is skipped instead of scanning every ring edge only to `continue`.
+    has_linear: bool,
 }
 
 impl Decomposed {
@@ -263,9 +267,11 @@ impl Decomposed {
             polygons: Vec::new(),
             dim: dimension(g),
             areal_index: None,
+            has_linear: false,
         };
         d.add(g);
         d.areal_index = ArealIndex::build(&d.polygons);
+        d.has_linear = d.segments.iter().any(|s| s.owner == Loc::Interior);
         d
     }
 
@@ -387,7 +393,9 @@ impl Decomposed {
         // polygons are present their ring edges (Boundary owner) are already
         // covered by the areal branch above, and a point that reaches here is
         // exterior to them — so skip ring edges and test only linear components.
-        if !self.segments.is_empty() {
+        // Purely-areal geometries have no linear edges, so this branch can't match
+        // (it would only scan ring edges to `continue`) — skip it entirely.
+        if self.has_linear {
             let bpts = self.boundary_points();
             if bpts.contains(&p) {
                 return Loc::Boundary;

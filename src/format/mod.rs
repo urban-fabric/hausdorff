@@ -8,5 +8,6 @@
 //! deprecate the external `wkt` / `wkb` / `geojson` crates.
 
 pub mod geojson;
+pub mod shapefile;
 pub mod wkb;
 pub mod wkt;
