@@ -509,32 +509,32 @@ fn proper_cross(a1: Coord, a2: Coord, b1: Coord, b2: Coord) -> bool {
         && (d3 > 0.0) != (d4 > 0.0)
 }
 
-/// Several points strictly inside the polygon, spread around it (bottom-vertex
-/// bisector, centroid, and each edge midpoint nudged inward).
-fn interior_samples(poly: &Polygon) -> Vec<Coord> {
+/// Calls `f` with strictly-interior sample points of `poly` (bottom-vertex
+/// bisector, centroid, and each edge midpoint nudged inward), each validated as
+/// interior to `owner`'s areal region through `owner`'s prebuilt index — so no
+/// throwaway per-polygon index is rebuilt. Stops as soon as `f` returns `true`,
+/// so the caller's inside/outside short-circuit bounds how many samples are
+/// generated (and located) instead of materializing all `~2n` up front.
+fn sample_interior(poly: &Polygon, owner: &Decomposed, mut f: impl FnMut(Coord) -> bool) {
     let v = ring_vertices(&poly.exterior().0);
     let n = v.len();
     if n < 3 {
-        return Vec::new();
+        return;
     }
-    // Verify each candidate against an index built once for this polygon, so the
-    // per-edge interior tests are O(log n) rather than an O(n) ring scan each.
-    let index = ArealIndex::build(std::slice::from_ref(poly));
-    let inside = |p: Coord| match &index {
-        Some(idx) => idx.locate(p) == Loc::Interior,
-        None => locate_in_polygon(p, poly) == Loc::Interior,
-    };
-    let mut out = Vec::new();
-    if let Some(p) = representative_interior_point(poly) {
-        out.push(p);
+    let inside = |p: Coord| owner.locate_areal_only(p) == Loc::Interior;
+    // The representative point is guaranteed strictly inside the polygon.
+    if let Some(p) = representative_interior_point(poly)
+        && f(p)
+    {
+        return;
     }
     let (cx, cy) = (
         v.iter().map(|c| c.x).sum::<f64>() / n as f64,
         v.iter().map(|c| c.y).sum::<f64>() / n as f64,
     );
     let centroid = Coord::new(cx, cy);
-    if inside(centroid) {
-        out.push(centroid);
+    if inside(centroid) && f(centroid) {
+        return;
     }
     for i in 0..n {
         let (a, b) = (v[i], v[(i + 1) % n]);
@@ -549,12 +549,13 @@ fn interior_samples(poly: &Polygon) -> Vec<Coord> {
         for s in [step, -step] {
             let p = Coord::new(mid.x + nx * s, mid.y + ny * s);
             if inside(p) {
-                out.push(p);
+                if f(p) {
+                    return;
+                }
                 break;
             }
         }
     }
-    out
 }
 
 /// A point guaranteed strictly inside the polygon (bottom-vertex bisector).
@@ -889,23 +890,29 @@ fn contribute_areas(ga: &Decomposed, gb: &Decomposed, im: &mut IntersectionMatri
         // inside and an outside sample are seen.
         let cross = rings_cross(ga, gb);
         let (mut a_in, mut a_out) = (false, false);
-        for p in ga.polygons.iter().flat_map(interior_samples) {
-            match gb.locate_areal_only(p) {
-                Loc::Interior => a_in = true,
-                Loc::Exterior => a_out = true,
-                Loc::Boundary => {}
-            }
+        for poly in &ga.polygons {
+            sample_interior(poly, ga, |p| {
+                match gb.locate_areal_only(p) {
+                    Loc::Interior => a_in = true,
+                    Loc::Exterior => a_out = true,
+                    Loc::Boundary => {}
+                }
+                a_in && a_out
+            });
             if a_in && a_out {
                 break;
             }
         }
         let (mut b_in, mut b_out) = (false, false);
-        for p in gb.polygons.iter().flat_map(interior_samples) {
-            match ga.locate_areal_only(p) {
-                Loc::Interior => b_in = true,
-                Loc::Exterior => b_out = true,
-                Loc::Boundary => {}
-            }
+        for poly in &gb.polygons {
+            sample_interior(poly, gb, |p| {
+                match ga.locate_areal_only(p) {
+                    Loc::Interior => b_in = true,
+                    Loc::Exterior => b_out = true,
+                    Loc::Boundary => {}
+                }
+                b_in && b_out
+            });
             if b_in && b_out {
                 break;
             }
