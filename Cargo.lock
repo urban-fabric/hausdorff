@@ -438,7 +438,6 @@ dependencies = [
  "geojson",
  "h3o",
  "huygens",
- "rayon",
  "serde",
  "serde_json",
  "wkb",

@@ -16,9 +16,6 @@ serde = { version = "1", features = ["derive"] }
 # Generic JSON layer for the native GeoJSON codec (r2_format::geojson) — not a
 # geo crate; replaces the `geojson` crate's JSON handling.
 serde_json = "1"
-# Optional: data-parallel execution of the batch (SoA) kernels, gated behind the
-# `parallel` feature (off by default). The scalar path is the reference.
-rayon = { version = "1.12", optional = true }
 # Optional: in-process profiling (hierarchical span timing of the kernels) via
 # huygens, gated behind the `profiling` feature (off by default). When the
 # feature is off the span hooks compile to nothing, so normal builds carry zero
@@ -29,9 +26,6 @@ huygens = { git = "ssh://git@github.com/urban-fabric/huygens.git", branch = "mai
 # native. `geo`/`geo-types` appear only as dev-dependency conformance oracles.
 
 [features]
-# Run independent per-element batch kernels (distance fans, batch H3 encode) on
-# rayon's thread pool instead of sequentially. Results are identical either way.
-parallel = ["dep:rayon"]
 # In-process profiling: hierarchical span timing of the kernels via huygens.
 # Off by default and compile-time zero-cost when off; enable it, then set the
 # runtime `hausdorff::huygens::ProfileMode` to collect a `PerfReport`.

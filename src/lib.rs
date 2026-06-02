@@ -26,9 +26,6 @@ pub mod format;
 pub mod index;
 pub mod space;
 
-/// Internal feature-gated sequential/parallel seam for the batch kernels.
-mod par;
-
 /// Internal hierarchical-profiling hooks (the `profiling` feature); no-ops when
 /// the feature is off.
 mod profile;

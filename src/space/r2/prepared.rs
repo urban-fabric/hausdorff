@@ -136,15 +136,15 @@ impl<'a> PreparedGeometry<'a> {
     // Prepare one geometry, then probe a whole column of others against it in one
     // call — the core of a spatial join. Each returns one result per input,
     // aligned with it (a boolean mask, or a distance), so the output drops
-    // straight into a columnar filter. The per-element probes are independent and
-    // run on rayon when the `parallel` feature is enabled (identical either way).
+    // straight into a columnar filter. The probes are independent, so a caller
+    // wanting threads can split the column into chunks and run these on each.
 
     /// For each point in `points`, whether it lies inside this prepared **areal**
     /// geometry — a vectorized [`contains_point`](Self::contains_point) over a
     /// columnar batch: the point-in-polygon join.
     #[must_use]
     pub fn contains_points(&self, points: &PointBatch) -> Vec<bool> {
-        crate::par::map_indexed(points.len(), |i| self.contains_point(points.coord(i)))
+        (0..points.len()).map(|i| self.contains_point(points.coord(i))).collect()
     }
 
     /// For each geometry in `others`, whether it is within `d` of this prepared
@@ -152,21 +152,21 @@ impl<'a> PreparedGeometry<'a> {
     /// distance-join predicate.
     #[must_use]
     pub fn within_each(&self, others: &[Geometry], d: f64) -> Vec<bool> {
-        crate::par::map_indexed(others.len(), |i| self.within(&others[i], d))
+        others.iter().map(|o| self.within(o, d)).collect()
     }
 
     /// For each geometry in `others`, whether it intersects this prepared
     /// geometry — a vectorized [`intersects`](Self::intersects).
     #[must_use]
     pub fn intersects_each(&self, others: &[Geometry]) -> Vec<bool> {
-        crate::par::map_indexed(others.len(), |i| self.intersects(&others[i]))
+        others.iter().map(|o| self.intersects(o)).collect()
     }
 
     /// Minimum distance from this prepared geometry to each geometry in `others`
     /// — a vectorized [`distance`](Self::distance).
     #[must_use]
     pub fn distance_each(&self, others: &[Geometry]) -> Vec<f64> {
-        crate::par::map_indexed(others.len(), |i| self.distance(&others[i]))
+        others.iter().map(|o| self.distance(o)).collect()
     }
 
     /// Bounding-box pre-test: could the prepared geometry touch `other`'s segments?
