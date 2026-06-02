@@ -2,7 +2,7 @@
 //! ([`Orient`]), mirroring `geo`'s `Winding` / `Orient` traits.
 
 use super::util::signed_area2;
-use super::{LineString, MultiPolygon, Polygon};
+use super::{Geometry, LineString, MultiPolygon, Polygon};
 
 /// How a ring is wound.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -86,5 +86,21 @@ impl Orient for Polygon {
 impl Orient for MultiPolygon {
     fn orient(&self, direction: Direction) -> MultiPolygon {
         MultiPolygon::new(self.iter().map(|p| p.orient(direction)).collect())
+    }
+}
+
+impl Orient for Geometry {
+    /// Reorient the areal members (`Polygon`/`MultiPolygon`, and recursively a
+    /// `GeometryCollection`); other variants have no ring winding and are
+    /// returned unchanged.
+    fn orient(&self, direction: Direction) -> Geometry {
+        match self {
+            Geometry::Polygon(p) => Geometry::Polygon(p.orient(direction)),
+            Geometry::MultiPolygon(mp) => Geometry::MultiPolygon(mp.orient(direction)),
+            Geometry::GeometryCollection(gs) => {
+                Geometry::GeometryCollection(gs.iter().map(|g| g.orient(direction)).collect())
+            }
+            other => other.clone(),
+        }
     }
 }

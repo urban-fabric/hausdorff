@@ -3,11 +3,22 @@
 //! robust segment crossing + point-in-polygon (no DE-9IM matrix needed).
 
 use super::util::ring_vertices;
-use super::{Coord, CoordsIter, Geometry, Polygon};
+use super::{Coord, CoordsIter, Geometry, Polygon, Rect};
 
 /// True iff `self` and `other` share at least one point.
 pub trait Intersects {
     fn intersects(&self, other: &Self) -> bool;
+}
+
+impl Intersects for Rect {
+    /// Axis-aligned rectangle overlap (touching counts) — the broad-phase test
+    /// behind range queries and spatial joins.
+    fn intersects(&self, other: &Rect) -> bool {
+        self.min().x <= other.max().x
+            && other.min().x <= self.max().x
+            && self.min().y <= other.max().y
+            && other.min().y <= self.max().y
+    }
 }
 
 impl Intersects for Geometry {

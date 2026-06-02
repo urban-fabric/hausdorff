@@ -12,7 +12,7 @@
 
 use crate::earth::{Bearing as CompassBearing, GeoPoint, destination_m, haversine_m};
 
-use super::{Coord, LineString, MultiLineString, Point};
+use super::{Coord, Geometry, LineString, MultiLineString, Point, Polygon};
 
 /// The planar Euclidean metric space.
 #[derive(Clone, Copy, Debug, Default)]
@@ -90,6 +90,41 @@ where
     fn length(&self, mls: &MultiLineString) -> f64 {
         mls.iter().map(|ls| self.length(ls)).sum()
     }
+}
+
+/// Total boundary length under metric `M`: a line's length, a polygon's
+/// perimeter (exterior + holes), summed over the parts of a collection; `0` for
+/// puntal geometries. Lifts [`Length`] to the [`Geometry`] enum (e.g. galois's
+/// geodesic length/perimeter is `Haversine.length(&geometry)`).
+impl<M> Length<Geometry> for M
+where
+    M: Length<LineString>,
+{
+    fn length(&self, g: &Geometry) -> f64 {
+        geometry_length(self, g)
+    }
+}
+
+/// Total boundary length of `g` under metric `m`. A free function (recursing on
+/// itself for a collection) so every inner call is the unambiguous
+/// `Length<LineString>`, not the `Length<Geometry>` impl being defined.
+fn geometry_length<M: Length<LineString>>(m: &M, g: &Geometry) -> f64 {
+    match g {
+        Geometry::Point(_) | Geometry::MultiPoint(_) => 0.0,
+        Geometry::Line(l) => m.length(&LineString::new(vec![l.start, l.end])),
+        Geometry::LineString(ls) => m.length(ls),
+        Geometry::MultiLineString(mls) => mls.iter().map(|ls| m.length(ls)).sum(),
+        Geometry::Polygon(p) => polygon_perimeter(m, p),
+        Geometry::MultiPolygon(mp) => mp.iter().map(|p| polygon_perimeter(m, p)).sum(),
+        Geometry::Rect(r) => polygon_perimeter(m, &r.to_polygon()),
+        Geometry::Triangle(t) => polygon_perimeter(m, &t.to_polygon()),
+        Geometry::GeometryCollection(gs) => gs.iter().map(|sub| geometry_length(m, sub)).sum(),
+    }
+}
+
+/// A polygon's perimeter under metric `M`: its exterior ring plus every hole.
+fn polygon_perimeter<M: Length<LineString>>(m: &M, p: &Polygon) -> f64 {
+    m.length(p.exterior()) + p.interiors().iter().map(|h| m.length(h)).sum::<f64>()
 }
 
 /// Initial bearing in **degrees** (`0 = North`, clockwise) from `a` to `b`.
