@@ -1,18 +1,75 @@
 # hausdorff
 
-Internal geospatial index implementations for UrbanFabric.
+Internal geospatial primitives and index implementations for UrbanFabric — an
+in-house, dependency-light replacement for the `geo` / `h3o` / `s2` / `geohash`
+stack, so UrbanFabric projects share one geometry core. Proprietary software;
+see [`NOTICE`](NOTICE) for the open-source works it ports from.
 
-The first implementation is `hausdorff::h3`, a from-scratch Rust H3 cell
-implementation moved out of Kolmogorov so other UrbanFabric projects can use
-the same internal H3 core.
+The H3 core was the first piece, moved out of Kolmogorov so other projects can
+use the same internal implementation.
 
-Current H3 coverage includes cell construction/validation, lat/lon indexing,
-cell centers and boundaries, hierarchy operations, child positions,
-compaction/uncompaction, pentagon/base-cell inspection, grid disk/ring
-traversal, neighbor checks, grid distance, local IJ coordinates, grid paths,
-directed edges and edge geometry, canonical vertex indexes, exact cell area,
-centroid polygon cover, cell-set boundary dissolve, and the standard H3
-resolution metadata tables.
+## Modules
 
-The `geo` module also owns reusable geodesic sampling helpers such as
-`RadialGrid`, a concentric ring sampler around a WGS84 point.
+- **`index::h3`** — from-scratch Rust H3 hexagonal index. Cell
+  construction/validation, lat/lon indexing, cell centers/boundaries, hierarchy
+  operations, child positions, compaction/uncompaction, pentagon/base-cell
+  inspection, grid disk/ring traversal, neighbor checks, grid distance, local IJ
+  coordinates, grid paths, the grid-path polyline cover (`H3Line`), directed
+  edges and edge geometry, canonical vertex indexes, exact cell area, centroid
+  polygon cover, cell-set boundary dissolve, and the standard resolution
+  metadata tables. Differential-tested against `h3o`.
+- **`index::geohash`** — native geohash encode/decode of lon/lat points.
+- **`space::r2`** — planar (`f64`) geometry: a replacement for `geo`/`geo-types`
+  whose shapes (Coord, Point, Line, LineString, Polygon, MultiPolygon, …) and
+  trait names mirror `geo` so callers migrate by changing the import path.
+  Includes `Area`, `Centroid`, `BoundingRect`, `ConvexHull`, `ConcaveHull`,
+  `Simplify`, `Distance` / `min_distance`, `Intersects`, `Length` / `Perimeter`,
+  `Orient`, `BooleanOps`, `Relate`, the `StrTree` spatial index,
+  `PreparedGeometry`, spatial joins, and set/curve distances
+  (`hausdorff_distance` / `frechet_distance`).
+- **`space::s2`** — spherical S2 primitives ported from golang/geo: cell ids,
+  caps, edge crossings, orientation predicates, and measures. **`RegionCoverer`
+  is experimental** (see *Stability*).
+- **`space::r3` / `space::s1`** — supporting unit-less vector / angle types.
+- **`earth`** — the WGS84 lat/lon layer: `GeoPoint`, haversine and geodesic
+  distances, bounding boxes, `RadialGrid` (a concentric-ring sampler around a
+  point), and the Hausdorff / Fréchet curve-similarity measures
+  (`earth::similarity`).
+- **`algebra`** — metric / vector-space traits (`MetricSpace`, `Norm`,
+  `InnerProduct`, `VectorSpace`) and the generic Hausdorff / Fréchet kernels.
+- **`format`** — native WKT, WKB, and GeoJSON codecs over `space::r2::Geometry`.
+- **`convert`** — moves geometry between the planar (`r2`) and spherical
+  (`earth`) layers.
+
+## Stability
+
+Pre-1.0; APIs may change. As a working classification (subject to revision —
+treat this as guidance, not a guarantee):
+
+- **Stable** — exercised by conformance suites and used downstream:
+  `index::h3`, `index::geohash`, the `space::r2` geometry / algorithm surface,
+  `format` (wkt / wkb / geojson), `earth` (points, geodesics, bbox, `RadialGrid`,
+  `similarity`), and `algebra`. The `space::r2` trait names intentionally mirror
+  `geo` as **migration shims** — they exist so callers can swap the import path,
+  and may diverge from `geo` over time.
+- **Experimental** — `space::s2::RegionCoverer`. Its cell-intersection test is
+  conservative — it counts boundary touches and either-way nesting, so it
+  over-covers rather than dropping boundary-coincident cells — but it still uses a
+  soft cell budget and an approximate `Cap` bound and is not tuned for minimal
+  covers. Good for bucketing/partitioning; not yet a minimal-cover engine.
+
+### Semantics worth knowing
+
+- **Empty-operand distances return `None`, not `0.0`.** `hausdorff_distance`,
+  `frechet_distance`, and `directed_hausdorff_distance` in `space::r2`, and the
+  `*_m` / typed forms in `earth::similarity`, return `Option` so an empty operand
+  is not silently read as "identical". The generic `algebra` kernels remain total
+  (`0.0` for empty slices).
+- **WKT empties are lossy in type.** `Geometry` has no typed-empty variant, so
+  every `… EMPTY` (e.g. `POINT EMPTY`) round-trips as `MULTIPOINT EMPTY`: the
+  geometry stays empty, but its original type is not preserved.
+
+## Attribution
+
+hausdorff ports code and algorithms from georust `geo`, Uber's H3, golang/geo
+(S2), and others. See [`NOTICE`](NOTICE).

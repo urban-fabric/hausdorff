@@ -1,0 +1,64 @@
+hausdorff
+Copyright (c) UrbanFabric. All rights reserved.
+
+hausdorff is proprietary software (see the `license` field in Cargo.toml). It
+incorporates code and algorithms ported or adapted from the open-source projects
+listed below. Their attribution and license terms are retained here as required
+by those licenses. Where a project is dual-licensed, hausdorff relies on it under
+the terms noted.
+
+================================================================================
+georust `geo` / `geo-types`                                  MIT OR Apache-2.0
+    https://github.com/georust/geo
+    Copyright (c) The GeoRust Developers
+
+Portions of `crate::space::r2` — the planar `f64` geometry types (Coord, Point,
+Line, LineString, Polygon, MultiPolygon, …) and the algorithms over them
+(BooleanOps, Relate, Area, Centroid, Simplify, ConvexHull, Distance, Intersects,
+Length, Orient, …) — are ported from `geo`/`geo-types`, mirroring their shapes
+and trait names so call sites migrate by changing the import path. The
+Hausdorff/Fréchet similarity measures in `crate::earth::similarity` are likewise
+ported from `geo`.
+
+================================================================================
+H3 — Uber hexagonal hierarchical geospatial index            Apache-2.0
+    https://github.com/uber/h3
+    Copyright (c) Uber Technologies, Inc.
+
+`crate::index::h3` (the u64 codec, the icosahedral FaceIJK gnomonic projection,
+grid traversal, child enumeration, and the base-cell / face / FaceIJK constant
+tables) is ported from the H3 C reference. The constant tables are lifted
+verbatim. The `h3o` Rust port (https://github.com/HydroniumLabs/h3o) is used as
+the porting reference and as a dev-dependency differential-test oracle; see the
+h3o repository for its license.
+
+================================================================================
+golang/geo — Go implementation of the S2 geometry library    Apache-2.0
+    https://github.com/golang/geo
+    Copyright (c) Google Inc.
+
+`crate::space::s2` (cell ids, caps, edge crossings, orientation predicates, and
+point/edge measures) and `crate::space::r3` are ported from golang/geo's `s2`
+and `r3` packages.
+
+================================================================================
+Algorithm references
+--------------------------------------------------------------------------------
+The following are algorithmic provenance, not source-code ports:
+
+  * Boolean polygon overlay — F. Martínez, A. J. Rueda, F. R. Feito,
+    "A new algorithm for computing Boolean operations on polygons" (2009/2013).
+    Implemented in `crate::space::r2::bool_ops`.
+
+  * Discrete Fréchet distance — T. Eiter and H. Mannila,
+    "Computing Discrete Fréchet Distance" (1994).
+    Implemented in `crate::algebra::metric` / `crate::earth::similarity`.
+
+  * Geohash — the public geohash encoding (G. M. Niemeyer).
+    Reimplemented in `crate::index::geohash`.
+
+  * `crate::space::r2::prepared` follows the design of GEOS `PreparedGeometry`.
+
+  * `crate::simd`'s scalar-first SIMD dispatch follows the approach used by
+    RustFFT.
+================================================================================
