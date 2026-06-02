@@ -32,6 +32,7 @@ pub mod dimensions;
 pub mod geodesic_area;
 pub mod intersects;
 pub mod line_measures;
+pub mod relate;
 pub mod simplify;
 pub mod winding;
 

@@ -1,19 +1,15 @@
 //! Compatibility boundary for external geometry crates and interchange formats.
 //!
 //! Downstream UrbanFabric crates depend on `hausdorff` geometry types and call
-//! through this boundary. Almost everything here is now backed by native
-//! `hausdorff` kernels — formats ([`crate::r2_format`]), geohash, overlay
-//! ([`crate::r2::bool_ops`]), `Intersects`/`Disjoint`, and geodesic area.
+//! through this boundary. Everything here is now backed by native `hausdorff`
+//! kernels — formats ([`crate::r2_format`]), geohash, overlay
+//! ([`crate::r2::bool_ops`]), the full DE-9IM topology predicates
+//! ([`crate::r2::relate`]), and geodesic area. The heavy `geo` crate is no longer
+//! used at runtime (it remains only as a dev-dependency oracle for conformance
+//! tests).
 //!
-//! The **only** remaining use of the heavy `geo` crate is the DE-9IM topology
-//! predicates beyond intersection (`Contains`/`Within`/`Covers`/`CoveredBy`/
-//! `Touches`/`Crosses`/`Equals`/`Overlaps`) in [`topology_predicate`]. These are
-//! exposed by galois's Polars API but are not consumed by any leaf application,
-//! so a full native `Relate` matrix is intentionally out of scope (we don't need
-//! the full `geo`). The lightweight `geo-types` bridge ([`to_geo_geometry`] /
-//! [`from_geo_geometry`]) is kept deliberately for the WKB/shapefile I/O edges.
-
-use geo::{Contains, Relate};
+//! The lightweight `geo-types` bridge ([`to_geo_geometry`] / [`from_geo_geometry`])
+//! is kept deliberately for the WKB/shapefile I/O edges.
 
 use crate::r2::{
     BooleanOps, Coord, Geometry, Line, LineString, MultiLineString, MultiPoint, MultiPolygon,
@@ -102,30 +98,28 @@ pub fn geodesic_area_unsigned_m2(geom: &Geometry) -> f64 {
     geom.chamberlain_duquette_unsigned_area()
 }
 
-/// Evaluate a topology predicate through the compatibility boundary.
-///
-/// `Intersects`/`Disjoint` are native ([`crate::r2::Intersects`]); the remaining
-/// DE-9IM predicates still delegate to `geo`'s `Relate` until a native relate
-/// matrix lands.
+/// Evaluate a topology predicate natively via the DE-9IM relate matrix
+/// ([`crate::r2::relate`]). `Intersects`/`Disjoint` take the fast direct path.
 #[must_use]
 pub fn topology_predicate(left: &Geometry, right: &Geometry, predicate: TopologyPredicate) -> bool {
+    use crate::r2::relate::{geometry_dimension, relate};
     use crate::r2::Intersects as _;
     match predicate {
         TopologyPredicate::Intersects => return left.intersects(right),
         TopologyPredicate::Disjoint => return !left.intersects(right),
         _ => {}
     }
-    let l = to_geo_geometry(left);
-    let r = to_geo_geometry(right);
+    let m = relate(left, right);
+    let (da, db) = (geometry_dimension(left), geometry_dimension(right));
     match predicate {
-        TopologyPredicate::Contains => l.contains(&r),
-        TopologyPredicate::Within => l.relate(&r).is_within(),
-        TopologyPredicate::Covers => l.relate(&r).is_covers(),
-        TopologyPredicate::CoveredBy => l.relate(&r).is_coveredby(),
-        TopologyPredicate::Touches => l.relate(&r).is_touches(),
-        TopologyPredicate::Crosses => l.relate(&r).is_crosses(),
-        TopologyPredicate::Equals => l.relate(&r).is_equal_topo(),
-        TopologyPredicate::Overlaps => l.relate(&r).is_overlaps(),
+        TopologyPredicate::Contains => m.is_contains(),
+        TopologyPredicate::Within => m.is_within(),
+        TopologyPredicate::Covers => m.is_covers(),
+        TopologyPredicate::CoveredBy => m.is_coveredby(),
+        TopologyPredicate::Touches => m.is_touches(),
+        TopologyPredicate::Crosses => m.is_crosses(da, db),
+        TopologyPredicate::Equals => m.is_equal_topo(),
+        TopologyPredicate::Overlaps => m.is_overlaps(da, db),
         TopologyPredicate::Intersects | TopologyPredicate::Disjoint => unreachable!(),
     }
 }

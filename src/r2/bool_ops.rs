@@ -240,6 +240,12 @@ fn below(a: Coord, b: Coord, p: Coord) -> bool {
 // ---- the algorithm ----------------------------------------------------------
 
 fn run(subject: &MultiPolygon, clipping: &MultiPolygon, op: Operation) -> MultiPolygon {
+    // The sweep's in/out labelling assumes canonical winding (exterior CCW,
+    // holes CW); normalise both operands so arbitrarily-wound input works.
+    use super::winding::{Direction, Orient};
+    let subject = subject.orient(Direction::Default);
+    let clipping = clipping.orient(Direction::Default);
+
     let mut queue: BinaryHeap<QueueItem> = BinaryHeap::new();
     for p in subject.iter() {
         fill_polygon(p, true, &mut queue);

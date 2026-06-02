@@ -122,6 +122,28 @@ impl From<Vec<Point>> for MultiPoint {
     }
 }
 
+impl FromIterator<Point> for MultiPoint {
+    fn from_iter<I: IntoIterator<Item = Point>>(iter: I) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
+impl<'a> IntoIterator for &'a MultiPoint {
+    type Item = &'a Point;
+    type IntoIter = std::slice::Iter<'a, Point>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a MultiPolygon {
+    type Item = &'a Polygon;
+    type IntoIter = std::slice::Iter<'a, Polygon>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
 impl From<Vec<(f64, f64)>> for MultiPoint {
     fn from(coords: Vec<(f64, f64)>) -> Self {
         Self(coords.into_iter().map(Point::from).collect())

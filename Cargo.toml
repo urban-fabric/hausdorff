@@ -14,18 +14,18 @@ serde = { version = "1", features = ["derive"] }
 # Generic JSON layer for the native GeoJSON codec (r2_format::geojson) — not a
 # geo crate; replaces the `geojson` crate's JSON handling.
 serde_json = "1"
-# Compatibility boundary for external geometry formats and algorithms that have
-# not yet been ported into hausdorff-native kernels. Downstream crates depend on
-# hausdorff for these surfaces rather than depending on geo/geo-types directly.
-geo = "0.33"
+# The lightweight `geo-types` structs are kept as a runtime dependency only for
+# the compat I/O bridge (to_geo_geometry / from_geo_geometry) at the WKB/shapefile
+# edges. The heavy `geo` algorithm crate is NOT a runtime dependency — every
+# kernel is native now; geo appears only as a dev-dependency oracle below.
 geo-types = "0.7"
-geo-traits = "0.3"
 
 [dev-dependencies]
 h3o = "0.10.0"
-# WKB/WKT/GeoJSON/geohash reference libraries — used only to conformance-check
-# the native r2_format/geohash codecs (the same role geo/h3o play). Never runtime
-# deps.
+# Reference oracles — used only to conformance-check the native kernels/codecs
+# (the same role h3o plays for the H3 core). Never runtime dependencies.
+geo = "0.33"
+geo-traits = "0.3"
 geojson = { version = "1.0", features = ["geo-types"] }
 geohash = "0.13"
 wkb = "0.9"
