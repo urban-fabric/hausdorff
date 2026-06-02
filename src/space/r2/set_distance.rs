@@ -20,6 +20,7 @@ use super::{Coord, CoordsIter, Geometry};
 /// coordinates.
 #[must_use]
 pub fn hausdorff_distance<M: MetricSpace<Coord>>(metric: &M, a: &Geometry, b: &Geometry) -> f64 {
+    let _span = crate::profile::span("hausdorff_distance");
     let pa: Vec<Coord> = a.coords_iter().collect();
     let pb: Vec<Coord> = b.coords_iter().collect();
     hausdorff_points(metric, &pa, &pb)
@@ -33,6 +34,7 @@ pub fn directed_hausdorff_distance<M: MetricSpace<Coord>>(
     a: &Geometry,
     b: &Geometry,
 ) -> f64 {
+    let _span = crate::profile::span("directed_hausdorff_distance");
     let pa: Vec<Coord> = a.coords_iter().collect();
     let pb: Vec<Coord> = b.coords_iter().collect();
     directed_hausdorff(metric, &pa, &pb)
@@ -44,6 +46,7 @@ pub fn directed_hausdorff_distance<M: MetricSpace<Coord>>(
 /// [`hausdorff_distance`]; `0.0` when either geometry has no coordinates.
 #[must_use]
 pub fn frechet_distance<M: MetricSpace<Coord>>(metric: &M, a: &Geometry, b: &Geometry) -> f64 {
+    let _span = crate::profile::span("frechet_distance");
     let pa: Vec<Coord> = a.coords_iter().collect();
     let pb: Vec<Coord> = b.coords_iter().collect();
     frechet_points(metric, &pa, &pb)

@@ -167,6 +167,7 @@ fn dimension(g: &Geometry) -> i8 {
 /// Public entry: the DE-9IM matrix of `a` relative to `b`.
 #[must_use]
 pub fn relate(a: &Geometry, b: &Geometry) -> IntersectionMatrix {
+    let _span = crate::profile::span("relate");
     // Fast path: strictly disjoint bounding boxes ⇒ disjoint geometries. The boxes
     // come from raw coordinates (no allocation), and when each operand's boundary
     // dimension is unambiguous we return the matrix *without* decomposing — the

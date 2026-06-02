@@ -7,7 +7,8 @@
 //! implementations and prints a per-kernel table.
 
 use std::hint::black_box;
-use std::time::Instant;
+
+use huygens::bench::{Bench, compare, fmt_ns};
 
 use geo::{
     Area as _, BooleanOps as _, Contains as _, ConvexHull as _, Distance as _, Euclidean,
@@ -24,28 +25,27 @@ use hausdorff::space::r2::{
 };
 use hausdorff::{Coord, Geometry, LineString, MultiPoint, MultiPolygon, Polygon};
 
-/// Average nanoseconds per call of `f`, after a short warmup.
-fn time(iters: u64, mut f: impl FnMut()) -> f64 {
-    for _ in 0..(iters / 8).max(1) {
-        f();
-    }
-    let t = Instant::now();
-    for _ in 0..iters {
-        f();
-    }
-    t.elapsed().as_nanos() as f64 / iters as f64
-}
+/// Timed samples collected per workload. Each sample times `iters / SAMPLES`
+/// calls (the `batch`), so the total timed work matches the call budget the old
+/// per-call-mean harness used, while yielding a real per-call distribution.
+const SAMPLES: usize = 100;
 
-/// Time both implementations of one kernel and print a comparison row.
+/// Time both implementations of one kernel with the huygens benchmark harness
+/// (TSC fast-clock, statistical per-call distribution) and print a comparison
+/// row. `iters` is the old total call budget, split into [`SAMPLES`] samples.
 fn row(name: &str, ext_name: &str, iters: u64, haus: impl FnMut(), ext: impl FnMut()) {
-    let h = time(iters, haus);
-    let e = time(iters, ext);
-    let verdict = if e >= h {
-        format!("hausdorff {:.2}x faster", e / h)
-    } else {
-        format!("hausdorff {:.2}x slower", h / e)
-    };
-    println!("  {name:<26} {h:>11.1} ns   {ext_name:<8} {e:>11.1} ns   {verdict}");
+    let batch = (iters / SAMPLES as u64).max(1);
+    let bench = Bench::new().warmup(batch).samples(SAMPLES).batch(batch);
+    let h = bench.run("hausdorff", haus);
+    let e = bench.run(ext_name, ext);
+    // hausdorff is the candidate, the external library the baseline, so the
+    // verdict ("Nx faster" / "Nx slower" / "even") reads from hausdorff's side.
+    let verdict = compare(&e, &h).verdict();
+    println!(
+        "  {name:<26} {:>14}   {ext_name:<8} {:>14}   hausdorff {verdict}",
+        fmt_ns(h.mean_ns()),
+        fmt_ns(e.mean_ns()),
+    );
 }
 
 /// Deterministic pseudo-random coordinate in `[-half, half]`.
@@ -66,7 +66,7 @@ fn geo_ring(coords: &[(f64, f64)]) -> geo::LineString<f64> {
 }
 
 fn main() {
-    println!("\nhausdorff vs external reference libraries (lower ns = faster)\n");
+    println!("\nhausdorff vs external reference libraries (per-call mean via huygens; lower = faster)\n");
     println!("  {:<26} {:>14}   {:<8} {:>14}", "kernel", "hausdorff", "external", "");
     println!("  {}", "-".repeat(88));
 
@@ -362,5 +362,7 @@ fn main() {
         },
     );
 
-    println!("\n  (single-threaded; SIMD auto-detected; numbers are ns/op, --release)\n");
+    println!(
+        "\n  (single-threaded; SIMD auto-detected; per-call mean over {SAMPLES} huygens samples, --release)\n"
+    );
 }

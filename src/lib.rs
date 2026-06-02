@@ -29,6 +29,10 @@ pub mod space;
 /// Internal feature-gated sequential/parallel seam for the batch kernels.
 mod par;
 
+/// Internal hierarchical-profiling hooks (the `profiling` feature); no-ops when
+/// the feature is off.
+mod profile;
+
 /// Internal scalar-first SIMD dispatch (runtime-selected) for batch kernels.
 mod simd;
 
@@ -36,6 +40,13 @@ mod simd;
 /// keep using `hausdorff::geo::…` while they migrate to `hausdorff::earth::…`.
 #[doc(hidden)]
 pub use earth as geo;
+
+/// The profiling substrate, re-exported when the `profiling` feature is on so
+/// callers can drive collection: set `ProfileMode`, open a `PerfReport` root,
+/// and read the resulting span tree. See the `profile` module for the kernel
+/// span hooks.
+#[cfg(feature = "profiling")]
+pub use huygens;
 
 pub use algebra::{InnerProduct, MetricSpace, Norm, VectorSpace};
 pub use earth::{FixedGeoPoint, GeoPoint};

@@ -259,6 +259,7 @@ fn below(a: Coord, b: Coord, p: Coord) -> bool {
 // ---- the algorithm ----------------------------------------------------------
 
 fn run(subject: &MultiPolygon, clipping: &MultiPolygon, op: Operation) -> MultiPolygon {
+    let _span = crate::profile::span("bool_ops::run");
     // The sweep's in/out labelling assumes canonical winding (exterior CCW,
     // holes CW); normalise both operands so arbitrarily-wound input works.
     use super::winding::{Direction, Orient};
@@ -270,15 +271,24 @@ fn run(subject: &MultiPolygon, clipping: &MultiPolygon, op: Operation) -> MultiP
     let cap = 2 * (subject.coords_count() + clipping.coords_count()) + 16;
     let mut events: Vec<Event> = Vec::with_capacity(cap);
     let mut queue: Vec<u32> = Vec::with_capacity(cap);
-    for p in subject.iter() {
-        fill_polygon(&mut events, &mut queue, p, true);
-    }
-    for p in clipping.iter() {
-        fill_polygon(&mut events, &mut queue, p, false);
+    {
+        let _fill = crate::profile::span("fill");
+        for p in subject.iter() {
+            fill_polygon(&mut events, &mut queue, p, true);
+        }
+        for p in clipping.iter() {
+            fill_polygon(&mut events, &mut queue, p, false);
+        }
     }
 
-    let sorted = subdivide(&mut events, &mut queue, op);
-    let contours = connect_edges(&events, &sorted);
+    let sorted = {
+        let _subdivide = crate::profile::span("subdivide");
+        subdivide(&mut events, &mut queue, op)
+    };
+    let contours = {
+        let _connect = crate::profile::span("connect_edges");
+        connect_edges(&events, &sorted)
+    };
     MultiPolygon::new(contours)
 }
 
