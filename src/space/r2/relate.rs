@@ -10,7 +10,7 @@
 //! Location×Location cell. Areal interiors are handled with point-in-polygon.
 
 use super::util::ring_vertices;
-use super::{Coord, Geometry, Polygon};
+use super::{Coord, Geometry, Polygon, Rect, StrTree};
 
 /// Location of a point relative to a geometry.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -179,7 +179,10 @@ pub fn relate(a: &Geometry, b: &Geometry) -> IntersectionMatrix {
         return im;
     }
 
-    let (ga, gb) = (Decomposed::new(a), Decomposed::new(b));
+    let (ga, gb) = {
+        let _s = crate::profile::span("decompose");
+        (Decomposed::new(a), Decomposed::new(b))
+    };
     let mut im = IntersectionMatrix::empty();
     // Exterior ∩ Exterior is always 2-D in the plane (for non-empty geometries).
     im.set_at_least(E, E, 2);
@@ -188,31 +191,39 @@ pub fn relate(a: &Geometry, b: &Geometry) -> IntersectionMatrix {
     // edge intersection points. Each test point is classified in A and B, and
     // contributes a 0-D cell. Edge interiors contribute 1-D cells; areas 2-D.
     let mut pts: Vec<Coord> = Vec::new();
-    pts.extend(ga.points.iter().copied());
-    pts.extend(gb.points.iter().copied());
-    pts.extend(ga.all_vertices());
-    pts.extend(gb.all_vertices());
-    for sa in &ga.segments {
-        for sb in &gb.segments {
-            collect_intersections(sa.a, sa.b, sb.a, sb.b, &mut pts);
-        }
+    {
+        let _s = crate::profile::span("node");
+        pts.extend(ga.points.iter().copied());
+        pts.extend(gb.points.iter().copied());
+        pts.extend(ga.all_vertices());
+        pts.extend(gb.all_vertices());
+        node_segments(&ga.segments, &gb.segments, &mut pts);
+        dedup_coords(&mut pts);
     }
-    dedup_coords(&mut pts);
 
     // 0-D contributions from test points.
-    for &p in &pts {
-        let la = ga.locate(p);
-        let lb = gb.locate(p);
-        im.set_at_least(la as usize, lb as usize, 0);
+    {
+        let _s = crate::profile::span("locate_points");
+        for &p in &pts {
+            let la = ga.locate(p);
+            let lb = gb.locate(p);
+            im.set_at_least(la as usize, lb as usize, 0);
+        }
     }
 
     // 1-D contributions: sample the interior of each edge sub-segment between
     // consecutive split points, classifying its midpoint.
-    contribute_edges(&ga, &gb, &pts, &mut im, false);
-    contribute_edges(&gb, &ga, &pts, &mut im, true);
+    {
+        let _s = crate::profile::span("edges");
+        contribute_edges(&ga, &gb, &pts, &mut im, false);
+        contribute_edges(&gb, &ga, &pts, &mut im, true);
+    }
 
     // 2-D contributions and exterior cells from interiors.
-    contribute_areas(&ga, &gb, &mut im);
+    {
+        let _s = crate::profile::span("areas");
+        contribute_areas(&ga, &gb, &mut im);
+    }
 
     im
 }
@@ -550,14 +561,30 @@ fn locate_areal(p: Coord, polys: &[Polygon]) -> Loc {
 /// Do any ring edge of `ga` and ring edge of `gb` properly cross (strict interior
 /// crossing, not a shared vertex or collinear touch)?
 fn rings_cross(ga: &Decomposed, gb: &Decomposed) -> bool {
-    for sa in ga.segments.iter().filter(|s| s.owner == Loc::Boundary) {
-        for sb in gb.segments.iter().filter(|s| s.owner == Loc::Boundary) {
-            if proper_cross(sa.a, sa.b, sb.a, sb.b) {
-                return true;
-            }
-        }
+    // A proper crossing needs overlapping bounding boxes, so index gb's ring
+    // edges and probe with ga's — only box-overlapping pairs are tested.
+    let b_edges: Vec<(Rect, (Coord, Coord))> = gb
+        .segments
+        .iter()
+        .filter(|s| s.owner == Loc::Boundary)
+        .map(|s| (padded_box(s.a, s.b), (s.a, s.b)))
+        .collect();
+    if b_edges.is_empty() {
+        return false;
     }
-    false
+    let tree = StrTree::new(b_edges);
+    let mut crossed = false;
+    for sa in ga.segments.iter().filter(|s| s.owner == Loc::Boundary) {
+        if crossed {
+            break;
+        }
+        tree.query_each(padded_box(sa.a, sa.b), |_, &(b1, b2)| {
+            if proper_cross(sa.a, sa.b, b1, b2) {
+                crossed = true;
+            }
+        });
+    }
+    crossed
 }
 
 fn proper_cross(a1: Coord, a2: Coord, b1: Coord, b2: Coord) -> bool {
@@ -732,6 +759,47 @@ fn point_in_ring(p: Coord, ring: &[Coord]) -> bool {
         j = i;
     }
     inside
+}
+
+/// A segment's bounding box, expanded by a scale-relative epsilon so that the
+/// box test never excludes a pair that the exact (eps-tolerant) intersection
+/// test would accept — the box filter stays a safe superset.
+fn padded_box(a: Coord, b: Coord) -> Rect {
+    let e = 1e-7 * (1.0 + a.x.abs() + a.y.abs() + b.x.abs() + b.y.abs());
+    Rect::new(
+        Coord::new(a.x.min(b.x) - e, a.y.min(b.y) - e),
+        Coord::new(a.x.max(b.x) + e, a.y.max(b.y) + e),
+    )
+}
+
+/// Index a segment list by padded bounding box for spatial queries.
+fn segment_index(segs: &[Seg]) -> StrTree<usize> {
+    StrTree::new(segs.iter().enumerate().map(|(i, s)| (padded_box(s.a, s.b), i)).collect())
+}
+
+/// Node two segment sets: collect every pairwise intersection point, but only
+/// test pairs whose bounding boxes overlap (others cannot intersect, so this is
+/// identical to the `O(n·m)` double loop — just without the misses). Indexes the
+/// larger set and queries the smaller, so the cost is `O((n+m)·log)`.
+fn node_segments(sa: &[Seg], sb: &[Seg], out: &mut Vec<Coord>) {
+    if sa.is_empty() || sb.is_empty() {
+        return;
+    }
+    if sa.len() <= sb.len() {
+        let tree = segment_index(sb);
+        for s in sa {
+            tree.query_each(padded_box(s.a, s.b), |_, &j| {
+                collect_intersections(s.a, s.b, sb[j].a, sb[j].b, out);
+            });
+        }
+    } else {
+        let tree = segment_index(sa);
+        for t in sb {
+            tree.query_each(padded_box(t.a, t.b), |_, &j| {
+                collect_intersections(sa[j].a, sa[j].b, t.a, t.b, out);
+            });
+        }
+    }
 }
 
 /// Proper + collinear intersection points of two segments.
