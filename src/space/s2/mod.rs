@@ -36,4 +36,4 @@ pub use measures::{angle, girard_area, point_area, signed_area, turn_angle};
 pub use point::S2Point;
 pub use polygon::Polygon;
 pub use predicates::{robust_sign, sign};
-pub use region::Region;
+pub use region::{Region, RegionCoverer};

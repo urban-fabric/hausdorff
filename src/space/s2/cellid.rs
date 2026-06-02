@@ -353,6 +353,31 @@ impl S2CellId {
         (f, (2 * i + delta) as u32, (2 * j + delta) as u32)
     }
 
+    /// The cell's four corner vertices as unit-sphere [`S2Point`]s, ordered
+    /// counter-clockwise in the face's `(u, v)` frame (`(i,j)`, `(i+s,j)`,
+    /// `(i+s,j+s)`, `(i,j+s)`). The corners are the cell's `(i, j)` lattice
+    /// square at this level, projected through the quadratic cube→sphere
+    /// transform — the geometry a region coverer tests cells against.
+    #[must_use]
+    pub fn vertices(self) -> [S2Point; 4] {
+        let (f, i, j, _) = self.face_ij_orientation();
+        let size = size_ij(self.level());
+        // `face_ij_orientation` yields a leaf *inside* the cell; round down to the
+        // cell's lower-left leaf corner (mirroring `all_neighbors`).
+        let (i, j) = (i & -size, j & -size);
+        let corner = |ci: i64, cj: i64| {
+            let u = coords::st_to_uv(ci as f64 / MAX_SIZE as f64);
+            let v = coords::st_to_uv(cj as f64 / MAX_SIZE as f64);
+            S2Point::from_vector(coords::face_uv_to_xyz(f as u8, u, v).normalize())
+        };
+        [
+            corner(i, j),
+            corner(i + size, j),
+            corner(i + size, j + size),
+            corner(i, j + size),
+        ]
+    }
+
     // --- neighbors ------------------------------------------------------
 
     /// The four cells adjacent across this cell's edges (down, right, up,
