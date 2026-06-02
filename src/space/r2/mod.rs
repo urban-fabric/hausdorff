@@ -62,7 +62,7 @@ pub use intersects::Intersects;
 pub use join::{spatial_join, spatial_join_candidates};
 pub use geodesic_area::ChamberlainDuquetteArea;
 pub use index::StrTree;
-pub use line_measures::{Bearing, Destination, Distance, Euclidean, Haversine, Length};
+pub use line_measures::{Bearing, Destination, Distance, Euclidean, Haversine, Length, Perimeter};
 pub use min_distance::{MinDistanceWorkspace, euclidean_distance, euclidean_within};
 pub use prepared::PreparedGeometry;
 pub use relate::SpatialPredicate;

@@ -1,27 +1,44 @@
-//! Geometry-enum trait dispatch added for galois: `Length<Geometry>` (boundary
-//! length / perimeter), `Intersects for Rect`, and `Orient for Geometry`.
+//! Geometry-enum trait dispatch added for galois: `Length<Geometry>` (linear
+//! length, curve parts only) and `Perimeter<Geometry>` (areal boundary),
+//! `Intersects for Rect`, and `Orient for Geometry`.
 
 use hausdorff::space::r2::{
-    Area, Centroid, Direction, Euclidean, Intersects, Length, Orient, Simplify, Winding,
+    Area, Centroid, Direction, Euclidean, Intersects, Length, Orient, Perimeter, Simplify, Winding,
     WindingOrder,
 };
-use hausdorff::{Coord, Geometry, LineString, MultiLineString, Point, Polygon, Rect};
+use hausdorff::{Coord, Geometry, LineString, MultiLineString, MultiPolygon, Point, Polygon, Rect};
 
 #[test]
-fn length_for_geometry_sums_boundaries() {
-    // Polygon → perimeter (a 2×2 square's exterior is 8).
+fn length_is_linear_and_perimeter_is_areal() {
+    // Polygon: no curve length; its ring boundary is the perimeter (2×2 square → 8).
     let square = Geometry::Polygon(Polygon::new(
         LineString::from(vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0), (0.0, 0.0)]),
         vec![],
     ));
-    assert!((Euclidean.length(&square) - 8.0).abs() < 1e-9);
+    assert_eq!(Euclidean.length(&square), 0.0);
+    assert!((Euclidean.perimeter(&square) - 8.0).abs() < 1e-9);
 
-    // LineString → path length (3 + 4 = 7).
+    // LineString: path length (3 + 4 = 7); no areal boundary.
     let line = Geometry::LineString(LineString::from(vec![(0.0, 0.0), (3.0, 0.0), (3.0, 4.0)]));
     assert!((Euclidean.length(&line) - 7.0).abs() < 1e-9);
+    assert_eq!(Euclidean.perimeter(&line), 0.0);
 
-    // Puntal → 0.
-    assert_eq!(Euclidean.length(&Geometry::Point(Point::new(1.0, 1.0))), 0.0);
+    // Puntal → 0 for both.
+    let pt = Geometry::Point(Point::new(1.0, 1.0));
+    assert_eq!(Euclidean.length(&pt), 0.0);
+    assert_eq!(Euclidean.perimeter(&pt), 0.0);
+
+    // A collection splits cleanly: length sums the linear members, perimeter the
+    // areal ones. line (7) + square (perimeter 8).
+    let gc = Geometry::GeometryCollection(vec![
+        Geometry::LineString(LineString::from(vec![(0.0, 0.0), (3.0, 0.0), (3.0, 4.0)])),
+        Geometry::Polygon(Polygon::new(
+            LineString::from(vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0), (0.0, 0.0)]),
+            vec![],
+        )),
+    ]);
+    assert!((Euclidean.length(&gc) - 7.0).abs() < 1e-9);
+    assert!((Euclidean.perimeter(&gc) - 8.0).abs() < 1e-9);
 }
 
 #[test]
@@ -110,4 +127,61 @@ fn simplify_recurses_into_collection() {
         },
         _ => panic!("stays a collection"),
     }
+}
+
+// ---- OGC accessors / classifiers / coercion over the Geometry enum -----------
+
+#[test]
+fn geometry_accessors_and_classifiers() {
+    // Polygon with one hole; exterior constructed counter-clockwise.
+    let poly = Geometry::Polygon(Polygon::new(
+        LineString::from(vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0), (0.0, 0.0)]),
+        vec![LineString::from(vec![(1.0, 1.0), (2.0, 1.0), (2.0, 2.0), (1.0, 2.0), (1.0, 1.0)])],
+    ));
+    assert_eq!(poly.exterior_ring().unwrap().0.len(), 5);
+    assert_eq!(poly.num_interior_rings(), Some(1));
+    assert_eq!(poly.interior_ring(0).unwrap().0.len(), 5);
+    assert!(poly.interior_ring(1).is_none());
+    assert_eq!(poly.geometry_type(), "Polygon");
+    assert_eq!(poly.num_geometries(), 1);
+    assert_eq!(poly.is_polygon_ccw(), Some(true));
+    assert_eq!(poly.is_polygon_cw(), Some(false));
+    assert_eq!(poly.as_multi_polygon().unwrap().0.len(), 1);
+    assert!(poly.point_n(0).is_none()); // not a line
+
+    // LineString accessors are 0-indexed.
+    let line = Geometry::LineString(LineString::from(vec![(0.0, 0.0), (1.0, 0.0), (2.0, 0.0)]));
+    assert_eq!(line.point_n(0), Some(Point::new(0.0, 0.0)));
+    assert_eq!(line.point_n(2), Some(Point::new(2.0, 0.0)));
+    assert!(line.point_n(3).is_none());
+    assert_eq!(line.start_point(), Some(Point::new(0.0, 0.0)));
+    assert_eq!(line.end_point(), Some(Point::new(2.0, 0.0)));
+    assert_eq!(line.is_closed(), Some(false));
+    assert_eq!(line.exterior_ring(), None);
+    assert!(line.as_multi_polygon().is_none());
+
+    let ring = Geometry::LineString(LineString::from(vec![
+        (0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 0.0),
+    ]));
+    assert_eq!(ring.is_closed(), Some(true));
+
+    // Multi-geometry: count, nth member, areal coercion.
+    let mp = Geometry::MultiPolygon(MultiPolygon::new(vec![
+        Polygon::new(LineString::from(vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 0.0)]), vec![]),
+        Polygon::new(LineString::from(vec![(2.0, 2.0), (3.0, 2.0), (3.0, 3.0), (2.0, 2.0)]), vec![]),
+    ]));
+    assert_eq!(mp.geometry_type(), "MultiPolygon");
+    assert_eq!(mp.num_geometries(), 2);
+    assert!(matches!(mp.geometry_n(1), Some(Geometry::Polygon(_))));
+    assert!(mp.geometry_n(2).is_none());
+    assert_eq!(mp.as_multi_polygon().unwrap().0.len(), 2);
+
+    // Single geometry: geometry_n(0) is itself; nothing beyond.
+    let pt = Geometry::Point(Point::new(5.0, 5.0));
+    assert_eq!(pt.geometry_type(), "Point");
+    assert_eq!(pt.num_geometries(), 1);
+    assert!(matches!(pt.geometry_n(0), Some(Geometry::Point(_))));
+    assert!(pt.geometry_n(1).is_none());
+    assert!(pt.is_closed().is_none());
+    assert!(pt.is_polygon_cw().is_none());
 }
