@@ -12,6 +12,10 @@ use super::{Bearing, GeoPoint};
 /// re-export this rather than redefining it.
 pub const EARTH_RADIUS_M: f64 = 6_371_008.8;
 
+/// Earth diameter (`2·`[`EARTH_RADIUS_M`]), folded once so [`haversine_m`]'s hot
+/// path is a single multiply rather than `2.0 * R * …`.
+const EARTH_DIAMETER_M: f64 = 2.0 * EARTH_RADIUS_M;
+
 /// Great-circle distance between `a` and `b` in **metres**, on a sphere of
 /// radius [`EARTH_RADIUS_M`].
 #[must_use]
@@ -24,7 +28,7 @@ pub fn haversine_m(a: GeoPoint, b: GeoPoint) -> f64 {
     // 2·R·asin(√h) — equivalent to the atan2 form for h ∈ [0, 1], with one fewer
     // sqrt and a cheaper single-argument inverse trig. (`min(1.0)` guards the
     // asin domain against rounding past 1 for near-antipodal points.)
-    2.0 * EARTH_RADIUS_M * h.min(1.0).sqrt().asin()
+    EARTH_DIAMETER_M * h.min(1.0).sqrt().asin()
 }
 
 /// The point reached by travelling `distance_m` metres from `origin` along the

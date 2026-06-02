@@ -10,7 +10,7 @@
 //! Location×Location cell. Areal interiors are handled with point-in-polygon.
 
 use super::util::ring_vertices;
-use super::{Coord, CoordsIter, Geometry, Polygon};
+use super::{Coord, Geometry, Polygon};
 
 /// Location of a point relative to a geometry.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -227,16 +227,87 @@ struct Seg {
 }
 
 /// Bounding box `(min, max)` of a geometry from its raw coordinates (no
-/// decomposition), or `None` if it has none.
+/// decomposition), or `None` if it has none. Folds the raw coordinate slices
+/// directly — unlike `coords_iter()`, which materializes a `Vec` — so the
+/// disjoint-box fast path in [`relate`] allocates nothing.
 fn geom_bbox(g: &Geometry) -> Option<(Coord, Coord)> {
-    let mut it = g.coords_iter();
-    let first = it.next()?;
-    let (mut lo, mut hi) = (first, first);
-    for c in it {
+    // Accumulate into `Coord`s rather than four scalars: a `Coord` is two packed
+    // f64s, so `Coord::new(lo.x.min(c.x), lo.y.min(c.y))` lowers to a single
+    // packed-min instruction (both lanes at once). Emptiness falls out of
+    // `lo.x > hi.x` (the untouched ±∞ initial values), avoiding an `any` flag
+    // whose per-step store would serialize the reduction.
+    let mut lo = Coord::new(f64::INFINITY, f64::INFINITY);
+    let mut hi = Coord::new(f64::NEG_INFINITY, f64::NEG_INFINITY);
+    fold_coords(g, &mut |c| {
         lo = Coord::new(lo.x.min(c.x), lo.y.min(c.y));
         hi = Coord::new(hi.x.max(c.x), hi.y.max(c.y));
+    });
+    (lo.x <= hi.x).then_some((lo, hi))
+}
+
+/// Visit every coordinate of `g` by value, without allocating an intermediate
+/// `Vec` (the non-allocating counterpart of `coords_iter`). Generic over the
+/// visitor so it inlines — a trait object here would make every coordinate a
+/// virtual call and erase the win.
+fn fold_coords<F: FnMut(Coord)>(g: &Geometry, f: &mut F) {
+    match g {
+        Geometry::Point(p) => f(p.0),
+        Geometry::Line(l) => {
+            f(l.start);
+            f(l.end);
+        }
+        Geometry::LineString(ls) => {
+            for &c in &ls.0 {
+                f(c);
+            }
+        }
+        Geometry::Polygon(p) => fold_polygon(p, f),
+        Geometry::MultiPoint(mp) => {
+            for p in mp.iter() {
+                f(p.0);
+            }
+        }
+        Geometry::MultiLineString(mls) => {
+            for ls in mls.iter() {
+                for &c in &ls.0 {
+                    f(c);
+                }
+            }
+        }
+        Geometry::MultiPolygon(mp) => {
+            for p in mp.iter() {
+                fold_polygon(p, f);
+            }
+        }
+        Geometry::Rect(r) => {
+            let (lo, hi) = (r.min(), r.max());
+            f(lo);
+            f(Coord::new(hi.x, lo.y));
+            f(hi);
+            f(Coord::new(lo.x, hi.y));
+        }
+        Geometry::Triangle(t) => {
+            f(t.0);
+            f(t.1);
+            f(t.2);
+        }
+        Geometry::GeometryCollection(gs) => {
+            for sub in gs.iter() {
+                fold_coords(sub, f);
+            }
+        }
     }
-    Some((lo, hi))
+}
+
+fn fold_polygon<F: FnMut(Coord)>(p: &Polygon, f: &mut F) {
+    for &c in &p.exterior().0 {
+        f(c);
+    }
+    for h in p.interiors() {
+        for &c in &h.0 {
+            f(c);
+        }
+    }
 }
 
 /// Do two boxes have a strict gap (so the geometries cannot even touch)?

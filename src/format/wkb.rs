@@ -28,9 +28,50 @@ impl std::error::Error for WkbError {}
 /// Encode a geometry as little-endian 2-D WKB.
 #[must_use]
 pub fn to_wkb(geom: &Geometry) -> Vec<u8> {
-    let mut out = Vec::new();
+    // Size the buffer exactly once up front so the byte pushes never reallocate.
+    let mut out = Vec::with_capacity(wkb_len(geom));
     write_geom(&mut out, geom);
     out
+}
+
+const WKB_HDR: usize = 5; // 1-byte order + u32 geometry type
+const WKB_COUNT: usize = 4; // a u32 element/ring/coord count
+const WKB_COORD: usize = 16; // two f64 ordinates
+
+/// Bytes a ring of `n` coordinates occupies: its count plus the coordinates.
+fn ring_len(n: usize) -> usize {
+    WKB_COUNT + WKB_COORD * n
+}
+
+/// Exact serialized length of `geom` in little-endian 2-D WKB — mirrors
+/// [`write_geom`] byte-for-byte so [`to_wkb`] can size its buffer once.
+fn wkb_len(geom: &Geometry) -> usize {
+    match geom {
+        Geometry::Point(_) => WKB_HDR + WKB_COORD,
+        Geometry::Line(_) => WKB_HDR + ring_len(2),
+        Geometry::LineString(ls) => WKB_HDR + ring_len(ls.0.len()),
+        Geometry::Polygon(p) => polygon_len(p),
+        Geometry::MultiPoint(mp) => WKB_HDR + WKB_COUNT + mp.0.len() * (WKB_HDR + WKB_COORD),
+        Geometry::MultiLineString(mls) => {
+            WKB_HDR + WKB_COUNT + mls.iter().map(|ls| WKB_HDR + ring_len(ls.0.len())).sum::<usize>()
+        }
+        Geometry::MultiPolygon(mp) => WKB_HDR + WKB_COUNT + mp.iter().map(polygon_len).sum::<usize>(),
+        Geometry::Rect(r) => polygon_len(&r.to_polygon()),
+        Geometry::Triangle(t) => polygon_len(&t.to_polygon()),
+        Geometry::GeometryCollection(gs) => {
+            WKB_HDR + WKB_COUNT + gs.iter().map(wkb_len).sum::<usize>()
+        }
+    }
+}
+
+fn polygon_len(p: &Polygon) -> usize {
+    if p.exterior().0.is_empty() {
+        return WKB_HDR + WKB_COUNT;
+    }
+    WKB_HDR
+        + WKB_COUNT
+        + ring_len(p.exterior().0.len())
+        + p.interiors().iter().map(|h| ring_len(h.0.len())).sum::<usize>()
 }
 
 fn hdr(out: &mut Vec<u8>, type_code: u32) {
