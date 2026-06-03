@@ -17,26 +17,34 @@ fn euclidean_hausdorff_known_values() {
     // Two horizontal point rows offset vertically by 3 → Hausdorff distance 3.
     let a = [c(0.0, 0.0), c(1.0, 0.0), c(2.0, 0.0)];
     let b = [c(0.0, 3.0), c(1.0, 3.0), c(2.0, 3.0)];
-    assert!((directed_hausdorff(&Euclidean, &a, &b) - 3.0).abs() < 1e-12);
-    assert!((hausdorff_distance(&Euclidean, &a, &b) - 3.0).abs() < 1e-12);
+    assert!((directed_hausdorff(&Euclidean, &a, &b).unwrap() - 3.0).abs() < 1e-12);
+    assert!((hausdorff_distance(&Euclidean, &a, &b).unwrap() - 3.0).abs() < 1e-12);
 
-    // empty operand → 0
-    assert_eq!(hausdorff_distance(&Euclidean, &a, &[]), 0.0);
+    // empty operand → None
+    assert_eq!(hausdorff_distance(&Euclidean, &a, &[]), None);
+    assert_eq!(directed_hausdorff(&Euclidean, &a, &[]), None);
+    assert_eq!(directed_hausdorff(&Euclidean, &[], &a), None);
+    assert_eq!(directed_hausdorff::<_, Coord>(&Euclidean, &[], &[]), None);
 
     // asymmetry: an extra far point in `a` raises directed(a, b) but not (b, a)
     let a2 = [c(0.0, 0.0), c(10.0, 0.0)];
     let b2 = [c(0.0, 0.0)];
-    assert!((directed_hausdorff(&Euclidean, &a2, &b2) - 10.0).abs() < 1e-12);
-    assert_eq!(directed_hausdorff(&Euclidean, &b2, &a2), 0.0);
+    assert!((directed_hausdorff(&Euclidean, &a2, &b2).unwrap() - 10.0).abs() < 1e-12);
+    assert_eq!(directed_hausdorff(&Euclidean, &b2, &a2), Some(0.0));
 }
 
 #[test]
 fn euclidean_frechet_known_values() {
     let p = [c(0.0, 0.0), c(1.0, 0.0), c(2.0, 0.0)];
     let q = [c(0.0, 1.0), c(1.0, 1.0), c(2.0, 1.0)];
-    // identical paths → 0; parallel paths offset by 1 → 1
-    assert_eq!(frechet_distance(&Euclidean, &p, &p), 0.0);
-    assert!((frechet_distance(&Euclidean, &p, &q) - 1.0).abs() < 1e-12);
+    // identical paths → Some(0); parallel paths offset by 1 → Some(1)
+    assert_eq!(frechet_distance(&Euclidean, &p, &p), Some(0.0));
+    assert!((frechet_distance(&Euclidean, &p, &q).unwrap() - 1.0).abs() < 1e-12);
+
+    // empty path → None
+    assert_eq!(frechet_distance(&Euclidean, &p, &[]), None);
+    assert_eq!(frechet_distance(&Euclidean, &[], &q), None);
+    assert_eq!(frechet_distance::<_, Coord>(&Euclidean, &[], &[]), None);
 }
 
 #[test]

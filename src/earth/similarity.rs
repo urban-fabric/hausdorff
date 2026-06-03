@@ -9,7 +9,7 @@
 //! code computes the planar/Euclidean variants too.
 //!
 //! Distance to an empty set/path is undefined, so these return `Option` and
-//! yield `None` for an empty operand rather than the generic kernels' `0.0`.
+//! yield `None` for an empty operand — consistent with the generic kernels.
 //!
 //! Ported from georust `geo` (`hausdorff_distance`, `frechet_distance`); see the
 //! crate `NOTICE`.
@@ -30,10 +30,7 @@ use super::GeoPoint;
 /// `directed_hausdorff_m(b, a)`. Returns `None` if either set is empty.
 #[must_use]
 pub fn directed_hausdorff_m(a: &[GeoPoint], b: &[GeoPoint]) -> Option<f64> {
-    if a.is_empty() || b.is_empty() {
-        return None;
-    }
-    Some(crate::algebra::directed_hausdorff(&Haversine, a, b))
+    crate::algebra::directed_hausdorff(&Haversine, a, b)
 }
 
 /// (Undirected) Hausdorff distance between two point sets in **metres**: the
@@ -43,10 +40,7 @@ pub fn directed_hausdorff_m(a: &[GeoPoint], b: &[GeoPoint]) -> Option<f64> {
 /// Returns `None` if either set is empty.
 #[must_use]
 pub fn hausdorff_distance_m(a: &[GeoPoint], b: &[GeoPoint]) -> Option<f64> {
-    if a.is_empty() || b.is_empty() {
-        return None;
-    }
-    Some(crate::algebra::hausdorff_distance(&Haversine, a, b))
+    crate::algebra::hausdorff_distance(&Haversine, a, b)
 }
 
 /// Typed [`LengthMeters`] form of [`hausdorff_distance_m`] — prefer this so the
@@ -68,10 +62,7 @@ pub fn hausdorff_distance(a: &[GeoPoint], b: &[GeoPoint]) -> Option<LengthMeters
 /// great-circle metric.
 #[must_use]
 pub fn frechet_distance_m(p: &[GeoPoint], q: &[GeoPoint]) -> Option<f64> {
-    if p.is_empty() || q.is_empty() {
-        return None;
-    }
-    Some(crate::algebra::frechet_distance(&Haversine, p, q))
+    crate::algebra::frechet_distance(&Haversine, p, q)
 }
 
 /// Typed [`LengthMeters`] form of [`frechet_distance_m`].

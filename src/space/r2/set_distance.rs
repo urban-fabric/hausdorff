@@ -8,8 +8,8 @@
 //!
 //! Distance to an empty geometry is undefined, so these return `Option<f64>` and
 //! yield `None` for an empty operand — surfacing emptiness rather than letting
-//! the generic kernels' `0.0` convention read as "identical". (The generic
-//! [`crate::algebra`] kernels remain total, returning `0.0` for empty slices.)
+//! `0.0` read as "identical". The underlying [`crate::algebra`] kernels also
+//! return `Option`, so the same semantics hold at every layer.
 
 use crate::algebra::{
     MetricSpace, directed_hausdorff, frechet_distance as frechet_points,
@@ -32,10 +32,7 @@ pub fn hausdorff_distance<M: MetricSpace<Coord>>(
     let _span = crate::profile::span("hausdorff_distance");
     let pa: Vec<Coord> = a.coords_iter().collect();
     let pb: Vec<Coord> = b.coords_iter().collect();
-    if pa.is_empty() || pb.is_empty() {
-        return None;
-    }
-    Some(hausdorff_points(metric, &pa, &pb))
+    hausdorff_points(metric, &pa, &pb)
 }
 
 /// Directed Hausdorff distance from `a` to `b` under `metric`: the greatest, over
@@ -50,10 +47,7 @@ pub fn directed_hausdorff_distance<M: MetricSpace<Coord>>(
     let _span = crate::profile::span("directed_hausdorff_distance");
     let pa: Vec<Coord> = a.coords_iter().collect();
     let pb: Vec<Coord> = b.coords_iter().collect();
-    if pa.is_empty() || pb.is_empty() {
-        return None;
-    }
-    Some(directed_hausdorff(metric, &pa, &pb))
+    directed_hausdorff(metric, &pa, &pb)
 }
 
 /// Discrete Fréchet distance between the coordinate *sequences* of two geometries
@@ -69,10 +63,7 @@ pub fn frechet_distance<M: MetricSpace<Coord>>(
     let _span = crate::profile::span("frechet_distance");
     let pa: Vec<Coord> = a.coords_iter().collect();
     let pb: Vec<Coord> = b.coords_iter().collect();
-    if pa.is_empty() || pb.is_empty() {
-        return None;
-    }
-    Some(frechet_points(metric, &pa, &pb))
+    frechet_points(metric, &pa, &pb)
 }
 
 #[cfg(test)]
