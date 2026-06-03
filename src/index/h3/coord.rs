@@ -54,8 +54,6 @@ fn to_positive_angle(mut angle: f64) -> f64 {
     angle
 }
 
-// ---- IJ ---------------------------------------------------------------------
-
 /// IJ hex coordinates (each axis 120° apart).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct CoordIJ {
@@ -68,8 +66,6 @@ impl CoordIJ {
         Self { i, j }
     }
 }
-
-// ---- IJK --------------------------------------------------------------------
 
 /// IJK hex coordinates (each axis 120° apart).
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq)]
@@ -217,7 +213,6 @@ impl From<CoordIJK> for CoordIJ {
 }
 
 impl From<CoordIJK> for Vec2d {
-    // Center point in 2D cartesian coordinates of a hex.
     #[inline]
     fn from(v: CoordIJK) -> Self {
         let i = f64::from(v.i - v.k);
@@ -225,8 +220,6 @@ impl From<CoordIJK> for Vec2d {
         Self::new(0.5_f64.mul_add(-j, i), j * SQRT3_2)
     }
 }
-
-// ---- Vec2d (local hex plane) ------------------------------------------------
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct Vec2d {
@@ -359,8 +352,6 @@ impl From<Vec2d> for CoordIJK {
     }
 }
 
-// ---- Vec3d (unit-sphere n-vector) -------------------------------------------
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct Vec3d {
     pub(super) x: f64,
@@ -487,8 +478,6 @@ fn linear_combination(a: f64, v1: &Vec3d, b: f64, v2: &Vec3d) -> Vec3d {
         a.mul_add(v1.z, b * v2.z),
     )
 }
-
-// ---- LatLng <-> Vec3d -------------------------------------------------------
 
 impl Vec3d {
     /// n-vector from geographic coordinates in radians.

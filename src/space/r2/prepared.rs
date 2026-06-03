@@ -129,8 +129,6 @@ impl<'a> PreparedGeometry<'a> {
         if point.x < lo.x || point.x > hi.x || point.y < lo.y || point.y > hi.y {
             return false;
         }
-        // Rightward ray at y = point.y: query the segments whose box covers it to
-        // the right of the point, then count exact crossings.
         let ray = Rect::new(point, Coord::new(f64::INFINITY, point.y));
         let mut crossings = 0u32;
         self.index.query_each(ray, |_, &j| {
@@ -142,8 +140,6 @@ impl<'a> PreparedGeometry<'a> {
         crossings % 2 == 1
     }
 
-    // ---- batch (spatial-join broadcast) -------------------------------------
-    //
     // Prepare one geometry, then probe a whole column of others against it in one
     // call — the core of a spatial join. Each returns one result per input,
     // aligned with it (a boolean mask, or a distance), so the output drops

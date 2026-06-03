@@ -197,7 +197,6 @@ mod payload_join_tests {
 
     #[test]
     fn index_and_nested_loop_agree_with_payloads() {
-        // Build side tagged with row ids 10, 20, 30; probe side with 1, 2.
         let build = vec![
             (square(0.0, 0.0), 10u32),
             (square(5.0, 5.0), 20),
@@ -213,12 +212,10 @@ mod payload_join_tests {
         let idx = GeometryIndex::build(build.clone());
         assert_eq!(idx.len(), 3);
         let mut indexed: Vec<(u32, u32)> = idx.join(&probe, pred);
-        // Nested-loop with sides swapped to match (probe_payload, build_payload).
         let mut nested: Vec<(u32, u32)> = nested_loop_join(&probe, &build, pred);
         indexed.sort_unstable();
         nested.sort_unstable();
         assert_eq!(indexed, nested);
-        // Point (0.4,0.4) is inside squares 10 and 30; point 2 hits nothing.
         assert_eq!(indexed, vec![(1, 10), (1, 30)]);
     }
 }

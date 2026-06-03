@@ -34,8 +34,6 @@ pub trait Region {
     fn contains_cell(&self, cell: S2CellId) -> bool;
 }
 
-// ---- region ↔ cell geometry helpers ----------------------------------------
-
 /// The cell as a counter-clockwise spherical [`Loop`] (interior to the left). The
 /// cube→sphere projection can wind a cell either way depending on the face, so we
 /// orient by the cell center: a CCW loop contains its own center.
@@ -152,7 +150,6 @@ impl Region for Loop {
         bounding_cap_of(self.vertices())
     }
     fn intersects_cell(&self, cell: S2CellId) -> bool {
-        // Conservative: any boundary contact (crossing or touch) or nesting.
         loops_overlap(self, &cell_loop(cell))
     }
     fn contains_cell(&self, cell: S2CellId) -> bool {
@@ -169,17 +166,13 @@ impl Region for Polygon {
     }
     fn intersects_cell(&self, cell: S2CellId) -> bool {
         let cl = cell_loop(cell);
-        // Meets the shell and is not swallowed whole by a hole.
         loops_overlap(self.shell(), &cl) && !self.holes().iter().any(|h| loop_contains_loop(h, &cl))
     }
     fn contains_cell(&self, cell: S2CellId) -> bool {
         let cl = cell_loop(cell);
-        // Inside the shell and not even touched by a hole.
         loop_contains_loop(self.shell(), &cl) && !self.holes().iter().any(|h| loops_overlap(h, &cl))
     }
 }
-
-// ---- the coverer ------------------------------------------------------------
 
 /// Approximates a [`Region`] by a set of S2 cells whose union contains it.
 ///
@@ -292,8 +285,6 @@ mod tests {
 
     #[test]
     fn cell_loop_is_oriented_and_contains_its_center() {
-        // A handful of cells across different faces: each cell loop must contain
-        // the cell center (i.e. it is wound CCW after orientation).
         for &(lon, lat) in &[(0.0, 0.0), (90.0, 10.0), (-120.0, -45.0), (179.0, 80.0)] {
             let cell = S2CellId::from_geo_point_at_level(GeoPoint::from_lat_lon(lat, lon), 6);
             let cl = cell_loop(cell);
@@ -370,9 +361,6 @@ mod tests {
 
     #[test]
     fn boundary_coincident_neighbour_is_not_dropped() {
-        // A region coinciding exactly with cell `c`: each edge-neighbour shares a
-        // whole edge with the region but has no interior overlap. A conservative
-        // intersects_cell must keep them (a boundary touch), never prune them.
         let c = S2CellId::from_geo_point_at_level(GeoPoint::from_lat_lon(12.0, 34.0), 10);
         let region = cell_loop(c);
         for n in c.edge_neighbors() {

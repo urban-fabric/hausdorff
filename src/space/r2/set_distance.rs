@@ -95,12 +95,10 @@ mod tests {
 
     #[test]
     fn parallel_lines_offset_north_measure_the_offset() {
-        // Two parallel tracks ~0.001° (~111 m) apart in latitude at the equator.
         let a = line(&[(0.0, 0.0), (0.001, 0.0), (0.002, 0.0)]);
         let b = line(&[(0.0, 0.001), (0.001, 0.001), (0.002, 0.001)]);
         let h = hausdorff_distance(&Haversine, &a, &b).expect("non-empty");
         let f = frechet_distance(&Haversine, &a, &b).expect("non-empty");
-        // 0.001° latitude ≈ 111.2 m on the sphere.
         assert!((110.0..112.5).contains(&h), "hausdorff {h}");
         assert!((110.0..112.5).contains(&f), "frechet {f}");
     }

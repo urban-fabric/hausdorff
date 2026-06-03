@@ -415,8 +415,6 @@ impl FaceIJK {
         )
     }
 
-    // Scanning the fixed 3×3×3 (i, j, k) coordinate cube of a face's base-cell
-    // table; index iteration is the natural form here.
     #[allow(clippy::needless_range_loop)]
     pub(super) fn base_cell_rotation_count(base_cell: u8, face: usize) -> Option<u8> {
         for i in 0..3 {
@@ -451,8 +449,6 @@ fn directions_bits_from_ijk(mut ijk: CoordIJK, bits: &mut u64, res: usize) -> Co
     ijk
 }
 
-// ---- overage scale tables ---------------------------------------------------
-
 #[rustfmt::skip]
 static MAX_DIM_BY_CII_RES: [i32; 17] = [
     2, -1, 14, -1, 98, -1, 686, -1, 4802, -1, 33614, -1, 235298, -1, 1647086, -1, 11529602,
@@ -462,8 +458,6 @@ static MAX_DIM_BY_CII_RES: [i32; 17] = [
 static UNIT_SCALE_BY_CII_RES: [i32; 17] = [
     1, -1, 7, -1, 49, -1, 343, -1, 2401, -1, 16807, -1, 117649, -1, 823543, -1, 5764801,
 ];
-
-// ---- res-0 base cell lookup per face ---------------------------------------
 
 const fn r(base_cell: u8, count: u8) -> Rotation {
     Rotation { base_cell, count }

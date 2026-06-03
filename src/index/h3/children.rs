@@ -105,7 +105,6 @@ impl Iterator for Children {
                     self.skip_count -= 1;
                 }
 
-                // Digit exhausted (rolled past IJ to the invalid 7): carry up.
                 if direction > 6 {
                     self.scratchpad = index::clr_direction(self.scratchpad, resolution);
                     continue;

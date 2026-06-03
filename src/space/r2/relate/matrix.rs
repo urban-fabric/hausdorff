@@ -47,8 +47,6 @@ impl IntersectionMatrix {
         self.m[a][b] < 0
     }
 
-    // --- OGC predicates, matching geo's RelateMatrix method names ---
-
     #[must_use]
     pub fn is_disjoint(&self) -> bool {
         self.is_f(I, I) && self.is_f(I, B) && self.is_f(B, I) && self.is_f(B, B)

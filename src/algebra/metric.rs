@@ -128,10 +128,10 @@ impl FrechetWorkspace {
             row[j] = row[j - 1].max(metric.distance(p[0], q[j]));
         }
         for &pi in &p[1..] {
-            let mut diag = row[0]; // ca(i-1, 0)
+            let mut diag = row[0];
             row[0] = row[0].max(metric.distance(pi, q[0]));
             for j in 1..n {
-                let up = row[j]; // ca(i-1, j) before overwrite
+                let up = row[j];
                 let best_prev = row[j].min(row[j - 1]).min(diag);
                 row[j] = best_prev.max(metric.distance(pi, q[j]));
                 diag = up;

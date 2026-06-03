@@ -139,8 +139,6 @@ impl S2CellId {
         self.0
     }
 
-    // --- construction ---------------------------------------------------
-
     /// The face cell (level 0) for a given cube face in `[0, 5]`.
     #[must_use]
     pub fn from_face(face: u8) -> Self {
@@ -172,8 +170,6 @@ impl S2CellId {
         let j = coords::st_to_ij(coords::uv_to_st(v));
         Self::from_face_ij(i64::from(f), i, j)
     }
-
-    // --- accessors ------------------------------------------------------
 
     /// The cube face (0..5).
     #[must_use]
@@ -222,8 +218,6 @@ impl S2CellId {
     pub const fn child_position(self, level: u32) -> u8 {
         ((self.0 >> (2 * (MAX_LEVEL - level) + 1)) & 3) as u8
     }
-
-    // --- hierarchy ------------------------------------------------------
 
     /// The ancestor cell at `level`, which must be no greater than this cell's
     /// level.
@@ -279,8 +273,6 @@ impl S2CellId {
         Self(self.0.wrapping_sub(self.lsb() << 1))
     }
 
-    // --- ranges & containment ------------------------------------------
-
     /// The minimum (leaf) cell id contained within this cell.
     #[must_use]
     pub const fn range_min(self) -> Self {
@@ -317,8 +309,6 @@ impl S2CellId {
         }
         Some((60 - msb_pos) >> 1)
     }
-
-    // --- geometry -------------------------------------------------------
 
     /// The cell center as a unit-sphere [`S2Point`].
     #[must_use]
@@ -378,8 +368,6 @@ impl S2CellId {
         ]
     }
 
-    // --- neighbors ------------------------------------------------------
-
     /// The four cells adjacent across this cell's edges (down, right, up,
     /// left), all at this cell's level and all distinct.
     #[must_use]
@@ -438,7 +426,6 @@ impl S2CellId {
         }
 
         let (face, mut i, mut j, _) = self.face_ij_orientation();
-        // Normalize (i,j) to the lower-left leaf of this cell.
         let size = size_ij(self.level());
         i &= -size;
         j &= -size;
@@ -453,7 +440,6 @@ impl S2CellId {
                 same_face = j + k < MAX_SIZE;
             } else {
                 same_face = true;
-                // Top and bottom neighbors.
                 neighbors.push(
                     Self::from_face_ij_same(face, i + k, j - nbr_size, j - size >= 0).parent(level),
                 );
@@ -462,7 +448,6 @@ impl S2CellId {
                         .parent(level),
                 );
             }
-            // Left, right, and diagonal neighbors.
             neighbors.push(
                 Self::from_face_ij_same(face, i - nbr_size, j + k, same_face && i - size >= 0)
                     .parent(level),
@@ -480,15 +465,13 @@ impl S2CellId {
         neighbors
     }
 
-    // --- IJ <-> id ------------------------------------------------------
-
     fn face_ij_orientation(self) -> (i64, i64, i64, i64) {
         let lookup = &*LOOKUP;
         let f = i64::from(self.face());
         let mut orientation = f & SWAP_MASK;
         let mut i: i64 = 0;
         let mut j: i64 = 0;
-        let mut nbits = MAX_LEVEL as i64 - 7 * LOOKUP_BITS as i64; // 2 on the first iteration
+        let mut nbits = MAX_LEVEL as i64 - 7 * LOOKUP_BITS as i64;
 
         for k in (0..=7i64).rev() {
             let shift = (k as u32) * 2 * LOOKUP_BITS + 1;
@@ -553,8 +536,6 @@ impl S2CellId {
             Self::from_face_ij_wrap(f, i, j)
         }
     }
-
-    // --- tokens & strings ----------------------------------------------
 
     /// A hex token of the id with leading zeros kept and trailing zeros
     /// stripped (e.g. the level-0 face cells are `"1"`, `"3"`, …, `"b"`).

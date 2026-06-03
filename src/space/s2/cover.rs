@@ -123,14 +123,12 @@ mod tests {
 
     #[test]
     fn point_polygon_cover_and_line_skip() {
-        // Point → its containing cell.
         let pt = Geometry::Point(Point::new(10.0, 50.0));
         assert_eq!(
             cover_r2_geometry_at_level(&pt, 12).unwrap(),
             vec![at(10.0, 50.0, 12)]
         );
 
-        // Polygon → boundary-complete cover including an interior point's cell.
         let level = 8;
         let poly = Geometry::Polygon(Polygon::new(
             LineString::from(vec![
@@ -146,7 +144,6 @@ mod tests {
         assert!(!cover.is_empty());
         assert!(cover.contains(&at(10.0, 50.0, level)));
 
-        // Line → None.
         let line = Geometry::LineString(LineString::from(vec![(10.0, 50.0), (11.0, 50.0)]));
         assert!(cover_r2_geometry_at_level(&line, 12).is_none());
     }
@@ -159,8 +156,6 @@ mod tests {
 
     #[test]
     fn polygon_with_out_of_range_coord_is_none() {
-        // Longitude 200° is out of range; the ring must be rejected, not silently
-        // wrapped through the projection's trig.
         let poly = Geometry::Polygon(Polygon::new(
             LineString::from(vec![
                 (0.0, 0.0),

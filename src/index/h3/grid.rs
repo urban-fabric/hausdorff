@@ -192,8 +192,6 @@ pub(super) fn grid_disk_distances(origin: u64, k: u32) -> Vec<(u64, u32)> {
     out
 }
 
-// ---- local IJ / grid distance ----------------------------------------------
-
 /// Origin leading digit -> index leading digit -> 60° CW rotations. `0xff` =
 /// invalid (the deleted K axis).
 #[rustfmt::skip]

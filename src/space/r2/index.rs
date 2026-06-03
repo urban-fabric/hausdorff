@@ -161,8 +161,6 @@ impl<T> StrTree<T> {
     }
 }
 
-// ---- STR bulk packing ------------------------------------------------------
-
 /// Sort-tile-recursive grouping: arrange `items` into a near-square grid of
 /// `cap`-sized tiles (sort by box-centre x into vertical slices, then by y
 /// within each slice) and fold each tile into a node via `group`.
@@ -196,8 +194,6 @@ fn str_pack<T, E>(
     }
     out
 }
-
-// ---- query / nearest traversal ---------------------------------------------
 
 fn query_node<'a, T>(node: &'a Node<T>, q: Rect, out: &mut Vec<&'a T>) {
     if !rects_overlap(node.bbox(), q) {
@@ -240,7 +236,6 @@ fn for_each_overlapping<T>(node: &Node<T>, q: Rect, f: &mut impl FnMut(&Rect, &T
 }
 
 fn nearest_node<'a, T>(node: &'a Node<T>, point: Coord, best: &mut Option<(f64, &'a T)>) {
-    // Prune whole subtrees that can't beat the current best.
     if let Some((bd, _)) = best
         && point_rect_dist_sq(point, node.bbox()) >= *bd
     {
@@ -298,8 +293,6 @@ fn k_nearest_node<'a, T>(
     k: usize,
     heap: &mut BinaryHeap<Neighbor<'a, T>>,
 ) {
-    // Prune: once `k` are held, any subtree whose box is no closer than the
-    // current k-th-nearest can't contribute.
     if heap.len() >= k
         && let Some(worst) = heap.peek()
         && point_rect_dist_sq(point, node.bbox()) >= worst.dist
@@ -330,8 +323,6 @@ fn k_nearest_node<'a, T>(
         }
     }
 }
-
-// ---- rectangle geometry ----------------------------------------------------
 
 fn center_x(r: &Rect) -> f64 {
     (r.min().x + r.max().x) * 0.5
@@ -400,7 +391,6 @@ mod tests {
             let got = tree.k_nearest(q, k);
             let want_k = k.min(pts.len());
             assert_eq!(got.len(), want_k, "k={k} length");
-            // The returned items' distances (sorted) are exactly the k smallest.
             let mut got_d: Vec<f64> = got.iter().map(|&&i| dist_sq(pts[i])).collect();
             got_d.sort_by(f64::total_cmp);
             for (a, b) in got_d.iter().zip(&brute[..want_k]) {

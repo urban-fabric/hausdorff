@@ -33,7 +33,6 @@ impl Area for Geometry {
             Geometry::Rect(g) => g.signed_area(),
             Geometry::Triangle(g) => g.signed_area(),
             Geometry::GeometryCollection(gs) => gs.iter().map(Area::signed_area).sum(),
-            // points and curves have no area
             Geometry::Point(_)
             | Geometry::Line(_)
             | Geometry::LineString(_)
@@ -92,8 +91,6 @@ impl Centroid for Geometry {
             Geometry::Triangle(g) => g.to_polygon().centroid(),
             Geometry::Line(l) => Some(Point((l.start + l.end) / 2.0)),
             Geometry::MultiLineString(mls) => {
-                // Length-weighted mean of the component centroids (a long line
-                // pulls the centroid more than a short one).
                 let mut acc = Coord::new(0.0, 0.0);
                 let mut total = 0.0;
                 for ls in mls.iter() {
@@ -106,13 +103,11 @@ impl Centroid for Geometry {
                 if total > 0.0 {
                     Some(Point(acc / total))
                 } else {
-                    // every component is zero-length: fall back to their mean
                     let pts: Vec<Point> = mls.iter().filter_map(Centroid::centroid).collect();
                     MultiPoint::new(pts).centroid()
                 }
             }
             Geometry::GeometryCollection(_) => {
-                // The mean of every coordinate in the collection.
                 let mut sum = Coord::new(0.0, 0.0);
                 let mut n = 0.0;
                 for c in self.coords_iter() {
@@ -132,11 +127,9 @@ impl Simplify for Geometry {
             Geometry::Polygon(g) => Geometry::Polygon(g.simplify(epsilon)),
             Geometry::MultiLineString(g) => Geometry::MultiLineString(g.simplify(epsilon)),
             Geometry::MultiPolygon(g) => Geometry::MultiPolygon(g.simplify(epsilon)),
-            // recurse into a collection, simplifying each member
             Geometry::GeometryCollection(gs) => {
                 Geometry::GeometryCollection(gs.iter().map(|g| g.simplify(epsilon)).collect())
             }
-            // nothing to simplify on points / lines / rects / triangles
             other => other.clone(),
         }
     }

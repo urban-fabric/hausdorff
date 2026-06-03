@@ -27,7 +27,7 @@ pub(super) fn is_valid_cell(bits: u64) -> bool {
     if base_cell >= base_cells::COUNT {
         return false;
     }
-    let res = get_resolution(bits); // 4 bits -> always 0..=15
+    let res = get_resolution(bits);
 
     let is_pent_base = base_cells::is_pentagon(base_cell);
     let mut found_first_nonzero = false;

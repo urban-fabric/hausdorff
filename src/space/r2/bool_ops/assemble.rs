@@ -25,8 +25,6 @@ pub(super) fn assemble(rings: Vec<Vec<Coord>>) -> Vec<Polygon> {
         })
         .collect();
 
-    // even-depth rings become shells; collect their holes (odd-depth rings whose
-    // immediate container is that shell).
     let mut polys: Vec<Polygon> = Vec::new();
     for i in 0..n {
         if !depth[i].is_multiple_of(2) {

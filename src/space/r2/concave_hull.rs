@@ -40,7 +40,6 @@ pub(crate) fn concave_hull_coords(points: &[Coord], concavity: f64) -> Vec<Coord
         return convex_hull_coords(&pts);
     }
 
-    // open boundary from the convex hull
     let mut boundary = convex_hull_coords(&pts);
     if boundary.len() >= 2 && boundary[0] == *boundary.last().unwrap() {
         boundary.pop();
@@ -65,7 +64,6 @@ pub(crate) fn concave_hull_coords(points: &[Coord], concavity: f64) -> Vec<Coord
 
             if let Some((idx, d2)) = nearest_to_edge(&interior, a, b) {
                 let d = d2.sqrt();
-                // dig when the edge is long relative to the detour distance
                 if d > 0.0 && edge_len / d >= concavity {
                     let pt = interior[idx];
                     if !insert_self_intersects(&boundary, i, pt) {

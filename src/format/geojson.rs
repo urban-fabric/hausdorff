@@ -23,8 +23,6 @@ impl std::fmt::Display for GeoJsonError {
 }
 impl std::error::Error for GeoJsonError {}
 
-// ---- writer -----------------------------------------------------------------
-
 /// Serialize a geometry to a GeoJSON geometry string.
 #[must_use]
 pub fn to_geojson(geom: &Geometry) -> String {
@@ -86,8 +84,6 @@ fn geom_to_value(geom: &Geometry) -> Value {
         ),
     }
 }
-
-// ---- reader -----------------------------------------------------------------
 
 /// Parse a GeoJSON geometry string into a geometry.
 ///

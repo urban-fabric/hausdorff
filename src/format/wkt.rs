@@ -27,8 +27,6 @@ impl std::fmt::Display for WktError {
 }
 impl std::error::Error for WktError {}
 
-// ---- writer -----------------------------------------------------------------
-
 /// Serialize a geometry to WKT.
 #[must_use]
 pub fn to_wkt(geom: &Geometry) -> String {
@@ -162,8 +160,6 @@ fn write_geom(s: &mut String, geom: &Geometry) {
         }
     }
 }
-
-// ---- reader -----------------------------------------------------------------
 
 /// Parse WKT text into a geometry.
 ///

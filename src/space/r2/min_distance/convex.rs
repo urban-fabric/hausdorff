@@ -59,7 +59,6 @@ fn convex_shape(g: &Geometry) -> Option<Convex<'_>> {
     let shape = match g {
         Geometry::Polygon(p) if p.interiors().is_empty() => {
             let ring = p.exterior().0.as_slice();
-            // Drop the repeated closing vertex so the loop is open.
             let end = usize::from(ring.len() >= 2 && ring.first() == ring.last());
             Convex::Borrowed(&ring[..ring.len() - end])
         }

@@ -24,7 +24,6 @@ impl Intersects for Rect {
 impl Intersects for Geometry {
     fn intersects(&self, other: &Geometry) -> bool {
         let (sa, sb) = (segments(self), segments(other));
-        // 1. any boundary segments cross
         for &(a1, a2) in &sa {
             for &(b1, b2) in &sb {
                 if segments_intersect(a1, a2, b1, b2) {
@@ -32,7 +31,6 @@ impl Intersects for Geometry {
                 }
             }
         }
-        // 2. a vertex of one lies inside an area of the other
         let (pa, pb) = (polygons(self), polygons(other));
         if !pb.is_empty() {
             for c in self.coords_iter() {
@@ -48,7 +46,6 @@ impl Intersects for Geometry {
                 }
             }
         }
-        // 3. coincident vertices (point/point, point/line endpoints, ...)
         let ca: Vec<Coord> = self.coords_iter().collect();
         let cb: Vec<Coord> = other.coords_iter().collect();
         if sa.is_empty() || sb.is_empty() {

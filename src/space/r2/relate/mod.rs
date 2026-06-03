@@ -35,10 +35,6 @@ fn dimension(g: &Geometry) -> i8 {
 #[must_use]
 pub fn relate(a: &Geometry, b: &Geometry) -> IntersectionMatrix {
     let _span = crate::profile::span("relate");
-    // Fast path: strictly disjoint bounding boxes ⇒ disjoint geometries. The boxes
-    // come from raw coordinates (no allocation), and when each operand's boundary
-    // dimension is unambiguous we return the matrix *without* decomposing — the
-    // common non-overlapping case, the way `geo`'s relate short-circuits.
     if let (Some(ra), Some(rb)) = (geom_bbox(a), geom_bbox(b))
         && boxes_strictly_disjoint(ra, rb)
         && let Some(im) = disjoint_matrix(a, b)
@@ -54,9 +50,6 @@ pub fn relate(a: &Geometry, b: &Geometry) -> IntersectionMatrix {
     // Exterior ∩ Exterior is always 2-D in the plane (for non-empty geometries).
     im.set_at_least(E, E, 2);
 
-    // Build the set of test points: all vertices of both, plus all pairwise
-    // edge intersection points. Each test point is classified in A and B, and
-    // contributes a 0-D cell. Edge interiors contribute 1-D cells; areas 2-D.
     let mut pts: Vec<Coord> = Vec::new();
     {
         let _s = crate::profile::span("node");
@@ -68,7 +61,6 @@ pub fn relate(a: &Geometry, b: &Geometry) -> IntersectionMatrix {
         dedup_coords(&mut pts);
     }
 
-    // 0-D contributions from test points.
     {
         let _s = crate::profile::span("locate_points");
         for &p in &pts {
@@ -78,19 +70,14 @@ pub fn relate(a: &Geometry, b: &Geometry) -> IntersectionMatrix {
         }
     }
 
-    // 1-D contributions: sample the interior of each edge sub-segment between
-    // consecutive split points, classifying its midpoint.
     {
         let _s = crate::profile::span("edges");
-        // Index the test points so each edge gathers only the split points within
-        // its bounding box, instead of scanning every test point.
         let pts_index: StrTree<Coord> =
             StrTree::new(pts.iter().map(|&p| (Rect::new(p, p), p)).collect());
         contribute_edges(&ga, &gb, &pts_index, &mut im, false);
         contribute_edges(&gb, &ga, &pts_index, &mut im, true);
     }
 
-    // 2-D contributions and exterior cells from interiors.
     {
         let _s = crate::profile::span("areas");
         contribute_areas(&ga, &gb, &mut im);
@@ -288,7 +275,6 @@ impl Decomposed {
                     });
                     self.add_line_boundary(&[l.start, l.end]);
                 } else {
-                    // degenerate zero-length line behaves as a point
                     self.points.push(l.start);
                 }
             }
@@ -373,11 +359,7 @@ impl Decomposed {
             .collect()
     }
 
-    /// Location of `p` relative to this geometry.
     fn locate(&self, p: Coord) -> Loc {
-        // areal: inside / on-ring / outside dominates. Indexed when available
-        // (the index reproduces the per-polygon boundary-first, interior-wins
-        // combination of `locate_in_polygon` / `locate_areal`).
         if !self.polygons.is_empty() {
             let areal = match &self.areal_index {
                 Some(idx) => idx.locate(p),
@@ -410,7 +392,6 @@ impl Decomposed {
                 }
             }
         }
-        // puntal
         if self.points.contains(&p) {
             return Loc::Interior;
         }
@@ -522,7 +503,6 @@ fn sample_interior(poly: &Polygon, owner: &Decomposed, mut f: impl FnMut(Coord) 
         return;
     }
     let inside = |p: Coord| owner.locate_areal_only(p) == Loc::Interior;
-    // The representative point is guaranteed strictly inside the polygon.
     if let Some(p) = representative_interior_point(poly)
         && f(p)
     {
@@ -621,7 +601,7 @@ fn locate_in_polygon(p: Coord, poly: &Polygon) -> Loc {
     }
     for h in poly.interiors() {
         if point_in_ring(p, &h.0) {
-            return Loc::Exterior; // inside a hole
+            return Loc::Exterior;
         }
     }
     Loc::Interior
@@ -811,7 +791,6 @@ fn collect_intersections(a1: Coord, a2: Coord, b1: Coord, b2: Coord, out: &mut V
     let d3 = orient(a1, a2, b1);
     let d4 = orient(a1, a2, b2);
     if ((d1 > 0.0) != (d2 > 0.0)) && ((d3 > 0.0) != (d4 > 0.0)) && d1 != 0.0 && d2 != 0.0 {
-        // proper crossing — solve for the point
         let denom = (a1.x - a2.x) * (b1.y - b2.y) - (a1.y - a2.y) * (b1.x - b2.x);
         if denom != 0.0 {
             let t = ((a1.x - b1.x) * (b1.y - b2.y) - (a1.y - b1.y) * (b1.x - b2.x)) / denom;
@@ -821,7 +800,6 @@ fn collect_intersections(a1: Coord, a2: Coord, b1: Coord, b2: Coord, out: &mut V
             ));
         }
     }
-    // collinear / touching endpoints
     for (p, q1, q2) in [(a1, b1, b2), (a2, b1, b2), (b1, a1, a2), (b2, a1, a2)] {
         if point_on_segment(p, q1, q2) {
             out.push(p);
@@ -927,7 +905,6 @@ fn contribute_areas(ga: &Decomposed, gb: &Decomposed, im: &mut IntersectionMatri
             im.set_at_least(E, I, 2);
         }
     } else {
-        // an areal operand's 2-D interior is always (partly) outside a lower-D one
         if a_areal {
             im.set_at_least(I, E, 2);
         }
@@ -953,7 +930,6 @@ fn add_exterior_cells(
         im.set_at_least(ra, rb, dim);
     };
 
-    // boundary of `from` outside other (rings for areal, endpoints for linear)
     let bdim = match from.dim {
         2 => 1,
         1 => 0,
@@ -966,7 +942,6 @@ fn add_exterior_cells(
         }
     }
 
-    // 0-D / 1-D interior of `from` outside other (points & lines)
     if from.dim == 0
         && from
             .points
@@ -987,7 +962,6 @@ fn add_exterior_cells(
 
 fn boundary_test_points(d: &Decomposed) -> Vec<Coord> {
     if d.dim == 2 {
-        // ring edges represent the boundary — sample vertices and edge midpoints
         let mut v = Vec::new();
         for s in &d.segments {
             v.push(s.a);
