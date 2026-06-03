@@ -26,7 +26,6 @@ pub enum Crossing {
 /// `crossing_sign(c,d,a,b) == crossing_sign(a,b,c,d)`.
 #[must_use]
 pub fn crossing_sign(a: S2Point, b: S2Point, c: S2Point, d: S2Point) -> Crossing {
-    // c and d must lie on opposite sides of the great circle through a, b...
     let abc = robust_sign(a, b, c);
     let abd = robust_sign(a, b, d);
     if abc == 0 || abd == 0 {
@@ -35,7 +34,6 @@ pub fn crossing_sign(a: S2Point, b: S2Point, c: S2Point, d: S2Point) -> Crossing
     if abc == abd {
         return Crossing::DoNotCross;
     }
-    // ...and a and b must lie on opposite sides of the great circle through c, d.
     let cda = robust_sign(c, d, a);
     let cdb = robust_sign(c, d, b);
     if cda == 0 || cdb == 0 {

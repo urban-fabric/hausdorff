@@ -48,8 +48,6 @@ fn ring_area(coords: &[LineStringCoord]) -> f64 {
     total * EQUATORIAL_EARTH_RADIUS_M * EQUATORIAL_EARTH_RADIUS_M / -2.0
 }
 
-// Local (lon, lat) pair so `ring_area` reads like the reference without pulling
-// the full Coord type into the formula.
 type LineStringCoord = (f64, f64);
 
 fn ring_lonlat(ring: &LineString) -> Vec<LineStringCoord> {

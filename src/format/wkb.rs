@@ -23,12 +23,9 @@ impl std::fmt::Display for WkbError {
 }
 impl std::error::Error for WkbError {}
 
-// ---- writer (little-endian) -------------------------------------------------
-
 /// Encode a geometry as little-endian 2-D WKB.
 #[must_use]
 pub fn to_wkb(geom: &Geometry) -> Vec<u8> {
-    // Size the buffer exactly once up front so the byte pushes never reallocate.
     let mut out = Vec::with_capacity(wkb_len(geom));
     write_geom(&mut out, geom);
     out
@@ -85,7 +82,7 @@ fn polygon_len(p: &Polygon) -> usize {
 }
 
 fn hdr(out: &mut Vec<u8>, type_code: u32) {
-    out.push(1); // NDR / little-endian
+    out.push(1);
     out.extend_from_slice(&type_code.to_le_bytes());
 }
 
@@ -172,8 +169,6 @@ fn write_geom(out: &mut Vec<u8>, geom: &Geometry) {
     }
 }
 
-// ---- reader -----------------------------------------------------------------
-
 /// Decode WKB bytes into a geometry. Requires the bytes to be **exactly** one
 /// WKB geometry — trailing bytes after the geometry are rejected.
 ///
@@ -253,7 +248,7 @@ impl Reader<'_> {
         let le = self.order()?;
         let raw = self.u32(le)?;
         if raw & 0x2000_0000 != 0 {
-            self.u32(le)?; // skip EWKB SRID
+            self.u32(le)?;
         }
         // EWKB Z/M flags or ISO 1000/2000-offset both add ordinates per coord.
         let ewkb_z = raw & 0x8000_0000 != 0;
@@ -271,7 +266,7 @@ impl Reader<'_> {
         let x = self.f64(le)?;
         let y = self.f64(le)?;
         for _ in 0..extra {
-            self.f64(le)?; // discard Z / M
+            self.f64(le)?;
         }
         Ok(Coord::new(x, y))
     }

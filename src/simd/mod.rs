@@ -76,7 +76,6 @@ mod x86 {
                 _mm256_storeu_pd(out.as_mut_ptr().add(i), _mm256_sqrt_pd(d2));
             }
         }
-        // Tail (< 4 elements): the same arithmetic, scalar.
         for i in (chunks * 4)..n {
             let (dx, dy) = (xs[i] - tx, ys[i] - ty);
             out[i] = (dx * dx + dy * dy).sqrt();

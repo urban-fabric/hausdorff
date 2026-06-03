@@ -115,7 +115,6 @@ fn geometry_length<M: Length<LineString>>(m: &M, g: &Geometry) -> f64 {
         Geometry::LineString(ls) => m.length(ls),
         Geometry::MultiLineString(mls) => mls.iter().map(|ls| m.length(ls)).sum(),
         Geometry::GeometryCollection(gs) => gs.iter().map(|sub| geometry_length(m, sub)).sum(),
-        // points and areal geometries have no curve length
         Geometry::Point(_)
         | Geometry::MultiPoint(_)
         | Geometry::Polygon(_)
@@ -170,7 +169,6 @@ fn geometry_perimeter<M: Length<LineString>>(m: &M, g: &Geometry) -> f64 {
         Geometry::Rect(r) => polygon_perimeter(m, &r.to_polygon()),
         Geometry::Triangle(t) => polygon_perimeter(m, &t.to_polygon()),
         Geometry::GeometryCollection(gs) => gs.iter().map(|sub| geometry_perimeter(m, sub)).sum(),
-        // points and curves have no areal boundary
         Geometry::Point(_)
         | Geometry::MultiPoint(_)
         | Geometry::Line(_)

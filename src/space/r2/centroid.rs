@@ -83,7 +83,6 @@ impl Centroid for MultiPolygon {
             let _ = c;
         }
         if area.abs() < f64::EPSILON {
-            // all-degenerate: mean of exterior centroids
             let pts: Vec<Point> = self.iter().filter_map(Centroid::centroid).collect();
             return MultiPoint::new(pts).centroid();
         }
@@ -97,7 +96,6 @@ impl Centroid for LineString {
             0 => None,
             1 => Some(Point(self.0[0])),
             _ => {
-                // length-weighted midpoint of the segments
                 let mut len = 0.0;
                 let mut cx = 0.0;
                 let mut cy = 0.0;

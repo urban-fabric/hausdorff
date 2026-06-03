@@ -107,11 +107,7 @@ impl MinDistanceWorkspace {
         if boxes_overlap(ba, bb) && a.intersects(b) {
             return 0.0;
         }
-        // A tiny cost model picks the cheaper strategy from cheap input features
-        // (see [`prefer_indexed`]): brute-with-prune for separated/small operands,
-        // an STR-tree for large operands whose boxes overlap (prune is weak).
         let min_sq = if prefer_indexed(self.sa.len(), self.sb.len(), box_gap_sq(ba, bb) == 0.0) {
-            // Index the larger segment set, iterate the smaller (fewer queries).
             if self.sa.len() <= self.sb.len() {
                 indexed_min_sq(&self.sa, &self.sb)
             } else {
@@ -130,7 +126,6 @@ impl MinDistanceWorkspace {
         if d < 0.0 {
             return false;
         }
-        // Convex operands: resolve the exact gap (O(n+m)) and compare it.
         if let Some(gap) = convex_gap(a, b) {
             return gap <= d;
         }
@@ -193,14 +188,12 @@ fn brute_min_sq(
     let mut min_sq = f64::INFINITY;
     for &(a1, a2) in sa {
         let abox = seg_box(a1, a2);
-        // Coarse prune: skip this whole A-segment if it's farther than the best
-        // from B's entire bounding box.
         if box_gap_sq(abox, bb) >= min_sq {
             continue;
         }
         for (j, &(b1, b2)) in sb.iter().enumerate() {
             if box_gap_sq(abox, sb_boxes[j]) >= min_sq {
-                continue; // this pair can't beat the running best
+                continue;
             }
             min_sq = min_sq.min(segment_gap_sq(a1, a2, b1, b2));
             if min_sq == 0.0 {
@@ -283,8 +276,6 @@ fn indexed_min_sq(a_segs: &[(Coord, Coord)], b_segs: &[(Coord, Coord)]) -> f64 {
     let mut min_sq = f64::INFINITY;
     for &(a1, a2) in a_segs {
         let (alo, ahi) = seg_box(a1, a2);
-        // Query A's box expanded by the running best distance; B segments outside
-        // it can't beat it. (Infinite on the first A-segment → visits all of B.)
         let d = min_sq.sqrt();
         let q = Rect::new(
             Coord::new(alo.x - d, alo.y - d),
@@ -343,8 +334,6 @@ pub(crate) fn segment_gap_sq(a1: Coord, a2: Coord, b1: Coord, b2: Coord) -> f64 
         .min(point_segment_distance_sq(b2, a1, a2))
 }
 
-// ---- axis-aligned bounding-box helpers (for pruning) -----------------------
-
 /// `(min, max)` corner of all endpoints in a segment list (caller ensures
 /// non-empty).
 fn bbox_of(segs: &[(Coord, Coord)]) -> (Coord, Coord) {
@@ -387,7 +376,7 @@ fn segments_intersect(p1: Coord, p2: Coord, p3: Coord, p4: Coord) -> bool {
     let d3 = orient(p1, p2, p3);
     let d4 = orient(p1, p2, p4);
     if (d1 > 0.0) != (d2 > 0.0) && (d3 > 0.0) != (d4 > 0.0) {
-        return true; // proper crossing
+        return true;
     }
     (d1 == 0.0 && in_box(p3, p4, p1))
         || (d2 == 0.0 && in_box(p3, p4, p2))
@@ -399,8 +388,6 @@ fn segments_intersect(p1: Coord, p2: Coord, p3: Coord, p4: Coord) -> bool {
 fn in_box(a: Coord, b: Coord, p: Coord) -> bool {
     p.x >= a.x.min(b.x) && p.x <= a.x.max(b.x) && p.y >= a.y.min(b.y) && p.y <= a.y.max(b.y)
 }
-
-// ---- geometry → bounded segments -------------------------------------------
 
 pub(crate) fn segments(g: &Geometry) -> Vec<(Coord, Coord)> {
     let mut out = Vec::new();

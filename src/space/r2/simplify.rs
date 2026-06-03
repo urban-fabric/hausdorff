@@ -45,7 +45,7 @@ fn rdp(coords: &[Coord], epsilon: f64) -> Vec<Coord> {
     if max_dist > epsilon {
         let mut left = rdp(&coords[..=index], epsilon);
         let right = rdp(&coords[index..], epsilon);
-        left.pop(); // shared vertex
+        left.pop();
         left.extend(right);
         left
     } else {

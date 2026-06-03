@@ -216,8 +216,6 @@ impl<P: Copy> PointGrid<P> {
         let lat_rings = ((radius_deg / self.cell_deg).ceil() as i64).clamp(1, max_rings);
         let mut out = Vec::new();
         for (lat, lon, q) in probe {
-            // A degree of longitude shrinks as cos(lat), so the radius spans more
-            // longitude cells nearer the poles.
             let coslat = lat.to_radians().cos().abs();
             let lon_rings = if coslat < 1e-9 {
                 max_rings
@@ -266,8 +264,6 @@ where
         if keep == 0 {
             continue;
         }
-        // Keep the k smallest, then sort just that selection (late materialization:
-        // never fully order rows that will not be emitted).
         if keep < candidates.len() {
             candidates.select_nth_unstable_by(keep, |a, b| a.0.total_cmp(&b.0));
         }
@@ -325,7 +321,6 @@ mod tests {
         let cell_deg = 1.0;
         let meters = 50_000.0;
 
-        // Compact cluster spanning a few cells -> dense CSR grid.
         let r = pts(&[0.0, 1.2, 2.1, 1.1], &[0.0, 0.2, 0.1, 2.2]);
         let l = pts(&[0.05, 1.15], &[0.05, 0.15]);
         let grid = PointGrid::build(r.iter().copied(), cell_deg).expect("valid cell_deg");
@@ -335,7 +330,6 @@ mod tests {
         );
         assert_eq!(within_pairs(&grid, &l, meters), brute(&l, &r, meters));
 
-        // Two clusters at opposite ends of the globe -> sparse hash fallback.
         let r = pts(&[0.0, 0.001, 70.0, 70.001], &[0.0, 0.001, 170.0, 170.001]);
         let l = pts(&[0.0005, 70.0005], &[0.0005, 170.0005]);
         let grid = PointGrid::build(r.iter().copied(), cell_deg).expect("valid cell_deg");
@@ -352,7 +346,6 @@ mod tests {
         let probe = pts(&[0.0], &[0.0]);
         let knn = k_nearest(probe.iter().copied(), &points, 2);
         assert_eq!(knn.len(), 2);
-        // Two closest to (0,0) are payloads 0 (d=0) then 1, in ascending distance.
         assert_eq!((knn[0].0, knn[0].1), (0, 0));
         assert_eq!((knn[1].0, knn[1].1), (0, 1));
         assert!(knn[0].2 <= knn[1].2);
@@ -360,9 +353,6 @@ mod tests {
 
     #[test]
     fn within_is_complete_when_cell_deg_is_smaller_than_the_radius() {
-        // cell_deg (0.1°) far smaller than the ~0.45° radius: matches sit several
-        // cells away, so a fixed 3x3 probe would miss them — `within` must size
-        // its neighbourhood from the radius.
         let cell_deg = 0.1;
         let meters = 50_000.0;
         let r = pts(&[0.0, 0.3, -0.25, 0.1], &[0.0, 0.2, 0.1, -0.3]);

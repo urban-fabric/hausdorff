@@ -127,8 +127,7 @@ mod tests {
     fn line_is_covered_via_grid_path() {
         let g = Geometry::LineString(LineString::from(vec![(10.0, 50.0), (10.5, 50.0)]));
         let cells = cover_geometry(&g, 8).unwrap();
-        assert!(cells.len() >= 2, "a spanning line covers several cells");
-        // Endpoints' cells are in the cover.
+        assert!(cells.len() >= 2);
         assert!(cells.contains(&H3Cell::for_point(50.0, 10.0, 8).unwrap()));
         assert!(cells.contains(&H3Cell::for_point(50.0, 10.5, 8).unwrap()));
     }
@@ -146,8 +145,6 @@ mod tests {
         let cells: std::collections::BTreeSet<H3Cell> =
             cover_geometry(&g, 5).unwrap().into_iter().collect();
         assert!(!cells.is_empty());
-        // Every boundary vertex's cell is covered (the centroid-only fill misses
-        // these when the vertex cell's centre falls outside the polygon).
         for &(lon, lat) in &verts[..4] {
             assert!(
                 cells.contains(&H3Cell::for_point(lat, lon, 5).unwrap()),

@@ -87,8 +87,6 @@ fn one(p: &Polygon) -> MultiPolygon {
     MultiPolygon::new(vec![p.clone()])
 }
 
-// ---- sweep events -----------------------------------------------------------
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum EdgeType {
     Normal,
@@ -157,7 +155,6 @@ fn compare_events(events: &[Event], e1: u32, e2: u32) -> Ordering {
             Ordering::Less
         };
     }
-    // same point
     if a.left != b.left {
         return if a.left {
             Ordering::Greater
@@ -175,7 +172,6 @@ fn compare_events(events: &[Event], e1: u32, e2: u32) -> Ordering {
             Ordering::Greater
         };
     }
-    // collinear at the same point: subject before clipping
     if a.subject != b.subject {
         return if a.subject {
             Ordering::Less
@@ -189,8 +185,6 @@ fn compare_events(events: &[Event], e1: u32, e2: u32) -> Ordering {
     e1.cmp(&e2)
 }
 
-// ---- index min-heap event queue --------------------------------------------
-//
 // `std::BinaryHeap`'s `Ord` can't see the arena, so we keep a small binary
 // min-heap over event indices whose comparator is `compare_events` against the
 // live arena — preserving the reference algorithm's "compare current state"
@@ -246,9 +240,7 @@ fn compare_segments(events: &[Event], le1: u32, le2: u32) -> Ordering {
     let (p2, p2o) = (events[le2 as usize].point, other_point(events, le2));
 
     if signed_area(p1, p1o, p2) != 0.0 || signed_area(p1, p1o, p2o) != 0.0 {
-        // not collinear
         if p1 == p2 {
-            // same left endpoint: order by the right endpoints
             return if below(p1, p1o, p2o) {
                 Ordering::Less
             } else {
@@ -256,7 +248,6 @@ fn compare_segments(events: &[Event], le1: u32, le2: u32) -> Ordering {
             };
         }
         if compare_events(events, le1, le2) == Ordering::Greater {
-            // le1 is processed after le2: is le2's segment below le1's left point?
             return if !below(p2, p2o, p1) {
                 Ordering::Less
             } else {
@@ -269,11 +260,9 @@ fn compare_segments(events: &[Event], le1: u32, le2: u32) -> Ordering {
             Ordering::Greater
         };
     }
-    // collinear segments
     let (s1, s2) = (events[le1 as usize].subject, events[le2 as usize].subject);
     if s1 == s2 {
         if p1 == p2 {
-            // identical: break ties consistently by arena index
             le1.cmp(&le2)
         } else {
             compare_events(events, le1, le2)
@@ -288,8 +277,6 @@ fn compare_segments(events: &[Event], le1: u32, le2: u32) -> Ordering {
 fn below(a: Coord, b: Coord, p: Coord) -> bool {
     signed_area(a, b, p) > 0.0
 }
-
-// ---- the algorithm ----------------------------------------------------------
 
 fn run(subject: &MultiPolygon, clipping: &MultiPolygon, op: Operation) -> MultiPolygon {
     let _span = crate::profile::span("bool_ops::run");
@@ -348,7 +335,6 @@ fn fill_ring(events: &mut Vec<Event>, queue: &mut Vec<u32>, coords: &[Coord], su
         let e2 = new_event(events, b, subject);
         events[e1 as usize].other = Some(e2);
         events[e2 as usize].other = Some(e1);
-        // the leftmost endpoint is the "left" event
         if compare_events(events, e1, e2) == Ordering::Less {
             events[e1 as usize].left = true;
             events[e2 as usize].left = false;
@@ -371,7 +357,6 @@ fn ring_vertices(ring: &[Coord]) -> &[Coord] {
 
 fn subdivide(events: &mut Vec<Event>, queue: &mut Vec<u32>, op: Operation) -> Vec<u32> {
     let mut sorted: Vec<u32> = Vec::new();
-    // sweep-line status: left-events ordered by compare_segments
     let mut sweep: Vec<u32> = Vec::new();
 
     while let Some(event) = heap_pop(queue, events) {
@@ -398,7 +383,6 @@ fn subdivide(events: &mut Vec<Event>, queue: &mut Vec<u32>, op: Operation) -> Ve
                 compute_fields(events, event, Some(prev), op);
             }
         } else {
-            // right event: operate on its left counterpart
             let left = events[event as usize].other.unwrap();
             if let Some(pos) = sweep.iter().position(|&e| e == left) {
                 let prev = if pos > 0 { Some(sweep[pos - 1]) } else { None };
@@ -436,8 +420,6 @@ fn compute_fields(events: &mut [Event], event: u32, prev: Option<u32>, op: Opera
             ev.other_in_out = true;
         }
         Some(prev) => {
-            // Snapshot prev (a `Copy` of the event) and its verticality before
-            // taking the mutable borrow of `event`.
             let pr = events[prev as usize];
             let prev_vertical = is_vertical(events, prev);
             let ev_subject = events[event as usize].subject;
@@ -453,7 +435,6 @@ fn compute_fields(events: &mut [Event], event: u32, prev: Option<u32>, op: Opera
     }
     let res = in_result(events, event, op);
     events[event as usize].in_result = res;
-    // prev_in_result chain
     let pir = match prev {
         Some(prev) => {
             if !events[prev as usize].in_result || is_vertical(events, prev) {
@@ -507,12 +488,10 @@ fn intersect_segments(a1: Coord, a2: Coord, b1: Coord, b2: Coord) -> (u8, Coord,
         return (1, a1 + va * s, a1);
     }
 
-    // parallel
     let kross_e_va = e.x * va.y - e.y * va.x;
     if kross_e_va != 0.0 {
-        return (0, a1, a1); // parallel, non-collinear
+        return (0, a1, a1);
     }
-    // collinear: project b1, b2 onto a
     let sa = (e.x * va.x + e.y * va.y) / sqr_len_a;
     let sb = sa + (vb.x * va.x + vb.y * va.y) / sqr_len_a;
     let smin = sa.min(sb);
@@ -541,7 +520,6 @@ fn possible_intersection(events: &mut Vec<Event>, queue: &mut Vec<u32>, e1: u32,
         return 0;
     }
     if n == 1 && (a1 == b1 || a2 == b2 || a1 == b2 || a2 == b1) {
-        // intersect only at a shared endpoint
         return 0;
     }
 
@@ -572,7 +550,6 @@ fn possible_intersection(events: &mut Vec<Event>, queue: &mut Vec<u32>, e1: u32,
     let right_coincide = a2 == b2;
 
     if left_coincide {
-        // share left endpoint: handled below
     } else if compare_events(events, e1, e2) == Ordering::Greater {
         order.push(e2);
         order.push(e1);
@@ -582,7 +559,6 @@ fn possible_intersection(events: &mut Vec<Event>, queue: &mut Vec<u32>, e1: u32,
     }
 
     if right_coincide {
-        // share right endpoint: handled below
     } else if compare_events(events, e1o, e2o) == Ordering::Greater {
         order.push(e2o);
         order.push(e1o);
@@ -592,8 +568,6 @@ fn possible_intersection(events: &mut Vec<Event>, queue: &mut Vec<u32>, e1: u32,
     }
 
     if left_coincide {
-        // the two segments share their left endpoint: one is non-contributing,
-        // the other carries the overlap transition.
         events[e2 as usize].edge_type = EdgeType::NonContributing;
         let same = events[e2 as usize].in_out == events[e1 as usize].in_out;
         events[e1 as usize].edge_type = if same {
@@ -602,7 +576,6 @@ fn possible_intersection(events: &mut Vec<Event>, queue: &mut Vec<u32>, e1: u32,
             EdgeType::DifferentTransition
         };
         if !right_coincide {
-            // trim the longer segment at the shorter one's right endpoint
             let target = events[order[1] as usize].other.unwrap();
             let p = events[order[0] as usize].point;
             divide_segment(events, queue, target, p);
@@ -611,22 +584,18 @@ fn possible_intersection(events: &mut Vec<Event>, queue: &mut Vec<u32>, e1: u32,
     }
 
     if right_coincide {
-        // share the right endpoint: split the earlier-starting segment
         let p = events[order[1] as usize].point;
         divide_segment(events, queue, order[0], p);
         return 3;
     }
 
-    // neither endpoint coincides
     let e0_other = events[order[0] as usize].other.unwrap();
     if e0_other != order[3] {
-        // partial overlap, neither contains the other
         let p1 = events[order[1] as usize].point;
         let p2 = events[order[2] as usize].point;
         divide_segment(events, queue, order[0], p1);
         divide_segment(events, queue, order[1], p2);
     } else {
-        // one segment fully contains the other
         let p1 = events[order[1] as usize].point;
         let p2 = events[order[2] as usize].point;
         divide_segment(events, queue, order[0], p1);
@@ -640,9 +609,7 @@ fn divide_segment(events: &mut Vec<Event>, queue: &mut Vec<u32>, e: u32, p: Coor
     let other = events[e as usize].other.unwrap();
     let subject = events[e as usize].subject;
 
-    // right event for the left part
     let r = new_event(events, p, subject);
-    // left event for the right part
     let l = new_event(events, p, subject);
 
     events[r as usize].left = false;
@@ -653,7 +620,6 @@ fn divide_segment(events: &mut Vec<Event>, queue: &mut Vec<u32>, e: u32, p: Coor
     events[other as usize].other = Some(l);
     events[e as usize].other = Some(r);
 
-    // keep left/right consistent if the split point ordering flipped
     if compare_events(events, l, other) == Ordering::Greater {
         events[other as usize].left = true;
         events[l as usize].left = false;
@@ -664,10 +630,7 @@ fn divide_segment(events: &mut Vec<Event>, queue: &mut Vec<u32>, e: u32, p: Coor
     heap_push(queue, events, r);
 }
 
-// ---- connecting result edges into contours ----------------------------------
-
 fn connect_edges(events: &[Event], sorted: &[u32]) -> Vec<Polygon> {
-    // events that are part of the result
     let mut result: Vec<u32> = sorted
         .iter()
         .copied()
@@ -701,7 +664,6 @@ fn connect_edges(events: &[Event], sorted: &[u32]) -> Vec<Polygon> {
         })
         .collect();
     if other_pos.contains(&usize::MAX) {
-        // result events not paired up; bail (shouldn't happen for valid input)
         return Vec::new();
     }
 
@@ -716,7 +678,7 @@ fn connect_edges(events: &[Event], sorted: &[u32]) -> Vec<Polygon> {
         let mut pos = i;
         loop {
             visited[pos] = true;
-            pos = other_pos[pos]; // far end of the current segment
+            pos = other_pos[pos];
             visited[pos] = true;
             ring.push(events[result[pos] as usize].point);
             pos = next_pos(events, &result, pos, &visited, i);
@@ -725,7 +687,7 @@ fn connect_edges(events: &[Event], sorted: &[u32]) -> Vec<Polygon> {
             }
         }
         if ring.len() >= 4 {
-            ring.pop(); // last point duplicates the first
+            ring.pop();
             rings.push(ring);
         }
     }

@@ -20,7 +20,6 @@ mod bits;
 mod validity;
 
 pub use bits::MAX_RESOLUTION;
-// Codec helpers the sibling h3 modules reach via the `index::` path.
 use area::{
     AVG_HEXAGON_AREA_KM2, AVG_HEXAGON_AREA_M2, AVG_HEXAGON_EDGE_LENGTH_KM,
     AVG_HEXAGON_EDGE_LENGTH_M, EARTH_RADIUS_KM, distance_rads, linear_ring_area_rads2,

@@ -137,7 +137,6 @@ impl Vector {
     #[must_use]
     pub fn ortho(self) -> Self {
         let (tx, ty, tz) = (self.x.abs(), self.y.abs(), self.z.abs());
-        // pick the axis with the smallest component
         let other = if tx < ty && tx < tz {
             Self::new(1.0, 0.0, 0.0)
         } else if ty < tz {
