@@ -10,7 +10,6 @@ mod coord {
         assert_eq!(a + b, Coord::new(4.0, 6.0));
         assert_eq!(b - a, Coord::new(2.0, 2.0));
         assert_eq!(a * 2.0, Coord::new(2.0, 4.0));
-        // CCW turn (origin -> +x -> +y) is positive.
         let o = Coord::new(0.0, 0.0);
         assert!(Coord::new(1.0, 0.0).cross(o, Coord::new(0.0, 1.0)) > 0.0);
     }
@@ -50,7 +49,7 @@ mod primitives {
     fn rect_to_polygon_is_closed_quad() {
         let r = Rect::new((0.0, 0.0), (1.0, 1.0));
         let p = r.to_polygon();
-        assert_eq!(p.exterior().coords_count(), 5); // 4 corners + closing
+        assert_eq!(p.exterior().coords_count(), 5);
     }
 }
 
@@ -64,7 +63,6 @@ mod line_string {
         ls.close();
         assert!(ls.is_closed());
         assert_eq!(ls.coords_count(), 4);
-        // already closed -> no-op
         ls.close();
         assert_eq!(ls.coords_count(), 4);
     }
@@ -132,7 +130,6 @@ mod winding {
 
     #[test]
     fn winding_detection() {
-        // CCW square
         let ccw = ls(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (0.0, 0.0)]);
         assert_eq!(ccw.winding_order(), Some(WindingOrder::CounterClockwise));
         assert!(ccw.is_ccw());
@@ -147,7 +144,6 @@ mod winding {
 
     #[test]
     fn orient_default_makes_exterior_ccw() {
-        // Start with a CW exterior.
         let cw = Polygon::new(
             ls(&[(0.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, 0.0)]),
             vec![],
@@ -172,7 +168,7 @@ mod area {
     fn unit_square_area() {
         let p = poly(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]);
         assert_eq!(p.unsigned_area(), 1.0);
-        assert_eq!(p.signed_area(), 1.0); // CCW -> positive
+        assert_eq!(p.signed_area(), 1.0);
     }
 
     #[test]
@@ -315,9 +311,9 @@ mod contains {
     #[test]
     fn point_in_polygon_respecting_hole() {
         let s = square();
-        assert!(s.contains(&Point::new(0.5, 0.5))); // inside exterior, outside hole
-        assert!(!s.contains(&Point::new(2.0, 2.0))); // inside the hole
-        assert!(!s.contains(&Point::new(9.0, 9.0))); // outside entirely
+        assert!(s.contains(&Point::new(0.5, 0.5)));
+        assert!(!s.contains(&Point::new(2.0, 2.0)));
+        assert!(!s.contains(&Point::new(9.0, 9.0)));
     }
 
     #[test]
@@ -326,7 +322,7 @@ mod contains {
         assert!(mp.contains(&Coord::new(0.5, 0.5)));
         let r = Rect::new((0.0, 0.0), (2.0, 2.0));
         assert!(r.contains(&Point::new(1.0, 1.0)));
-        assert!(!r.contains(&Point::new(2.0, 2.0))); // on boundary -> not contained
+        assert!(!r.contains(&Point::new(2.0, 2.0)));
     }
 }
 
@@ -335,18 +331,16 @@ mod convex_hull {
 
     #[test]
     fn hull_of_square_with_interior_point() {
-        // Four corners plus a point inside; the hull is just the square.
         let mp = MultiPoint::from(vec![
             (0.0, 0.0),
             (4.0, 0.0),
             (4.0, 4.0),
             (0.0, 4.0),
-            (2.0, 2.0), // interior — should be dropped
+            (2.0, 2.0),
         ]);
         let hull = mp.convex_hull();
         assert_eq!(hull.unsigned_area(), 16.0);
         assert!(hull.exterior().is_closed());
-        // 4 distinct corners + closing point
         assert_eq!(hull.exterior().coords_count(), 5);
     }
 
@@ -354,7 +348,7 @@ mod convex_hull {
     fn hull_is_counter_clockwise() {
         let mp = MultiPoint::from(vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]);
         let hull = mp.convex_hull();
-        assert!(hull.signed_area() > 0.0); // CCW
+        assert!(hull.signed_area() > 0.0);
     }
 }
 
@@ -379,7 +373,7 @@ mod macros {
     fn polygon_macro_exterior_only() {
         let p = polygon![(x: 0.0, y: 0.0), (x: 1.0, y: 0.0), (x: 0.0, y: 1.0)];
         assert!(p.exterior().is_closed());
-        assert_eq!(p.exterior().coords_count(), 4); // closed
+        assert_eq!(p.exterior().coords_count(), 4);
         assert!(p.interiors().is_empty());
     }
 
@@ -419,7 +413,6 @@ mod geometry_dispatch {
         assert!((c.x() - 2.0).abs() < 1e-9 && (c.y() - 2.0).abs() < 1e-9);
         assert_eq!(g.convex_hull().unsigned_area(), 16.0);
 
-        // a point has zero area and bounds itself
         let p = Geometry::Point(Point::new(3.0, 5.0));
         assert_eq!(p.unsigned_area(), 0.0);
         assert_eq!(
@@ -427,7 +420,6 @@ mod geometry_dispatch {
             hausdorff::Coord::new(3.0, 5.0)
         );
 
-        // simplify is a no-op on a point, real on a line string
         assert!(matches!(p.simplify(1.0), Geometry::Point(_)));
         let wiggly =
             Geometry::LineString(LineString::from(vec![(0.0, 0.0), (1.0, 0.01), (2.0, 0.0)]));

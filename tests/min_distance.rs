@@ -39,14 +39,10 @@ fn check(a: &Geometry, b: &Geometry) {
         (ours - theirs).abs() <= 1e-9 * theirs.max(1.0),
         "distance native={ours} geo={theirs}\n  A={a:?}\n  B={b:?}"
     );
-    // symmetric
     assert!(
         (euclidean_distance(b, a) - ours).abs() < 1e-9,
         "asymmetric distance"
     );
-    // DWithin is consistent with the computed distance. (`ours` is √(min_sq);
-    // squaring it back inside `within` can round a hair under the exact min, so
-    // test just above the distance.)
     assert!(
         euclidean_within(a, b, ours + 1e-9 * ours.max(1.0)),
         "within its own distance"
@@ -65,39 +61,39 @@ fn check(a: &Geometry, b: &Geometry) {
 
 #[test]
 fn point_point() {
-    check(&pt(0.0, 0.0), &pt(3.0, 4.0)); // 5
-    check(&pt(1.0, 1.0), &pt(1.0, 1.0)); // 0
+    check(&pt(0.0, 0.0), &pt(3.0, 4.0));
+    check(&pt(1.0, 1.0), &pt(1.0, 1.0));
 }
 
 #[test]
 fn point_to_segment_and_linestring() {
-    check(&pt(0.0, 0.0), &line(2.0, -1.0, 2.0, 1.0)); // perpendicular → 2
-    check(&pt(5.0, 0.0), &line(0.0, 0.0, 3.0, 0.0)); // beyond endpoint → 2
+    check(&pt(0.0, 0.0), &line(2.0, -1.0, 2.0, 1.0));
+    check(&pt(5.0, 0.0), &line(0.0, 0.0, 3.0, 0.0));
     check(&pt(1.0, 3.0), &ls(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0)]));
-    check(&pt(2.0, 1.0), &ls(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0)])); // on the LS → 0
+    check(&pt(2.0, 1.0), &ls(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0)]));
 }
 
 #[test]
 fn line_line() {
-    check(&line(0.0, 0.0, 1.0, 1.0), &line(2.0, 0.0, 3.0, 1.0)); // disjoint
-    check(&line(0.0, 0.0, 2.0, 2.0), &line(0.0, 2.0, 2.0, 0.0)); // crossing → 0
-    check(&line(0.0, 0.0, 4.0, 0.0), &line(1.0, 3.0, 3.0, 3.0)); // parallel → 3
+    check(&line(0.0, 0.0, 1.0, 1.0), &line(2.0, 0.0, 3.0, 1.0));
+    check(&line(0.0, 0.0, 2.0, 2.0), &line(0.0, 2.0, 2.0, 0.0));
+    check(&line(0.0, 0.0, 4.0, 0.0), &line(1.0, 3.0, 3.0, 3.0));
 }
 
 #[test]
 fn point_polygon_containment() {
     let s = sq(0.0, 0.0, 4.0, 4.0);
-    check(&pt(2.0, 2.0), &s); // inside → 0
-    check(&pt(6.0, 2.0), &s); // outside → 2 from the right edge
-    check(&pt(-3.0, -4.0), &s); // outside corner
+    check(&pt(2.0, 2.0), &s);
+    check(&pt(6.0, 2.0), &s);
+    check(&pt(-3.0, -4.0), &s);
 }
 
 #[test]
 fn polygon_polygon() {
-    check(&sq(0.0, 0.0, 2.0, 2.0), &sq(5.0, 0.0, 7.0, 2.0)); // disjoint, gap 3
-    check(&sq(0.0, 0.0, 2.0, 2.0), &sq(2.0, 0.0, 4.0, 2.0)); // shared edge → 0
-    check(&sq(0.0, 0.0, 10.0, 10.0), &sq(3.0, 3.0, 7.0, 7.0)); // nested → 0
-    check(&sq(0.0, 0.0, 2.0, 2.0), &sq(3.0, 3.0, 5.0, 5.0)); // diagonal gap
+    check(&sq(0.0, 0.0, 2.0, 2.0), &sq(5.0, 0.0, 7.0, 2.0));
+    check(&sq(0.0, 0.0, 2.0, 2.0), &sq(2.0, 0.0, 4.0, 2.0));
+    check(&sq(0.0, 0.0, 10.0, 10.0), &sq(3.0, 3.0, 7.0, 7.0));
+    check(&sq(0.0, 0.0, 2.0, 2.0), &sq(3.0, 3.0, 5.0, 5.0));
 }
 
 #[test]
@@ -112,12 +108,10 @@ fn polygon_with_hole() {
         ],
         &[(3.0, 3.0), (7.0, 3.0), (7.0, 7.0), (3.0, 7.0), (3.0, 3.0)],
     );
-    check(&donut, &pt(5.0, 5.0)); // in the hole → distance to hole ring (2)
-    check(&donut, &pt(1.0, 1.0)); // in the solid ring → 0
-    check(&donut, &sq(4.0, 4.0, 6.0, 6.0)); // square inside the hole
+    check(&donut, &pt(5.0, 5.0));
+    check(&donut, &pt(1.0, 1.0));
+    check(&donut, &sq(4.0, 4.0, 6.0, 6.0));
 }
-
-// ---- randomized stress against geo -----------------------------------------
 
 struct Lcg(u64);
 impl Lcg {
@@ -135,8 +129,6 @@ impl Lcg {
 
 #[test]
 fn large_polygons_use_index_and_match_geo() {
-    // Rings with >64 segments each push the pair count past INDEX_THRESHOLD, so
-    // the spatial-index path runs — it must agree with geo (and the brute path).
     let ring = |cx: f64, cy: f64, r: f64, n: usize| -> Vec<(f64, f64)> {
         (0..=n)
             .map(|i| {
@@ -150,25 +142,23 @@ fn large_polygons_use_index_and_match_geo() {
     check(
         &mk(ring(0.0, 0.0, 10.0, 200)),
         &mk(ring(40.0, 5.0, 8.0, 200)),
-    ); // disjoint
+    );
     check(
         &mk(ring(0.0, 0.0, 20.0, 200)),
         &mk(ring(2.0, 1.0, 5.0, 150)),
-    ); // nested → 0
+    );
     check(
         &mk(ring(0.0, 0.0, 10.0, 200)),
         &mk(ring(15.0, 0.0, 10.0, 180)),
-    ); // overlap → 0
+    );
     check(
         &mk(ring(0.0, 0.0, 10.0, 128)),
         &mk(ring(0.0, 30.0, 10.0, 128)),
-    ); // stacked, gap 10
+    );
 }
 
 #[test]
 fn index_path_scattered_points_match_geo() {
-    // Two overlapping clouds of many points: the cost model picks the spatial
-    // index (overlapping boxes + large), which must still agree with geo.
     let mut rng = Lcg(0x1357_9BDF_2468_ACE0);
     let cloud = |rng: &mut Lcg, n: usize| -> Geometry {
         Geometry::MultiPoint(hausdorff::MultiPoint::from(
@@ -198,10 +188,6 @@ fn ngon(cx: f64, cy: f64, r: f64, n: usize, rot: f64) -> Geometry {
 
 #[test]
 fn convex_fast_path_matches_geo() {
-    // Random convex polygons (regular n-gons, varied size/rotation/position):
-    // disjoint pairs take the O(n+m) GJK path, touching/overlapping pairs the
-    // intersects short-circuit — both must agree with geo, and with the squares
-    // and triangles already covered by `polygon_polygon` / the stress test.
     let mut rng = Lcg(0x00C0_FFEE_1234_5678);
     for _ in 0..400 {
         let n1 = 3 + (rng.next_u32() % 32) as usize;
@@ -212,7 +198,6 @@ fn convex_fast_path_matches_geo() {
         let b = ngon(rng.coord(40), rng.coord(40), r2, n2, rng.coord(7));
         check(&a, &b);
     }
-    // Large convex rings well separated: pure GJK, no intersects involvement.
     check(
         &ngon(0.0, 0.0, 5.0, 256, 0.1),
         &ngon(30.0, 4.0, 4.0, 512, 0.7),
@@ -220,22 +205,19 @@ fn convex_fast_path_matches_geo() {
     check(
         &ngon(0.0, 0.0, 5.0, 512, 0.0),
         &ngon(0.0, 25.0, 5.0, 200, 1.3),
-    ); // stacked
+    );
 }
 
 #[test]
 fn workspace_matches_free_functions() {
-    // A reused workspace must return exactly what the one-shot free functions do,
-    // across a heterogeneous batch (small, convex, point-cloud) of queries.
     let mut ws = MinDistanceWorkspace::new();
     let cases: Vec<(Geometry, Geometry)> = vec![
         (pt(0.0, 0.0), pt(3.0, 4.0)),
         (sq(0.0, 0.0, 2.0, 2.0), sq(5.0, 0.0, 7.0, 2.0)),
         (ngon(0.0, 0.0, 5.0, 64, 0.0), ngon(20.0, 3.0, 4.0, 64, 0.0)),
         (line(0.0, 0.0, 4.0, 0.0), pt(2.0, 3.0)),
-        (sq(0.0, 0.0, 10.0, 10.0), sq(3.0, 3.0, 7.0, 7.0)), // nested → 0
+        (sq(0.0, 0.0, 10.0, 10.0), sq(3.0, 3.0, 7.0, 7.0)),
     ];
-    // Two passes over the same workspace to confirm buffer reuse is stateless.
     for _ in 0..2 {
         for (a, b) in &cases {
             assert_eq!(

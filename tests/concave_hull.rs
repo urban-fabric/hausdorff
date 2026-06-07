@@ -30,12 +30,11 @@ fn proper_cross(a: Coord, b: Coord, c: Coord, d: Coord) -> bool {
 
 /// A polygon ring has no self-intersections among non-adjacent edges.
 fn is_simple(ring: &[Coord]) -> bool {
-    let v: Vec<Coord> = ring[..ring.len() - 1].to_vec(); // drop closing dup
+    let v: Vec<Coord> = ring[..ring.len() - 1].to_vec();
     let n = v.len();
     for i in 0..n {
         let (a, b) = (v[i], v[(i + 1) % n]);
         for j in (i + 1)..n {
-            // skip the two edges adjacent to edge i (they share a vertex)
             if j == i || (j + 1) % n == i || (i + 1) % n == j {
                 continue;
             }
@@ -58,7 +57,6 @@ fn point_on_seg(p: Coord, a: Coord, b: Coord) -> bool {
 
 /// A point is covered if it is strictly inside or lies on a ring edge.
 fn covered(ring: &[Coord], p: Coord) -> bool {
-    // ray cast for strict interior
     let n = ring.len();
     let mut inside = false;
     let mut j = n - 1;
@@ -139,8 +137,6 @@ fn large_concavity_degenerates_to_convex_hull() {
 
 #[test]
 fn small_concavity_digs_in() {
-    // square corners + a point just inside the bottom edge: a low concavity
-    // should pull the long bottom edge in to that point, shrinking the area.
     let pts = [
         (0.0, 0.0),
         (10.0, 0.0),

@@ -28,7 +28,7 @@ pub(super) fn assemble(rings: Vec<Vec<Coord>>) -> Vec<Polygon> {
     let mut polys: Vec<Polygon> = Vec::new();
     for i in 0..n {
         if !depth[i].is_multiple_of(2) {
-            continue; // hole; handled by its parent shell
+            continue;
         }
         let holes: Vec<LineString> = (0..n)
             .filter(|&h| {
@@ -94,7 +94,7 @@ fn interior_point(ring: &[Coord]) -> Coord {
     let mut bis = Coord::new(u1.x + u2.x, u1.y + u2.y);
     let blen = (bis.x * bis.x + bis.y * bis.y).sqrt();
     bis = if blen < 1e-12 {
-        Coord::new(-u1.y, u1.x) // edges nearly opposite: use a perpendicular
+        Coord::new(-u1.y, u1.x)
     } else {
         Coord::new(bis.x / blen, bis.y / blen)
     };

@@ -7,9 +7,6 @@ use hausdorff::space::r2::SpatialPredicate;
 use hausdorff::space::r2::relate::relate;
 use hausdorff::{Contains, Coord, Geometry, LineString, Point, Polygon};
 
-// Continuous coordinates (not an integer grid), so points never land exactly on
-// an edge — that boundary case is the one documented divergence between the
-// ray-cast fast path and the matrix, and it is measure-zero here.
 struct Rng(u64);
 impl Rng {
     fn next(&mut self) -> u64 {
@@ -75,9 +72,6 @@ fn eval_agrees_with_relate_and_transpose_holds() {
         let b = make(&mut rng, kb);
         let m = relate(&a, &b);
 
-        // The predicates whose `is_*` take no dimension argument: eval must equal
-        // the matrix exactly, including the Intersects/Disjoint and point-in-areal
-        // Contains/Within short-circuits.
         assert_eq!(
             SpatialPredicate::Intersects.eval(&a, &b),
             m.is_intersects(),
@@ -119,8 +113,6 @@ fn eval_agrees_with_relate_and_transpose_holds() {
             "equals"
         );
 
-        // `a P b` ⟺ `b P.transpose() a` for every predicate (covers Crosses /
-        // Overlaps symmetry too).
         for p in ALL {
             assert_eq!(
                 p.eval(&a, &b),
@@ -145,7 +137,6 @@ fn geometry_contains_point_is_areal_only() {
     ));
     assert!(sq.contains(&Coord::new(2.0, 2.0)));
     assert!(!sq.contains(&Coord::new(9.0, 9.0)));
-    // A non-areal geometry contains no point under this (areal) predicate.
     let line = Geometry::LineString(LineString::from(vec![(0.0, 0.0), (4.0, 0.0)]));
     assert!(!line.contains(&Coord::new(2.0, 0.0)));
 }

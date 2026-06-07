@@ -42,8 +42,6 @@ impl Area for Geometry {
     }
 
     fn unsigned_area(&self) -> f64 {
-        // A collection's unsigned area is the sum of its parts' *unsigned* areas,
-        // not `|Σ signed|` — members of opposite winding must not cancel.
         match self {
             Geometry::GeometryCollection(gs) => gs.iter().map(Area::unsigned_area).sum(),
             other => other.signed_area().abs(),

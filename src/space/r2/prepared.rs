@@ -140,12 +140,6 @@ impl<'a> PreparedGeometry<'a> {
         crossings % 2 == 1
     }
 
-    // Prepare one geometry, then probe a whole column of others against it in one
-    // call — the core of a spatial join. Each returns one result per input,
-    // aligned with it (a boolean mask, or a distance), so the output drops
-    // straight into a columnar filter. The probes are independent, so a caller
-    // wanting threads can split the column into chunks and run these on each.
-
     /// For each point in `points`, whether it lies inside this prepared **areal**
     /// geometry — a vectorized [`contains_point`](Self::contains_point) over a
     /// columnar batch: the point-in-polygon join.

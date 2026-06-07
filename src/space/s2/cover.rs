@@ -74,17 +74,12 @@ fn insert_point(lon: f64, lat: f64, level: u32, out: &mut BTreeSet<S2CellId>) {
 }
 
 fn cover_polygon(poly: &Polygon, level: u32, out: &mut BTreeSet<S2CellId>) -> Option<()> {
-    // Reject malformed rings up front: an out-of-range lat/lon would otherwise be
-    // silently wrapped by the trig in `S2Point::from_geo_point` rather than
-    // flagged. (Unlike a stray point, a bad polygon ring is fatal.)
     for ring in std::iter::once(poly.exterior()).chain(poly.interiors()) {
         if !ring.coords().all(|c| valid_lonlat(c.x, c.y)) {
             return None;
         }
     }
     let shell = ring_loop(poly.exterior())?;
-    // Holes have valid coordinates here; a degenerate one (<3 vertices, no area)
-    // simply drops.
     let holes: Vec<Loop> = poly.interiors().iter().filter_map(ring_loop).collect();
     out.extend(RegionCoverer::at_level(level).covering(&S2Polygon::new(shell, holes)));
     Some(())
@@ -101,8 +96,6 @@ fn ring_loop(ring: &LineString) -> Option<Loop> {
     if l.num_vertices() < 3 {
         return None;
     }
-    // A GIS ring never encloses more than a hemisphere; if this loop does it is
-    // wound interior-to-the-right — reverse it so the interior is the small side.
     if l.area() > std::f64::consts::PI * 2.0 {
         let mut v = l.vertices().to_vec();
         v.reverse();

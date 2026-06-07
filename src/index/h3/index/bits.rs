@@ -143,43 +143,43 @@ const fn rotate_digit_once(digit: u8, ccw: bool) -> u8 {
             } else {
                 3
             }
-        } // K -> IK / JK
+        }
         2 => {
             if ccw {
                 3
             } else {
                 6
             }
-        } // J -> JK / IJ
+        }
         3 => {
             if ccw {
                 1
             } else {
                 2
             }
-        } // JK -> K / J
+        }
         4 => {
             if ccw {
                 6
             } else {
                 5
             }
-        } // I -> IJ / IK
+        }
         5 => {
             if ccw {
                 4
             } else {
                 1
             }
-        } // IK -> I / K
+        }
         6 => {
             if ccw {
                 2
             } else {
                 4
             }
-        } // IJ -> J / I
-        _ => 0, // Center
+        }
+        _ => 0,
     }
 }
 
@@ -250,8 +250,7 @@ pub(in crate::index::h3) fn pentagon_rotate60(mut bits: u64, ccw: bool) -> u64 {
     if res == 0 {
         return bits;
     }
-    // Direction that would rotate to the (deleted) K axis.
-    let target = if ccw { 3 } else { 5 }; // JK.axe() / IK.axe()
+    let target = if ccw { 3 } else { 5 };
     let double = first_axe(bits) == Some(target);
     let mut r = 1u8;
     while r <= res {

@@ -52,7 +52,6 @@ fn codec_accessors_match_h3o() {
             oracle.is_pentagon(),
             "is_pentagon for {raw:#x}"
         );
-        // Token round-trips and matches h3o's string form.
         assert_eq!(ours.to_string(), oracle.to_string(), "token for {raw:#x}");
         assert_eq!(
             H3Cell::from_str(&oracle.to_string())
@@ -100,8 +99,6 @@ fn resolution_metadata_matches_h3_reference_constants() {
     assert_eq!(H3Cell::average_hexagon_area_km2(16), None);
     assert_eq!(H3Cell::average_hexagon_edge_length_km(16), None);
 
-    // The typed (euclid) accessors wrap the same Earth-dimensioned values, so
-    // they agree with the raw `f64` forms exactly — no tolerance needed.
     assert_eq!(
         H3Cell::average_hexagon_edge_length(9).map(|l| l.as_meters()),
         H3Cell::average_hexagon_edge_length_m(9),
@@ -115,9 +112,6 @@ fn resolution_metadata_matches_h3_reference_constants() {
 
 #[test]
 fn validity_matches_h3o_on_random_bits() {
-    // Deterministic LCG over u64 space — most are invalid, exercising the
-    // reject paths (bad mode, reserved bits, base cell range, bad digits,
-    // pentagon deleted K-axis, non-sentinel unused digits).
     let mut state = 0x1234_5678_9abc_def0u64;
     let mut valid_seen = 0u32;
     for _ in 0..500_000 {
@@ -132,8 +126,6 @@ fn validity_matches_h3o_on_random_bits() {
             valid_seen += 1;
         }
     }
-    // The reserved/unused-digit constraints make random hits rare but nonzero;
-    // mostly we're checking the reject paths agree.
     let _ = valid_seen;
 }
 
@@ -156,18 +148,14 @@ fn center_matches_h3o() {
 
 #[test]
 fn for_point_rejects_out_of_range_and_nonfinite() {
-    // a valid point indexes fine
     assert!(H3Cell::for_point(52.52, 13.405, 9).is_some());
-    // out-of-range latitude / longitude are rejected
     assert!(H3Cell::for_point(90.001, 0.0, 9).is_none());
     assert!(H3Cell::for_point(-90.001, 0.0, 9).is_none());
     assert!(H3Cell::for_point(0.0, 180.001, 9).is_none());
     assert!(H3Cell::for_point(0.0, -180.001, 9).is_none());
-    // non-finite coordinates and out-of-range resolution are rejected
     assert!(H3Cell::for_point(f64::NAN, 0.0, 9).is_none());
     assert!(H3Cell::for_point(0.0, f64::INFINITY, 9).is_none());
     assert!(H3Cell::for_point(0.0, 0.0, 16).is_none());
-    // inclusive bounds (the poles / antimeridian) are accepted
     assert!(H3Cell::for_point(90.0, 180.0, 0).is_some());
     assert!(H3Cell::for_point(-90.0, -180.0, 0).is_some());
 }
@@ -517,7 +505,6 @@ fn directed_edge_geometry_matches_h3o() {
                 "edge length m {:#x}",
                 edge.as_u64()
             );
-            // Typed LengthMeters wraps the same kernel — exact.
             assert_eq!(edge.length().as_meters(), edge.length_m());
         }
     }
@@ -603,12 +590,10 @@ fn vertices_reject_invalid_inputs() {
 
 #[test]
 fn grid_distance_matches_h3o() {
-    // Pairs of same-resolution cells at a few separations, plus near-pentagon.
     let anchors = small_sample();
     for &raw in anchors.iter().take(400) {
         let oracle = h3o::CellIndex::try_from(raw).expect("oracle");
         let ours = H3Cell::try_new(raw).expect("ours");
-        // Compare distance to each cell in the anchor's own grid_disk(3).
         for tgt in ours.grid_disk(3) {
             let o_tgt = h3o::CellIndex::try_from(tgt.as_u64()).unwrap();
             let want = oracle.grid_distance(o_tgt).ok();
@@ -682,7 +667,6 @@ fn boundary_bbox_matches_h3o() {
         let oracle = h3o::CellIndex::try_from(raw).expect("oracle");
         let ours = H3Cell::try_new(raw).expect("ours");
 
-        // h3o boundary bbox.
         let (mut o_min_lat, mut o_min_lon, mut o_max_lat, mut o_max_lon) = (
             f64::INFINITY,
             f64::INFINITY,
@@ -696,7 +680,6 @@ fn boundary_bbox_matches_h3o() {
             o_max_lon = o_max_lon.max(v.lng());
         }
 
-        // ours.
         let (mut m_min_lat, mut m_min_lon, mut m_max_lat, mut m_max_lon) = (
             f64::INFINITY,
             f64::INFINITY,
@@ -747,8 +730,6 @@ fn exact_cell_area_matches_h3o() {
             ours.area_m2(),
             oracle.area_m2()
         );
-        // Typed AreaSquareMeters wraps the same kernel — exact, not just within
-        // the oracle tolerance above.
         assert_eq!(ours.area().as_square_meters(), ours.area_m2());
     }
 }
@@ -845,8 +826,6 @@ fn polygon_rejects_invalid_rings() {
         ),
         Err(H3PolygonError::TransmeridianUnsupported)
     );
-    // Out-of-range longitude is rejected like H3Line / H3Cell::for_point, rather
-    // than silently producing an empty or incomplete cover.
     assert_eq!(
         H3Polygon::new(
             vec![(0.0, 200.0), (0.0, 201.0), (1.0, 200.5)],
@@ -858,9 +837,7 @@ fn polygon_rejects_invalid_rings() {
 
 #[test]
 fn rejects_non_cell_indices() {
-    // Mode 0 (reserved) and a directed-edge-mode index are not valid cells.
     assert!(H3Cell::try_new(0).is_none());
-    // A valid cell with the mode bits flipped to an edge mode (2) must reject.
     let valid = h3o::LatLng::new(40.7, -74.0)
         .unwrap()
         .to_cell(h3o::Resolution::Nine);
@@ -877,14 +854,12 @@ fn line_cover_endpoints_are_vertex_cells_and_path_is_connected() {
     let line = H3Line::new(vertices.clone()).expect("line");
     let cells = line.to_cells(resolution).expect("cells");
 
-    // Endpoints snap to the first/last vertex's containing cell.
     let first = H3Cell::for_point(vertices[0].0, vertices[0].1, resolution).expect("first cell");
     let &(last_lat, last_lng) = vertices.last().expect("last vertex");
     let last = H3Cell::for_point(last_lat, last_lng, resolution).expect("last cell");
     assert_eq!(cells.first().copied(), Some(first));
     assert_eq!(cells.last().copied(), Some(last));
 
-    // Every vertex's cell is covered.
     for &(lat, lng) in &vertices {
         let cell = H3Cell::for_point(lat, lng, resolution).expect("vertex cell");
         assert!(
@@ -893,8 +868,6 @@ fn line_cover_endpoints_are_vertex_cells_and_path_is_connected() {
         );
     }
 
-    // No duplicates, and (the polyline does not self-cross) the cover is a
-    // connected neighbour walk from start to end.
     let mut unique = cells.clone();
     unique.sort_unstable();
     unique.dedup();
@@ -908,18 +881,15 @@ fn line_cover_endpoints_are_vertex_cells_and_path_is_connected() {
         );
     }
 
-    // The convenience wrapper agrees.
     assert_eq!(H3Cell::line_to_cells(&line, resolution), Ok(cells));
 }
 
 #[test]
 fn line_cover_within_one_cell_is_that_cell() {
-    // Two nearby points inside one large (res 1) cell collapse to that cell.
     let line = H3Line::new(vec![(40.700, -74.000), (40.701, -74.001)]).expect("line");
     let cell = H3Cell::for_point(40.700, -74.000, 1).expect("cell");
     assert_eq!(line.to_cells(1), Ok(vec![cell]));
 
-    // A single-vertex line yields just its containing cell.
     let dot = H3Line::new(vec![(51.5, -0.12)]).expect("dot");
     let dot_cell = H3Cell::for_point(51.5, -0.12, 9).expect("dot cell");
     assert_eq!(dot.to_cells(9), Ok(vec![dot_cell]));
@@ -932,8 +902,6 @@ fn line_cover_matches_concatenated_segment_grid_paths() {
     let line = H3Line::new(vertices.clone()).expect("line");
     let cells = line.to_cells(resolution).expect("cells");
 
-    // Independently rebuild the expected ordered, de-duplicated cover from the
-    // grid path between each consecutive vertex's cell.
     let vertex_cells: Vec<H3Cell> = vertices
         .iter()
         .map(|&(lat, lng)| H3Cell::for_point(lat, lng, resolution).expect("vertex cell"))
@@ -976,8 +944,6 @@ fn line_cover_validates_input() {
 
 #[test]
 fn for_points_batch_matches_scalar() {
-    // The batch column kernel must be bit-identical to the per-point path,
-    // including the invalid-coordinate (None) and out-of-range-resolution rules.
     let lats = [0.0, 12.3, -45.6, 80.0, 91.0, f64::NAN, 51.5];
     let lngs = [0.0, 34.5, -120.0, 179.9, 10.0, 0.0, -0.12];
     for res in [0u8, 5, 9, 15] {
@@ -989,16 +955,12 @@ fn for_points_batch_matches_scalar() {
             .collect();
         assert_eq!(batch, scalar, "batch != scalar at res {res}");
     }
-    // Out-of-range resolution → all None; mismatched lengths zip to the shorter.
     assert_eq!(H3Cell::for_points(&lats, &lngs, 16), vec![None; lats.len()]);
     assert_eq!(H3Cell::for_points(&lats, &lngs[..2], 9).len(), 2);
 }
 
 #[test]
 fn for_points_approx_is_exact_or_edge_neighbour() {
-    // The approximate projection (tan(acos) identity) must match the exact cell
-    // for cell-interior points and, where float noise flips a near-boundary point,
-    // differ only to an edge-neighbour — never a wrong cell. Sweep the globe.
     let mut lats = Vec::new();
     let mut lngs = Vec::new();
     let mut lat = -85.0;

@@ -89,7 +89,6 @@ fn cover_polygon(poly: &Polygon, res: u8, out: &mut BTreeSet<H3Cell>) -> Option<
     let exterior = lat_lng(poly.exterior());
     let holes: Vec<Vec<(f64, f64)>> = poly.interiors().iter().map(lat_lng).collect();
 
-    // Interior fill: cells whose centre is inside the polygon.
     out.extend(
         H3Polygon::new(exterior.clone(), holes.clone())
             .ok()?
@@ -97,13 +96,6 @@ fn cover_polygon(poly: &Polygon, res: u8, out: &mut BTreeSet<H3Cell>) -> Option<
             .ok()?,
     );
 
-    // Boundary completion: the grid-path cover of every ring pulls in many of the
-    // edge-straddling cells the centroid fill omits. This is an approximation —
-    // H3Line walks the shortest grid path between vertex cells, not an exact
-    // segment↔cell intersection — so it is not a guaranteed superset. A ring whose
-    // grid path is undefined is fatal (`None`), matching line covers. The r2 rings
-    // are already closed (first == last), so every edge — including the closing one
-    // — is walked.
     for ring in std::iter::once(exterior).chain(holes) {
         out.extend(H3Line::new(ring).ok()?.to_cells(res).ok()?);
     }

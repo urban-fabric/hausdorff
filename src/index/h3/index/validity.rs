@@ -36,7 +36,6 @@ pub(super) fn is_valid_cell(bits: u64) -> bool {
         let d = get_digit(bits, r);
         if !found_first_nonzero && d != 0 {
             found_first_nonzero = true;
-            // Pentagons have no K-axis child (deleted subsequence).
             if is_pent_base && d == K_AXIS_DIGIT {
                 return false;
             }
@@ -46,7 +45,6 @@ pub(super) fn is_valid_cell(bits: u64) -> bool {
         }
         r += 1;
     }
-    // Unused digits must be the sentinel 7.
     while r <= MAX_RESOLUTION {
         if get_digit(bits, r) != INVALID_DIGIT {
             return false;

@@ -99,7 +99,6 @@ pub(super) fn linear_ring_area_rads2(ring: &[(f64, f64)]) -> f64 {
         .zip(ring.iter().cycle().skip(1))
         .take(ring.len())
     {
-        // Boundary tuples are `(lat, lng)`; Cagnoli's formula takes `(lng, lat)`.
         adder.add(cagnoli((a.1, a.0), (b.1, b.0)));
     }
 

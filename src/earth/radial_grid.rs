@@ -31,7 +31,7 @@ use euclid::LengthMeters;
 /// One sampled point on a [`RadialGrid`], carrying its polar coordinates.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RingPoint {
-    /// Ring index, 0-based; ring 0 is the innermost, one `step` from the center.
+    /// Ring index, 0-based; ring 0 is the innermost, at `first_radius` from the center.
     pub ring: u32,
     /// Spoke index, 0-based, increasing clockwise from the bearing offset.
     pub spoke: u32,

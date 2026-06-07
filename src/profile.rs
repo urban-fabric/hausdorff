@@ -1,6 +1,7 @@
 //! Optional in-process profiling hooks (the `profiling` feature).
 //!
-//! [`span`] opens a hierarchical huygens span for the enclosing scope; bind it
+//! [`span()`](crate::profile::span) opens a hierarchical huygens span for the
+//! enclosing scope; bind it
 //! to a local (`let _span = profile::span("…")`) and it closes on drop, nesting
 //! under any ambient [`PerfReport`](huygens::PerfReport) root. With the
 //! `profiling` feature **off** it is an inert zero-sized guard the optimizer

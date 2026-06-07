@@ -78,9 +78,6 @@ pub(super) fn neighbor_rotations(
     while r >= 1 {
         let from = index::get_direction(current, r) as usize;
         let to = direction as usize;
-        // NB: the `_II` tables apply at Class III resolutions and vice versa —
-        // the table names are inverted relative to the resolution class (this
-        // matches both the H3 C reference and h3o).
         let next_direction = if is_class3(r) {
             current = index::set_direction(current, NEW_DIRECTION_II[from][to], r);
             NEW_ADJUSTMENT_II[from][to]
@@ -102,9 +99,7 @@ pub(super) fn neighbor_rotations(
             current = index::set_base_cell(current, bc);
             base_cells::neighbor_rotation(old_base_cell, direction)
         } else {
-            // Deleted K vertex at base-cell level: this edge borders the IK
-            // neighbor instead.
-            let bc = base_cells::neighbor(old_base_cell, 5)?; // IK
+            let bc = base_cells::neighbor(old_base_cell, 5)?;
             current = index::set_base_cell(current, bc);
             current = index::rotate60(current, 1, CCW);
             rotations += 1;
@@ -118,16 +113,13 @@ pub(super) fn neighbor_rotations(
     if base_cells::is_pentagon(new_base_cell) {
         let mut already_adjusted = false;
         if index::first_axe(current) == Some(1) {
-            // K
             if old_base_cell == new_base_cell {
                 let old_leading = index::first_axe(origin);
-                old_leading?; // undefined: K direction is deleted here
+                old_leading?;
                 if old_leading == Some(3) {
-                    // JK
                     current = index::rotate60(current, 1, CCW);
                     rotations += 1;
                 } else if old_leading == Some(5) {
-                    // IK
                     current = index::rotate60(current, 1, CW);
                     rotations += 5;
                 }

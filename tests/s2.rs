@@ -31,7 +31,6 @@ fn zero_and_max_are_invalid() {
 
 #[test]
 fn face_tokens_match_reference() {
-    // Level-0 face cells are `(2f+1) << 60`, i.e. tokens "1","3",…,"b".
     let expected = ["1", "3", "5", "7", "9", "b"];
     for (f, tok) in expected.iter().enumerate() {
         assert_eq!(S2CellId::from_face(f as u8).to_token(), *tok);
@@ -40,13 +39,12 @@ fn face_tokens_match_reference() {
 
 #[test]
 fn point_lands_on_expected_face() {
-    // The +X,+Y,+Z,-X,-Y,-Z axes map to faces 0..5 respectively.
-    assert_eq!(S2CellId::from_geo_point(gp(0.0, 0.0)).face(), 0); // +X
-    assert_eq!(S2CellId::from_geo_point(gp(0.0, 90.0)).face(), 1); // +Y
-    assert_eq!(S2CellId::from_geo_point(gp(90.0, 0.0)).face(), 2); // +Z (north pole)
-    assert_eq!(S2CellId::from_geo_point(gp(0.0, 180.0)).face(), 3); // -X
-    assert_eq!(S2CellId::from_geo_point(gp(0.0, -90.0)).face(), 4); // -Y
-    assert_eq!(S2CellId::from_geo_point(gp(-90.0, 0.0)).face(), 5); // -Z (south pole)
+    assert_eq!(S2CellId::from_geo_point(gp(0.0, 0.0)).face(), 0);
+    assert_eq!(S2CellId::from_geo_point(gp(0.0, 90.0)).face(), 1);
+    assert_eq!(S2CellId::from_geo_point(gp(90.0, 0.0)).face(), 2);
+    assert_eq!(S2CellId::from_geo_point(gp(0.0, 180.0)).face(), 3);
+    assert_eq!(S2CellId::from_geo_point(gp(0.0, -90.0)).face(), 4);
+    assert_eq!(S2CellId::from_geo_point(gp(-90.0, 0.0)).face(), 5);
 }
 
 #[test]
@@ -59,8 +57,6 @@ fn lat_lng_maps_to_leaf_cell() {
 
 #[test]
 fn center_round_trips_within_leaf_resolution() {
-    // A leaf cell is sub-centimeter, so its center is within a few 1e-7 deg of
-    // any point it contains.
     for &(lat, lon) in &[
         (0.0, 0.0),
         (37.7749, -122.4194),
@@ -84,7 +80,7 @@ fn token_round_trips() {
     }
     assert_eq!(S2CellId::from_token(""), None);
     assert_eq!(S2CellId::from_token("zzz"), None);
-    assert_eq!(S2CellId::from_token("00000000000000000"), None); // > 16 chars
+    assert_eq!(S2CellId::from_token("00000000000000000"), None);
 }
 
 #[test]
@@ -153,14 +149,11 @@ fn all_neighbors_include_edge_neighbors() {
 }
 
 fn all_neighbors_empty_when_level_too_coarse(c: S2CellId) -> bool {
-    // No neighbors exist at a level coarser than the cell's own level.
     c.all_neighbors(c.level().saturating_sub(1)).is_empty()
 }
 
 #[test]
 fn display_renders_face_and_child_path() {
-    // S2's canonical "face/child-path" form keeps the slash even for a face
-    // cell, so a level-0 cell renders as "1/" (matching the Go reference).
     assert_eq!(S2CellId::from_face(1).to_string(), "1/");
     assert_eq!(S2CellId::from_face(1).children()[2].to_string(), "1/2");
 }

@@ -60,8 +60,6 @@ fn prepared_distance_within_intersects_match_oneshot() {
 
 #[test]
 fn prepared_batch_predicates_match_per_call() {
-    // The batch (spatial-join broadcast) methods must return, element-for-element,
-    // exactly what the per-call methods do.
     let base = sq(0.0, 0.0, 10.0, 10.0);
     let prepared = PreparedGeometry::new(&base);
     let mut rng = Lcg(0xD1B5_4A32_D192_ED03);
@@ -122,7 +120,6 @@ fn prepared_contains_point_matches_polygon_with_hole() {
 
     let mut rng = Lcg(0x1234_5678_9ABC_DEF0);
     for _ in 0..3000 {
-        // spans the shell interior, the hole, and the exterior
         let c = Coord::new(rng.coord(24), rng.coord(24));
         assert_eq!(
             prepared.contains_point(c),

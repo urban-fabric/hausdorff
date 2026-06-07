@@ -212,6 +212,6 @@ impl Destination for Haversine {
             CompassBearing::from_degrees(bearing_degrees),
             distance,
         );
-        Point::new(dest.lon, dest.lat) // back to x = lon, y = lat
+        Point::new(dest.lon, dest.lat)
     }
 }

@@ -59,8 +59,9 @@ impl FaceIJK {
     }
 
     /// As [`from_vec3d`](Self::from_vec3d) but via the faster gnomonic radial
-    /// factor ([`coord::Vec2d::from_vec3d_fast`]); equal except at the last ULPs,
-    /// so a result can shift to an adjacent cell only for a near-boundary point.
+    /// factor ([`Vec2d::from_vec3d_fast`](super::coord::Vec2d::from_vec3d_fast)); equal
+    /// except at the last ULPs, so a result can shift to an adjacent cell only for a
+    /// near-boundary point.
     pub(super) fn from_vec3d_fast(value: Vec3d, res: usize) -> Self {
         let (face, distance) = value.closest_face();
         let coord = Vec2d::from_vec3d_fast(value, res, face, distance).into();
@@ -90,7 +91,6 @@ impl FaceIJK {
         bits = index::set_base_cell(bits, rotation.base_cell);
 
         if base_cells::is_pentagon(rotation.base_cell) {
-            // Force rotation out of the missing K-axis sub-sequence.
             if index::first_axe(bits) == Some(1) {
                 if base_cells::is_cw_offset(rotation.base_cell, self.face) {
                     bits = index::rotate60(bits, 1, CW);
@@ -177,7 +177,6 @@ impl FaceIJK {
 
     /// FaceIJK for a cell index, with overage applied (the center-on-face form).
     pub(super) fn from_cell(mut bits: u64, base_cell: u8, res: usize) -> Self {
-        // Adjust for the pentagonal missing sequence (sub-sequence 5).
         if base_cells::is_pentagon(base_cell) && index::first_axe(bits) == Some(5) {
             bits = index::rotate60(bits, 1, CW);
         }
@@ -230,8 +229,6 @@ impl FaceIJK {
     /// (extended) resolution used for the vertices. `verts` is filled with `n`
     /// entries (6 hexagon, 5 pentagon).
     fn vertices(&mut self, res: usize, n: usize, verts: &mut [FaceIJK; 6]) -> usize {
-        // Vertices CCW from the i-axis on a 33r (Class II) / 33r7r (Class III)
-        // substrate grid.
         const VERTS_CII: [CoordIJK; 6] = [
             CoordIJK::new(2, 1, 0),
             CoordIJK::new(1, 2, 0),
@@ -299,8 +296,6 @@ impl FaceIJK {
         let edge_v2 = Vec2d::new(-1.5 * max_dim, -3.0 * SQRT3_2 * max_dim);
 
         if is_pentagon {
-            // Pentagons: each vertex is overage-adjusted; Class III edges cross
-            // icosahedron edges and need an interpolated vertex.
             let mut last_fijk = FaceIJK::default();
             for vert in start..(start + length + additional_iteration) {
                 let mut fijk = verts[usize::from(vert) % n];
