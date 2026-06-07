@@ -24,7 +24,7 @@ use the same internal implementation.
   trait names mirror `geo` so callers migrate by changing the import path.
   Includes `Area`, `Centroid`, `BoundingRect`, `ConvexHull`, `ConcaveHull`,
   `Simplify`, `Distance` / `min_distance`, `Intersects`, `Length` / `Perimeter`,
-  `Orient`, `BooleanOps`, `Relate`, the `StrTree` spatial index,
+  `Orient`, `BooleanOps`, `relate` (DE-9IM), the `StrTree` spatial index,
   `PreparedGeometry`, spatial joins, and set/curve distances
   (`hausdorff_distance` / `frechet_distance`).
 - **`space::s2`** — spherical S2 primitives ported from golang/geo: cell ids,
@@ -37,7 +37,8 @@ use the same internal implementation.
   (`earth::similarity`).
 - **`algebra`** — metric / vector-space traits (`MetricSpace`, `Norm`,
   `InnerProduct`, `VectorSpace`) and the generic Hausdorff / Fréchet kernels.
-- **`format`** — native WKT, WKB, and GeoJSON codecs over `space::r2::Geometry`.
+- **`format`** — native WKT, WKB, and GeoJSON codecs over `space::r2::Geometry`,
+  plus a read-only ESRI Shapefile (`.shp`) geometry reader.
 - **`convert`** — moves geometry between the planar (`r2`) and spherical
   (`earth`) layers.
 
@@ -48,10 +49,10 @@ treat this as guidance, not a guarantee):
 
 - **Stable** — exercised by conformance suites and used downstream:
   `index::h3`, `index::geohash`, the `space::r2` geometry / algorithm surface,
-  `format` (wkt / wkb / geojson), `earth` (points, geodesics, bbox, `RadialGrid`,
-  `similarity`), and `algebra`. The `space::r2` trait names intentionally mirror
-  `geo` as **migration shims** — they exist so callers can swap the import path,
-  and may diverge from `geo` over time.
+  `format` (wkt / wkb / geojson, shapefile read), `earth` (points, geodesics,
+  bbox, `RadialGrid`, `similarity`), and `algebra`. The `space::r2` trait names
+  intentionally mirror `geo` as **migration shims** — they exist so callers can
+  swap the import path, and may diverge from `geo` over time.
 - **Experimental** — `space::s2::RegionCoverer`. Its cell-intersection test is
   conservative — it counts boundary touches and either-way nesting, so it
   over-covers rather than dropping boundary-coincident cells — but it still uses a
@@ -65,9 +66,10 @@ treat this as guidance, not a guarantee):
   `*_m` / typed forms in `earth::similarity`, return `Option` so an empty operand
   is not silently read as "identical". The generic `algebra` kernels remain total
   (`0.0` for empty slices).
-- **WKT empties are lossy in type.** `Geometry` has no typed-empty variant, so
-  every `… EMPTY` (e.g. `POINT EMPTY`) round-trips as `MULTIPOINT EMPTY`: the
-  geometry stays empty, but its original type is not preserved.
+- **`POINT EMPTY` is lossy in type.** `Point` wraps a single coordinate and has
+  no empty form, so `POINT EMPTY` parses to an empty `MultiPoint` and re-emits as
+  `MULTIPOINT EMPTY`. Every other `… EMPTY` round-trips with its own type
+  preserved.
 
 ## Attribution
 

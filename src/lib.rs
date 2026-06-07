@@ -1,5 +1,3 @@
-// `deny` rather than `forbid` so the `bytemuck` POD derives in `earth`/`s1` can
-// locally `#![allow(unsafe_code)]`; the H3 implementation stays unsafe-free.
 #![deny(unsafe_code)]
 
 //! Internal geometry library for UrbanFabric.

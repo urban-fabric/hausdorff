@@ -99,8 +99,6 @@ impl IntersectionMatrix {
     }
 
     /// `A` crosses `B` — dimension-dependent (OGC).
-    // The dimension-pair clauses are enumerated symmetrically to mirror the OGC
-    // table; factoring them (as clippy suggests) obscures that structure.
     #[allow(clippy::nonminimal_bool)]
     #[must_use]
     pub fn is_crosses(&self, dim_a: i8, dim_b: i8) -> bool {

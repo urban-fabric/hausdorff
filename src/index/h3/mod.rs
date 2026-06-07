@@ -10,7 +10,7 @@
 //!
 //! Every operation is differential-tested against `h3o` (kept as a
 //! dev-dependency oracle only) plus a random-index validity sweep — see
-//! `tests.rs`. Constant tables (base cells, faces, FaceIJK base-cell lookup) are
+//! `tests/h3.rs`. Constant tables (base cells, faces, FaceIJK base-cell lookup) are
 //! the standard H3 data, lifted verbatim; the algorithms are ported from the H3
 //! C reference / h3o.
 

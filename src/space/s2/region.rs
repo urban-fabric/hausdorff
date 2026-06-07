@@ -94,8 +94,6 @@ fn loops_overlap(a: &Loop, b: &Loop) -> bool {
             }
         }
     }
-    // No boundary contact ⇒ disjoint or nested; with no contact every vertex is
-    // strictly inside or outside, so one interior vertex of either settles it.
     b.vertices().iter().any(|&v| a.contains_point(v))
         || a.vertices().iter().any(|&v| b.contains_point(v))
 }
@@ -111,7 +109,6 @@ fn bounding_cap_of(points: &[S2Point]) -> Cap {
         sum = sum.add(p.vector());
     }
     let mean = sum.normalize();
-    // Antipodal points can cancel to the zero vector; fall back to the first.
     let center = if mean.norm2() == 0.0 {
         points[0]
     } else {
@@ -136,8 +133,6 @@ impl Region for Cap {
         verts.iter().any(|&v| self.contains_point(v)) || self.intersects(bounding_cap_of(&verts))
     }
     fn contains_cell(&self, cell: S2CellId) -> bool {
-        // A cap is convex; if every corner is inside, the cell is (near enough)
-        // inside. Approximate — `Cap` is not the coverer's primary region.
         cell.vertices().iter().all(|&v| self.contains_point(v))
     }
 }
@@ -234,8 +229,6 @@ impl RegionCoverer {
             return;
         }
         let level = cell.level();
-        // Never refine past a leaf: `S2CellId::children()` is undefined at the
-        // leaf level, so clamp the finest level regardless of `self.max_level`.
         let max_level = self.max_level.min(MAX_LEVEL);
         let at_budget = out.len() >= self.max_cells;
         if level >= max_level

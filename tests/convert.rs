@@ -8,7 +8,7 @@ use hausdorff::space::r2::Coord;
 fn geo_point_round_trips_through_coord() {
     let p = GeoPoint::from_lat_lon(40.0, -74.0);
     let c = geo_point_to_coord(p);
-    assert_eq!(c, Coord::new(-74.0, 40.0)); // x = lon, y = lat
+    assert_eq!(c, Coord::new(-74.0, 40.0));
     let back = coord_to_geo_point(c);
     assert_eq!(back, p);
 }

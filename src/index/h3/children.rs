@@ -99,7 +99,6 @@ impl Iterator for Children {
             for resolution in (self.parent_res..=self.target_res).rev() {
                 let direction = self.next_direction(resolution);
 
-                // First K-axis child of each resolution is skipped for pentagons.
                 if self.skip_count == i16::from(resolution) && direction == 1 {
                     self.next_direction(resolution);
                     self.skip_count -= 1;

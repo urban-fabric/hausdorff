@@ -59,7 +59,6 @@ fn check(a: &[&[&[(f64, f64)]]], b: &[&[&[(f64, f64)]]]) {
     assert!((diff - gd).abs() < EPS, "difference {diff} vs geo {gd}");
     assert!((xor - gx).abs() < EPS, "xor {xor} vs geo {gx}");
 
-    // set-algebra invariants (independent of geo)
     let area_a = ha(&ha_);
     assert!(
         (uni - (area_a + ha(&hb_) - inter)).abs() < EPS,
@@ -106,14 +105,8 @@ fn partial_edge_overlap() {
     check(&[&[&sq(0.0, 0.0, 4.0, 2.0)]], &[&[&sq(2.0, 0.0, 6.0, 2.0)]]);
 }
 
-// ---- T-vertex configurations (the documented overlay limitation) -----------
-// A vertex of one polygon lying on the *interior* of the other's edge. Common on
-// integer grids / tiled data. These probe whether the sweep mislabels in/out.
-
 #[test]
 fn t_vertex_touching_matches_geo() {
-    // B's corner (2,1) lies on the interior of A's right edge (x=2, y∈[0,2]).
-    // Interiors are disjoint; they touch along x=2, y∈[0,1]. Union = 4 + 2 = 6.
     let a = sq(0.0, 0.0, 2.0, 2.0);
     let b = vec![(2.0, 0.0), (4.0, 0.0), (4.0, 1.0), (2.0, 1.0)];
     check(&[&[&a]], &[&[&b]]);
@@ -121,8 +114,6 @@ fn t_vertex_touching_matches_geo() {
 
 #[test]
 fn t_vertex_grid_tiles_matches_geo() {
-    // A big left tile abutting two stacked right tiles: the right tiles' shared
-    // corner (4,1) is a T-vertex on the big tile's right edge (x=4, y∈[0,2]).
     let left = sq(0.0, 0.0, 4.0, 2.0);
     let right_lo = sq(4.0, 0.0, 6.0, 1.0);
     let right_hi = sq(4.0, 1.0, 6.0, 2.0);
@@ -131,8 +122,6 @@ fn t_vertex_grid_tiles_matches_geo() {
 
 #[test]
 fn t_vertex_overlap_matches_geo() {
-    // Overlapping T-vertex: B's left edge runs x=2, y∈[1,3]; its corners (2,1)
-    // and (2,3) lie on the interior of A's edges, and the interiors overlap.
     let a = sq(0.0, 0.0, 4.0, 4.0);
     let b = sq(2.0, 1.0, 6.0, 3.0);
     check(&[&[&a]], &[&[&b]]);
@@ -140,8 +129,6 @@ fn t_vertex_overlap_matches_geo() {
 
 #[test]
 fn t_vertex_staircase_union_matches_geo() {
-    // A comb/staircase whose steps put several vertices (6,2) and (6,4) on the
-    // interior of the big square's right edge (x=6, y∈[0,6]) — many T-vertices.
     let big = sq(0.0, 0.0, 6.0, 6.0);
     let comb = vec![
         (3.0, 0.0),
@@ -198,8 +185,6 @@ fn multipolygon_inputs() {
     check(&[&[&a], &[&b]], &[&[&c]]);
 }
 
-// ---- randomized stress: native vs geo over many pseudo-random polygon pairs ----
-
 /// Small deterministic LCG so the stress battery is reproducible without rand.
 struct Lcg(u64);
 impl Lcg {
@@ -241,8 +226,6 @@ fn shift_x(r: &[(f64, f64)], dx: f64) -> Vec<(f64, f64)> {
 
 #[test]
 fn stress_random_multirects_match_geo() {
-    // Keep the subject's two components in disjoint x-bands so the MultiPolygon
-    // stays valid (no self-overlap); the clip rect is wide enough to cross both.
     let mut rng = Lcg(0x0fed_cba9_8765_4321);
     for _ in 0..200 {
         let a1 = rand_rect(&mut rng, 10);
@@ -268,7 +251,6 @@ fn tri_area2(t: &[(f64, f64)]) -> f64 {
 
 #[test]
 fn stress_random_triangles_match_geo() {
-    // general-position crossings (non-axis-aligned); skip near-degenerate tris.
     let mut rng = Lcg(0xdead_beef_cafe_0001);
     let mut tested = 0;
     while tested < 300 {

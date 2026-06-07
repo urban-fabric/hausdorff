@@ -162,8 +162,6 @@ fn compare_events(events: &[Event], e1: u32, e2: u32) -> Ordering {
             Ordering::Less
         };
     }
-    // both left or both right at the same point: the lower segment is processed
-    // first (matches Martinez `!e1.isBelow(e2.other)`).
     let s = signed_area(a.point, other_point(events, e1), other_point(events, e2));
     if s != 0.0 {
         return if s > 0.0 {
@@ -179,16 +177,8 @@ fn compare_events(events: &[Event], e1: u32, e2: u32) -> Ordering {
             Ordering::Greater
         };
     }
-    // Fully tied: break by arena index for a strict, stable total order. The
-    // index min-heap relies on a total order (it has no implicit insertion-order
-    // tiebreak the way `std::BinaryHeap` happened to provide).
     e1.cmp(&e2)
 }
-
-// `std::BinaryHeap`'s `Ord` can't see the arena, so we keep a small binary
-// min-heap over event indices whose comparator is `compare_events` against the
-// live arena — preserving the reference algorithm's "compare current state"
-// behaviour as segments are divided.
 
 /// Push event index `idx` and sift it up to its place.
 fn heap_push(heap: &mut Vec<u32>, events: &[Event], idx: u32) {
@@ -210,7 +200,7 @@ fn heap_pop(heap: &mut Vec<u32>, events: &[Event]) -> Option<u32> {
     if heap.is_empty() {
         return None;
     }
-    let top = heap.swap_remove(0); // move the last element into the root
+    let top = heap.swap_remove(0);
     let n = heap.len();
     let mut i = 0;
     loop {
@@ -280,14 +270,10 @@ fn below(a: Coord, b: Coord, p: Coord) -> bool {
 
 fn run(subject: &MultiPolygon, clipping: &MultiPolygon, op: Operation) -> MultiPolygon {
     let _span = crate::profile::span("bool_ops::run");
-    // The sweep's in/out labelling assumes canonical winding (exterior CCW,
-    // holes CW); normalise both operands so arbitrarily-wound input works.
     use super::winding::{Direction, Orient};
     let subject = subject.orient(Direction::Default);
     let clipping = clipping.orient(Direction::Default);
 
-    // Two events per edge initially, plus splits; one growing arena instead of a
-    // heap allocation per event.
     let cap = 2 * (subject.coords_count() + clipping.coords_count()) + 16;
     let mut events: Vec<Event> = Vec::with_capacity(cap);
     let mut queue: Vec<u32> = Vec::with_capacity(cap);
@@ -533,16 +519,10 @@ fn possible_intersection(events: &mut Vec<Event>, queue: &mut Vec<u32>, e1: u32,
         return 1;
     }
 
-    // n == 2: collinear overlapping segments. Overlap within the same operand is
-    // degenerate input — ignore it.
     if events[e1 as usize].subject == events[e2 as usize].subject {
         return 0;
     }
 
-    // Faithful port of Martinez `possibleIntersection`'s overlap branch: order
-    // the up-to-four endpoints, then subdivide so the overlapping portions become
-    // a coincident pair. The coincident pair is later re-processed via the
-    // left-coincide path, which assigns Same/DifferentTransition.
     let e1o = events[e1 as usize].other.unwrap();
     let e2o = events[e2 as usize].other.unwrap();
     let mut order: Vec<u32> = Vec::new();
@@ -624,7 +604,6 @@ fn divide_segment(events: &mut Vec<Event>, queue: &mut Vec<u32>, e: u32, p: Coor
         events[other as usize].left = true;
         events[l as usize].left = false;
     }
-    // (compare_events(e, r) == Greater is a rare numerical case; leave as-is.)
 
     heap_push(queue, events, l);
     heap_push(queue, events, r);
@@ -645,8 +624,6 @@ fn connect_edges(events: &[Event], sorted: &[u32]) -> Vec<Polygon> {
     if n == 0 {
         return Vec::new();
     }
-    // position of each event index within `result` (arena index → result slot),
-    // replacing the per-call HashMap with a flat lookup.
     let mut index_of = vec![u32::MAX; events.len()];
     for (i, &e) in result.iter().enumerate() {
         index_of[e as usize] = i as u32;

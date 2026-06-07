@@ -38,8 +38,6 @@ fn row(name: &str, ext_name: &str, iters: u64, haus: impl FnMut(), ext: impl FnM
     let bench = Bench::new().warmup(batch).samples(SAMPLES).batch(batch);
     let h = bench.run("hausdorff", haus);
     let e = bench.run(ext_name, ext);
-    // hausdorff is the candidate, the external library the baseline, so the
-    // verdict ("Nx faster" / "Nx slower" / "even") reads from hausdorff's side.
     let verdict = compare(&e, &h).verdict();
     println!(
         "  {name:<26} {:>14}   {ext_name:<8} {:>14}   hausdorff {verdict}",
@@ -80,7 +78,6 @@ fn main() {
 
     let mut rng = Rng(0x00C0_FFEE_1234_5678);
 
-    // ---- haversine great-circle distance (vs geo) --------------------------
     let (a, b) = (
         GeoPoint::from_lat_lon(52.52, 13.405),
         GeoPoint::from_lat_lon(48.857, 2.352),
@@ -101,7 +98,6 @@ fn main() {
         },
     );
 
-    // ---- ST_Distance: polygon-polygon minimum distance (vs geo) ------------
     let ring = |cx: f64, cy: f64, r: f64, n: usize| -> Vec<(f64, f64)> {
         (0..=n)
             .map(|i| {
@@ -127,7 +123,6 @@ fn main() {
         },
     );
 
-    // ---- ST_Distance at scale: 512-gons vs geo (brute + bbox prune) -------
     let (la, lb) = (ring(0.0, 0.0, 5.0, 512), ring(20.0, 3.0, 4.0, 512));
     let hla = Geometry::Polygon(Polygon::new(LineString::from(la.clone()), vec![]));
     let hlb = Geometry::Polygon(Polygon::new(LineString::from(lb.clone()), vec![]));
@@ -145,8 +140,6 @@ fn main() {
         },
     );
 
-    // ---- ST_Distance on overlapping point clouds: cost model picks the index
-    //      (overlapping boxes + large), where geo's brute O(n·m) loses ---------
     let cloud_a: Vec<(f64, f64)> = (0..1000).map(|_| (rng.f(100.0), rng.f(100.0))).collect();
     let cloud_b: Vec<(f64, f64)> = (0..1000).map(|_| (rng.f(100.0), rng.f(100.0))).collect();
     let hca = Geometry::MultiPoint(MultiPoint::from(cloud_a.clone()));
@@ -175,7 +168,6 @@ fn main() {
         },
     );
 
-    // ---- batch distance fan: SIMD vs a geo per-point loop ------------------
     let coords: Vec<Coord> = (0..1024)
         .map(|_| Coord::new(rng.f(1000.0), rng.f(1000.0)))
         .collect();
@@ -195,7 +187,6 @@ fn main() {
         },
     );
 
-    // ---- convex hull over 500 random points (vs geo) ----------------------
     let hull_pts: Vec<(f64, f64)> = (0..500).map(|_| (rng.f(100.0), rng.f(100.0))).collect();
     let hmp = MultiPoint::from(hull_pts.clone());
     let gmp: geo::MultiPoint<f64> = hull_pts
@@ -214,7 +205,6 @@ fn main() {
         },
     );
 
-    // ---- RDP simplify of a 1000-vertex wiggly line (vs geo) ---------------
     let wiggly: Vec<(f64, f64)> = (0..1000)
         .map(|i| (i as f64 * 0.1, (i as f64 * 0.3).sin() * 5.0))
         .collect();
@@ -232,7 +222,6 @@ fn main() {
         },
     );
 
-    // ---- H3 point indexing at res 9 (vs h3o) ------------------------------
     let (lat, lon) = (52.52, 13.405);
     let res9 = h3o::Resolution::try_from(9).unwrap();
     row(
@@ -247,7 +236,6 @@ fn main() {
         },
     );
 
-    // ---- H3 cell assignment over a 1000-point column: batch vs scalar loop -
     let h3_lats: Vec<f64> = (0..1000).map(|_| rng.f(85.0)).collect();
     let h3_lons: Vec<f64> = (0..1000).map(|_| rng.f(180.0)).collect();
     row(
@@ -271,7 +259,6 @@ fn main() {
         },
     );
 
-    // ---- approximate (tan(acos) identity) batch vs the exact scalar loop ---
     row(
         "h3_for_point x1000 approx",
         "exact",
@@ -293,7 +280,6 @@ fn main() {
         },
     );
 
-    // ---- geohash encode at precision 9 (vs the geohash crate) -------------
     row(
         "geohash_encode (p9)",
         "geohash",
@@ -310,7 +296,6 @@ fn main() {
         },
     );
 
-    // ---- WKB roundtrip (encode + decode) vs the `wkb` crate ---------------
     row(
         "wkb_roundtrip (64-gon)",
         "wkb",
@@ -327,7 +312,6 @@ fn main() {
         },
     );
 
-    // ---- WKT roundtrip (encode + decode) vs the `wkt` crate ---------------
     row(
         "wkt_roundtrip (64-gon)",
         "wkt",
@@ -342,7 +326,6 @@ fn main() {
         },
     );
 
-    // ---- polygon area (vs geo) --------------------------------------------
     let hpoly = Polygon::new(LineString::from(pa.clone()), vec![]);
     let gpoly = geo::Polygon::new(geo_ring(&pa), vec![]);
     row(
@@ -357,7 +340,6 @@ fn main() {
         },
     );
 
-    // ---- point-in-polygon (vs geo) ----------------------------------------
     let (hp, gp) = (Coord::new(2.0, 1.0), geo::Point::new(2.0, 1.0));
     row(
         "point_in_polygon",
@@ -371,7 +353,6 @@ fn main() {
         },
     );
 
-    // ---- DE-9IM relate, polygon-polygon (vs geo) --------------------------
     row(
         "relate (poly-poly)",
         "geo",
@@ -384,7 +365,6 @@ fn main() {
         },
     );
 
-    // ---- boolean intersection of overlapping squares (vs geo) -------------
     let mp = |x0: f64, y0: f64, x1: f64, y1: f64| {
         MultiPolygon::new(vec![Polygon::new(
             LineString::from(vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)]),
@@ -411,7 +391,6 @@ fn main() {
         },
     );
 
-    // ---- spatial range query: STR-tree vs brute-force scan ----------------
     let idx_items: Vec<(Rect, usize)> = (0..5000)
         .map(|i| {
             let (x, y) = (rng.f(1000.0), rng.f(1000.0));

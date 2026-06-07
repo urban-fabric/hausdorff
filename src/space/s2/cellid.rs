@@ -20,18 +20,12 @@ const FACE_BITS: u32 = 3;
 /// Total number of position bits (`2*MAX_LEVEL + 1`).
 const POS_BITS: u32 = 2 * MAX_LEVEL + 1;
 
-// Bit-mangling constants shared with the Hilbert lookup tables.
 const LOOKUP_BITS: u32 = 4;
 const SWAP_MASK: i64 = 0x01;
 const INVERT_MASK: i64 = 0x02;
 const LOOKUP_LEN: usize = 1 << (2 * LOOKUP_BITS + 2);
 
-const POS_TO_IJ: [[i64; 4]; 4] = [
-    [0, 1, 3, 2], // canonical order
-    [0, 2, 3, 1], // axes swapped
-    [3, 2, 0, 1], // bits inverted
-    [3, 1, 0, 2], // swapped & inverted
-];
+const POS_TO_IJ: [[i64; 4]; 4] = [[0, 1, 3, 2], [0, 2, 3, 1], [3, 2, 0, 1], [3, 1, 0, 2]];
 const POS_TO_ORIENTATION: [i64; 4] = [SWAP_MASK, 0, 0, INVERT_MASK | SWAP_MASK];
 
 struct LookupTables {
@@ -352,8 +346,6 @@ impl S2CellId {
     pub fn vertices(self) -> [S2Point; 4] {
         let (f, i, j, _) = self.face_ij_orientation();
         let size = size_ij(self.level());
-        // `face_ij_orientation` yields a leaf *inside* the cell; round down to the
-        // cell's lower-left leaf corner (mirroring `all_neighbors`).
         let (i, j) = (i & -size, j & -size);
         let corner = |ci: i64, cj: i64| {
             let u = coords::st_to_uv(ci as f64 / MAX_SIZE as f64);
@@ -506,13 +498,10 @@ impl S2CellId {
     }
 
     fn from_face_ij_wrap(f: i64, i: i64, j: i64) -> Self {
-        // Move (i,j) just past the face boundary to avoid overflow, then
-        // reproject onto the correct adjacent face.
         let i = coords::clamp_i64(i, -1, MAX_SIZE);
         let j = coords::clamp_i64(j, -1, MAX_SIZE);
 
         let scale = 1.0 / MAX_SIZE as f64;
-        // math.Nextafter(1, 2): the smallest f64 strictly greater than 1.
         let limit = f64::from_bits(1.0_f64.to_bits() + 1);
         let u = (scale * ((i << 1) + 1 - MAX_SIZE) as f64)
             .max(-limit)

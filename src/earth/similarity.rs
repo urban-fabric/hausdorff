@@ -4,7 +4,7 @@
 //! radius [`EARTH_RADIUS_M`](super::EARTH_RADIUS_M).
 //!
 //! These are the metric-generic algorithms in [`crate::algebra`] applied to the
-//! [`Haversine`](crate::space::r2::Haversine) metric over [`GeoPoint`]; the generic
+//! [`Haversine`] metric over [`GeoPoint`]; the generic
 //! forms work over any [`MetricSpace`](crate::algebra::MetricSpace), so the same
 //! code computes the planar/Euclidean variants too.
 //!
@@ -64,7 +64,7 @@ pub fn hausdorff_distance(a: &[GeoPoint], b: &[GeoPoint]) -> Option<LengthMeters
 /// reach the end; sensitive to ordering, unlike [`hausdorff_distance_m`].
 /// Returns `None` if either path is empty.
 ///
-/// Uses an `O(m·n)`-time, `O(min(m, n))`-space dynamic program over the
+/// Uses an `O(m·n)`-time, `O(n)`-space dynamic program over the
 /// great-circle metric.
 #[must_use]
 pub fn frechet_distance_m(p: &[GeoPoint], q: &[GeoPoint]) -> Option<f64> {

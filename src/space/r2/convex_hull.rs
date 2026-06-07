@@ -12,9 +12,6 @@ pub trait ConvexHull {
 /// (first coordinate repeated at the end). Non-finite coordinates are dropped.
 pub(crate) fn convex_hull_coords(points: &[Coord]) -> Vec<Coord> {
     let mut pts: Vec<Coord> = points.iter().copied().filter(|c| c.is_finite()).collect();
-    // Non-finite coords are filtered out above, so `total_cmp` (a branchless bit
-    // ordering) is exact here and faster than `partial_cmp().unwrap()`; the sort
-    // need not be stable.
     pts.sort_unstable_by(|a, b| a.x.total_cmp(&b.x).then_with(|| a.y.total_cmp(&b.y)));
     pts.dedup();
 

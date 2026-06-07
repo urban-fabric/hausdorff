@@ -49,7 +49,7 @@ fn parses_standard_strings() {
         Geometry::Point(_)
     ));
     assert!(from_wkt("LINESTRING EMPTY").is_ok());
-    assert!(from_wkt("MULTIPOINT (1 2, 3 4)").is_ok()); // bare form
+    assert!(from_wkt("MULTIPOINT (1 2, 3 4)").is_ok());
     assert!(from_wkt("NONSENSE (1 2)").is_err());
     let _ = Coord::new(0.0, 0.0);
 }
@@ -58,14 +58,12 @@ fn parses_standard_strings() {
 fn matches_wkt_reference_crate() {
     use wkt::{ToWkt, TryFromWkt};
     for g in fixtures() {
-        // reference WKT (the `wkt` crate, via geo_types) parses through native to g
         let reference = common::to_geo_geometry(&g).wkt_string();
         assert_eq!(
             from_wkt(&reference).unwrap(),
             g,
             "native parse of reference WKT"
         );
-        // native WKT parses through the `wkt` crate back to g
         let parsed = geo_types::Geometry::<f64>::try_from_wkt_str(&to_wkt(&g)).unwrap();
         assert_eq!(
             common::from_geo_geometry(parsed),

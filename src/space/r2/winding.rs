@@ -60,7 +60,7 @@ fn ring_to_winding(ring: &LineString, target: WindingOrder) -> LineString {
     match ring.winding_order() {
         Some(w) if w != target => {
             let mut v = ring.0.clone();
-            v.reverse(); // reversing a closed ring keeps it closed
+            v.reverse();
             LineString::new(v)
         }
         _ => ring.clone(),

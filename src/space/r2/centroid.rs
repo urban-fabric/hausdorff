@@ -58,7 +58,7 @@ impl Centroid for Polygon {
             cy -= c_h.y * w;
         }
         if area.abs() < f64::EPSILON {
-            return Some(Point(c_ext)); // degenerate: fall back to exterior centroid
+            return Some(Point(c_ext));
         }
         Some(Point::new(cx / area, cy / area))
     }

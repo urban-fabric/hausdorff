@@ -88,8 +88,6 @@ impl MinDistanceWorkspace {
     /// buffers. Equivalent to [`euclidean_distance`] but without re-allocating.
     #[must_use]
     pub fn distance(&mut self, a: &Geometry, b: &Geometry) -> f64 {
-        // Convex fast path first, so two convex operands resolve their gap in
-        // O(n+m) and skip the segment decomposition (and its buffers) entirely.
         if let Some(d) = convex_gap(a, b) {
             return d;
         }
@@ -101,9 +99,6 @@ impl MinDistanceWorkspace {
             return f64::INFINITY;
         }
         let (ba, bb) = (bbox_of(&self.sa), bbox_of(&self.sb));
-        // The full intersection test is only needed when the boxes overlap;
-        // disjoint boxes can neither cross nor contain, so the gap is the
-        // boundary distance.
         if boxes_overlap(ba, bb) && a.intersects(b) {
             return 0.0;
         }
@@ -172,9 +167,6 @@ fn brute_min_sq(
     sb: &[(Coord, Coord)],
     sb_boxes: &mut Vec<(Coord, Coord)>,
 ) -> f64 {
-    // Small inputs: the per-pair bbox bookkeeping (building B's boxes, two
-    // `box_gap_sq` tests per pair) costs more than the few segment gaps it would
-    // save, so run a tight unpruned scan. The threshold is machine-tunable.
     if sa.len() * sb.len()
         <= crate::config::config()
             .cost_model

@@ -25,9 +25,6 @@ pub fn haversine_m(a: GeoPoint, b: GeoPoint) -> f64 {
     let sin_dlat = ((lat2 - lat1) * 0.5).sin();
     let sin_dlon = ((b.lon - a.lon).to_radians() * 0.5).sin();
     let h = sin_dlat * sin_dlat + lat1.cos() * lat2.cos() * sin_dlon * sin_dlon;
-    // 2·R·asin(√h) — equivalent to the atan2 form for h ∈ [0, 1], with one fewer
-    // sqrt and a cheaper single-argument inverse trig. (`min(1.0)` guards the
-    // asin domain against rounding past 1 for near-antipodal points.)
     EARTH_DIAMETER_M * h.min(1.0).sqrt().asin()
 }
 

@@ -13,7 +13,6 @@ mod point {
         ] {
             let p = GeoPoint::from_lat_lon(lat, lon);
             let back = FixedGeoPoint::from(p).to_geo();
-            // Round-to-nearest at 1e-7 ⇒ error never exceeds half a step.
             assert!((back.lat - lat).abs() <= 1e-7, "lat {lat} -> {}", back.lat);
             assert!((back.lon - lon).abs() <= 1e-7, "lon {lon} -> {}", back.lon);
         }
@@ -127,8 +126,6 @@ mod radial_grid {
         assert!(g.is_empty());
         assert_eq!(g.len(), 0);
         assert_eq!(g.points().count(), 0);
-        // bearing() must not divide by zero (would be NaN/inf); it falls back to
-        // the offset and stays finite.
         assert!(g.bearing(0).degrees().is_finite());
     }
 
@@ -144,7 +141,6 @@ mod radial_grid {
         assert_eq!((pts[0].ring, pts[0].spoke), (0, 0));
         assert_eq!((pts[3].ring, pts[3].spoke), (0, 3));
         assert_eq!((pts[4].ring, pts[4].spoke), (1, 0));
-        // `ring(i)` matches the corresponding flat slice.
         let ring1 = g.ring(1);
         assert_eq!(ring1.len(), 4);
         assert_eq!(ring1[0], pts[4].point);
@@ -182,7 +178,6 @@ mod radial_grid {
 
     #[test]
     fn linear_with_initial_constant_offsets_the_inner_ring() {
-        // first ring at 50 m, then +100 m per ring -> 50, 150, 250 m.
         let g = RadialGrid::linear(
             GeoPoint::from_lat_lon(0.0, 0.0),
             3,
@@ -213,7 +208,6 @@ mod radial_grid {
 
     #[test]
     fn new_keeps_first_ring_at_step() {
-        // The simple `new` schedule: ring r at (r + 1) * step.
         let g = RadialGrid::new(
             GeoPoint::from_lat_lon(0.0, 0.0),
             3,
@@ -230,7 +224,7 @@ mod radial_grid {
         let g = RadialGrid::new(center, 1, LengthMeters::new(1_000.0), 4).with_bearing_offset(90.0);
         assert!(approx(g.bearing(0).degrees(), 90.0, 1e-9));
         let p = g.point(0, 0);
-        assert!(p.lon > center.lon && approx(p.lat, 0.0, 1e-6)); // first spoke now points East
+        assert!(p.lon > center.lon && approx(p.lat, 0.0, 1e-6));
     }
 
     #[test]
@@ -279,8 +273,6 @@ mod similarity {
 
     #[test]
     fn hausdorff_equals_known_great_circle_gap() {
-        // b is a's first point plus one extra; the mismatch is the distance from
-        // a's lone far point (0,1) to the nearest point of b (0,0).
         let a = [pt(0.0, 0.0), pt(0.0, 1.0)];
         let b = [pt(0.0, 0.0)];
         let expected = haversine_m(pt(0.0, 1.0), pt(0.0, 0.0));
@@ -302,8 +294,6 @@ mod similarity {
 
     #[test]
     fn frechet_of_parallel_offset_lines_is_the_offset() {
-        // Two horizontal lines one degree of latitude apart: the leash never
-        // needs to exceed that constant north-south gap.
         let lower = [pt(0.0, 0.0), pt(0.0, 1.0), pt(0.0, 2.0)];
         let upper = [pt(1.0, 0.0), pt(1.0, 1.0), pt(1.0, 2.0)];
         let gap = haversine_m(pt(0.0, 0.0), pt(1.0, 0.0));
@@ -312,8 +302,6 @@ mod similarity {
 
     #[test]
     fn frechet_dominates_endpoint_distance() {
-        // The leash is at least the distance between the two start points and the
-        // two end points.
         let p = [pt(0.0, 0.0), pt(2.0, 3.0)];
         let q = [pt(1.0, 1.0), pt(3.0, 5.0)];
         let d = frechet_distance_m(&p, &q).expect("non-empty");

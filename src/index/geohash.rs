@@ -64,7 +64,6 @@ fn quantize(frac: f64) -> u32 {
 fn encode_morton(lon: f64, lat: f64, precision: usize) -> String {
     let lon_q = quantize((lon + 180.0) / 360.0);
     let lat_q = quantize((lat + 90.0) / 180.0);
-    // Interleave with longitude in the odd bit positions (it comes first).
     let morton = (spread(lon_q) << 1) | spread(lat_q);
     let mut hash = String::with_capacity(precision);
     for j in 0..precision {

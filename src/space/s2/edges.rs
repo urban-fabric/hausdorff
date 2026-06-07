@@ -57,8 +57,6 @@ pub fn intersection(a0: S2Point, a1: S2Point, b0: S2Point, b1: S2Point) -> S2Poi
     let n1 = a0.vector().cross(a1.vector());
     let n2 = b0.vector().cross(b1.vector());
     let mut x = n1.cross(n2).normalize();
-    // Both edges are < 180°, so the intersection is on the side where the sum of
-    // all four endpoints points; this keeps the result stable under reordering.
     let sum = a0
         .vector()
         .add(a1.vector())

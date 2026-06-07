@@ -6,11 +6,11 @@
 //! `r2::Triangle`, and `r2::Line` have no WKT keyword, so they serialize as the
 //! equivalent POLYGON / LINESTRING.
 //!
-//! **Empty geometries are lossy in type.** The model has no typed-empty variant,
-//! so every `… EMPTY` (e.g. `POINT EMPTY`, `LINESTRING EMPTY`) parses to an empty
-//! [`MultiPoint`], and re-serializing yields `MULTIPOINT EMPTY`. The geometry is
-//! preserved as empty, but its original type is not. (A typed-empty
-//! representation would require extending [`Geometry`].)
+//! **`POINT EMPTY` is lossy in type.** [`Point`] wraps a single coordinate and
+//! has no empty form, so `POINT EMPTY` parses to an empty [`MultiPoint`] and
+//! re-serializes as `MULTIPOINT EMPTY`. Every other `… EMPTY` (`LINESTRING`,
+//! `POLYGON`, the `MULTI*` types, `GEOMETRYCOLLECTION`) round-trips with its own
+//! type preserved.
 
 use crate::space::r2::{
     Coord, Geometry, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon,
@@ -297,7 +297,6 @@ impl Parser<'_> {
                 self.expect(b'(')?;
                 let mut pts = Vec::new();
                 loop {
-                    // both `(x y)` and bare `x y` forms are allowed
                     if self.eat(b'(') {
                         pts.push(Point(self.coord()?));
                         self.expect(b')')?;

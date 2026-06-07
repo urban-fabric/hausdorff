@@ -119,7 +119,6 @@ impl Loop {
                 }
             }
         }
-        // No boundary crossing: overlap only if one loop is nested in the other.
         self.contains_point(other.vertices[0]) || other.contains_point(self.vertices[0])
     }
 }

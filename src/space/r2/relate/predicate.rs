@@ -1,5 +1,5 @@
 //! The OGC binary spatial predicates as data — [`SpatialPredicate`] and its
-//! evaluator, which reads the DE-9IM [`relate`](super::relate) matrix and
+//! evaluator, which reads the DE-9IM [`relate`] matrix and
 //! short-circuits the cheap cases.
 
 use super::super::{Contains, Geometry, Intersects};

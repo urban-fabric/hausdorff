@@ -32,8 +32,6 @@ pub fn point_area(a: S2Point, b: S2Point, c: S2Point) -> f64 {
     let sc = v(a).angle(v(b)).radians();
     let s = 0.5 * (sa + sb + sc);
 
-    // For all but extremely long, skinny triangles, l'Huilier is the most
-    // accurate; only fall back to Girard for the skinny case it handles better.
     if s >= 3e-4 {
         let dmin = s - sa.max(sb).max(sc);
         if dmin < 1e-2 * s.powi(5) {

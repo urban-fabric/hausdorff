@@ -19,11 +19,11 @@ mod area;
 mod bits;
 mod validity;
 
-pub use bits::MAX_RESOLUTION;
 use area::{
     AVG_HEXAGON_AREA_KM2, AVG_HEXAGON_AREA_M2, AVG_HEXAGON_EDGE_LENGTH_KM,
     AVG_HEXAGON_EDGE_LENGTH_M, EARTH_RADIUS_KM, distance_rads, linear_ring_area_rads2,
 };
+pub use bits::MAX_RESOLUTION;
 use bits::{
     CELL_MODE, DIRECTED_EDGE_MODE, K_AXIS_DIGIT, VERTEX_MODE, get_digit, get_reserved_bits,
     has_nonzero_digit, set_mode, set_reserved_bits, set_unused,
@@ -240,10 +240,8 @@ impl H3Cell {
 
     /// The parent cell at `resolution` (coarser-or-equal), or `None`.
     pub fn parent(self, resolution: u8) -> Option<Self> {
-        (resolution <= self.resolution()).then(|| {
-            // Coarsening preserves validity; safe to construct directly.
-            Self(set_unused(set_resolution(self.0, resolution), resolution))
-        })
+        (resolution <= self.resolution())
+            .then(|| Self(set_unused(set_resolution(self.0, resolution), resolution)))
     }
 
     /// All descendant cells at `resolution` (finer-or-equal); empty if coarser

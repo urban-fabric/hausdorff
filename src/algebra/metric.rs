@@ -119,7 +119,6 @@ impl FrechetWorkspace {
             return 0.0;
         }
 
-        // One DP row of length `n`, reused across calls; `row[j]` holds ca(i, j).
         let row = &mut self.row;
         row.clear();
         row.resize(n, 0.0);

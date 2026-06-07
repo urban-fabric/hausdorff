@@ -5,8 +5,6 @@
 
 use geo::chamberlain_duquette_area::ChamberlainDuquetteArea as _;
 use geo::line_measures::FrechetDistance;
-// Bring geo's algorithm traits into scope for method resolution without binding
-// names that would collide with hausdorff's same-named traits.
 use geo::{
     Area as _, Bearing as _, BoundingRect as _, Centroid as _, Contains as _, ConvexHull as _,
     CoordsIter as _, Destination as _, Distance as _, Euclidean, Haversine, Length as _,
@@ -18,13 +16,9 @@ use hausdorff::{
     Area, BoundingRect, Centroid, ChamberlainDuquetteArea, Contains, ConvexHull, CoordsIter,
     Simplify,
 };
-// hausdorff's line-measure traits, anonymous (for method resolution); the metric
-// spaces are referenced by full path to avoid clashing with geo's same names.
 use hausdorff::{Bearing as _, Destination as _, Distance as _, Length as _};
 
 const EPS: f64 = 1e-9;
-
-// ---- builders: the same coordinates in each library ------------------------
 
 fn h_poly(coords: &[(f64, f64)]) -> hausdorff::Polygon {
     hausdorff::Polygon::new(
@@ -47,13 +41,9 @@ fn g_poly(coords: &[(f64, f64)]) -> geo::Polygon<f64> {
 
 fn fixtures() -> Vec<Vec<(f64, f64)>> {
     vec![
-        // unit-ish square (CCW)
         vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
-        // square wound CW
         vec![(0.0, 0.0), (0.0, 4.0), (4.0, 4.0), (4.0, 0.0)],
-        // right triangle
         vec![(0.0, 0.0), (6.0, 0.0), (0.0, 3.0)],
-        // concave L-shape
         vec![
             (0.0, 0.0),
             (4.0, 0.0),
@@ -62,7 +52,6 @@ fn fixtures() -> Vec<Vec<(f64, f64)>> {
             (2.0, 4.0),
             (0.0, 4.0),
         ],
-        // irregular pentagon
         vec![
             (1.0, -3.1),
             (3.7, 2.7),
@@ -72,8 +61,6 @@ fn fixtures() -> Vec<Vec<(f64, f64)>> {
         ],
     ]
 }
-
-// ---- planar algorithm conformance ------------------------------------------
 
 #[test]
 fn area_matches_geo() {
@@ -126,15 +113,12 @@ fn bounding_rect_matches_geo() {
 fn contains_matches_geo() {
     for f in fixtures() {
         let (hp, gp) = (h_poly(&f), g_poly(&f));
-        // sample a grid spanning the fixture's extent; skip near-boundary points
-        // where boundary tie-breaking legitimately differs between libraries.
         for i in -10..=10 {
             for j in -10..=10 {
                 let (x, y) = (i as f64 * 0.9, j as f64 * 0.9);
                 let hc = hp.contains(&hausdorff::Coord::new(x, y));
                 let gc = gp.contains(&geo::Coord { x, y });
                 if hc != gc {
-                    // tolerate disagreement only very close to an edge
                     let near_edge = is_near_boundary(&f, x, y, 1e-6);
                     assert!(
                         near_edge,
@@ -180,17 +164,13 @@ fn convex_hull_area_matches_geo() {
     }
 }
 
-// ---- spherical conformance --------------------------------------------------
-
 #[test]
 fn haversine_distance_matches_geo() {
-    // geo's Haversine mean radius (6_371_008.7714 m) vs ours (6_371_008.8 m)
-    // differ by ~0.03 m, so allow a small absolute tolerance.
     let samples = [
-        ((52.52, 13.405), (48.8566, 2.3522)), // Berlin -> Paris
-        ((40.0, -74.0), (34.05, -118.24)),    // NYC -> LA
+        ((52.52, 13.405), (48.8566, 2.3522)),
+        ((40.0, -74.0), (34.05, -118.24)),
         ((0.0, 0.0), (0.0, 1.0)),
-        ((-33.87, 151.21), (35.68, 139.69)), // Sydney -> Tokyo
+        ((-33.87, 151.21), (35.68, 139.69)),
     ];
     for ((lat1, lon1), (lat2, lon2)) in samples {
         let ours = haversine_m(
@@ -216,7 +196,6 @@ fn frechet_distance_matches_geo() {
         &path_b.map(|(la, lo)| GeoPoint::from_lat_lon(la, lo)),
     )
     .expect("non-empty paths");
-    // geo coords are (x = lon, y = lat).
     let ga = geo::LineString(
         path_a
             .iter()
@@ -238,8 +217,6 @@ fn frechet_distance_matches_geo() {
     );
 }
 
-// ---- helpers ----------------------------------------------------------------
-
 /// Distance from `(x, y)` to the nearest polygon edge is within `tol`.
 fn is_near_boundary(coords: &[(f64, f64)], x: f64, y: f64, tol: f64) -> bool {
     let n = coords.len();
@@ -260,8 +237,6 @@ fn is_near_boundary(coords: &[(f64, f64)], x: f64, y: f64, tol: f64) -> bool {
     }
     false
 }
-
-// ---- newly ported algorithms ------------------------------------------------
 
 fn h_line(coords: &[(f64, f64)]) -> hausdorff::LineString {
     hausdorff::LineString::new(
@@ -289,7 +264,6 @@ fn coords_count_matches_geo() {
 
 #[test]
 fn simplify_matches_geo() {
-    // a wiggly path with both sharp and shallow detours
     let wiggly = vec![
         (0.0, 0.0),
         (1.0, 0.1),
@@ -324,7 +298,6 @@ fn simplify_matches_geo() {
 
 #[test]
 fn chamberlain_duquette_area_matches_geo() {
-    // treat the fixtures as lon/lat polygons
     for f in fixtures() {
         let h = h_poly(&f).chamberlain_duquette_unsigned_area();
         let g = g_poly(&f).chamberlain_duquette_unsigned_area();
@@ -332,7 +305,6 @@ fn chamberlain_duquette_area_matches_geo() {
         assert!(rel < 1e-9, "CD area mismatch on {f:?}: {h} vs {g}");
     }
 
-    // absolute sanity: the O2 in London is ~78,478 m² (geo's doc value)
     let o2 = [
         (0.00388383, 51.501574),
         (0.00538587, 51.502278),
@@ -350,11 +322,8 @@ fn chamberlain_duquette_area_matches_geo() {
     );
 }
 
-// ---- line measures (metric spaces) -----------------------------------------
-
 #[test]
 fn haversine_distance_and_bearing_match_geo() {
-    // (lon, lat) pairs
     let samples = [
         ((13.405, 52.52), (2.3522, 48.8566)),
         ((-74.0, 40.0), (-118.24, 34.05)),
@@ -374,7 +343,6 @@ fn haversine_distance_and_bearing_match_geo() {
             "distance {hd} vs {gd}"
         );
 
-        // bearing is radius-independent; compare modulo 360
         let (hbr, gbr) = (
             hausdorff::Haversine.bearing(ha, hb),
             Haversine.bearing(ga, gb),
@@ -419,11 +387,6 @@ fn haversine_destination_matches_geo() {
     }
 }
 
-// ---- real-world WKT fixtures (from georust geo-test-fixtures) ----------------
-// Irregular, real coordinate runs exercise collinear / near-duplicate / large-n
-// cases that the synthetic shapes above don't. The native WKT parser reads them,
-// and the planar algorithms are oracle-checked against geo on the same data.
-
 /// Distance from `p` to the bounded segment `a`–`b` (RDP's metric).
 fn seg_dist(p: (f64, f64), a: (f64, f64), b: (f64, f64)) -> f64 {
     let (abx, aby) = (b.0 - a.0, b.1 - a.1);
@@ -445,7 +408,6 @@ fn real_wkt_fixtures_conformance() {
         ("poly1", include_str!("fixtures/poly1.wkt")),
         ("poly2", include_str!("fixtures/poly2.wkt")),
     ] {
-        // 1. the native WKT parser reads the real LineString
         let g = from_wkt(wkt).unwrap_or_else(|e| panic!("parse {name}: {e:?}"));
         let coords: Vec<(f64, f64)> = match &g {
             hausdorff::Geometry::LineString(ls) => ls.0.iter().map(|c| (c.x, c.y)).collect(),
@@ -457,13 +419,11 @@ fn real_wkt_fixtures_conformance() {
             coords.len()
         );
 
-        // 2. WKT round-trips through the native writer/reader with no point drift
         match from_wkt(&to_wkt(&g)).expect("re-parse") {
             hausdorff::Geometry::LineString(ls) => assert_eq!(ls.0.len(), coords.len()),
             other => panic!("{name}: round-trip changed type to {other:?}"),
         }
 
-        // 3. convex hull area matches geo exactly on the irregular input
         let hmp = hausdorff::MultiPoint::from(coords.clone());
         let gmp: geo::MultiPoint<f64> =
             coords.iter().map(|&(x, y)| geo::Point::new(x, y)).collect();
@@ -476,12 +436,6 @@ fn real_wkt_fixtures_conformance() {
             "{name}: hull area {ha} vs geo {ga}"
         );
 
-        // 4. RDP simplify is a *valid* simplification of real data: endpoints
-        //    kept, output is a subset, monotone in epsilon, and every original
-        //    point lies within `epsilon` of the simplified line. Exact point
-        //    parity with geo is *not* asserted here — on real data RDP tie-breaks
-        //    and the bounded-segment vs infinite-line distance metric legitimately
-        //    diverge (the synthetic `simplify_matches_geo` test covers parity).
         let hls = hausdorff::LineString::from(coords.clone());
         let mut prev_len = coords.len();
         for eps in [0.5_f64, 2.0, 10.0] {

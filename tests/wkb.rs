@@ -43,7 +43,6 @@ fn matches_wkb_reference_crate() {
     use geo_traits::to_geo::ToGeoGeometry;
     use wkb::writer::{WriteOptions, write_geometry};
     for g in fixtures() {
-        // reference bytes (the `wkb` crate, via geo_types) decode through native to g
         let mut reference = Vec::new();
         write_geometry(
             &mut reference,
@@ -56,7 +55,6 @@ fn matches_wkb_reference_crate() {
             g,
             "native decode of reference WKB"
         );
-        // native bytes decode through the `wkb` crate back to g
         let decoded = wkb::reader::read_wkb(&to_wkb(&g)).unwrap().to_geometry();
         assert_eq!(
             common::from_geo_geometry(decoded),
@@ -68,7 +66,6 @@ fn matches_wkb_reference_crate() {
 
 #[test]
 fn reads_big_endian() {
-    // a big-endian (XDR) POINT(1 2): order=0, type=1, then two big-endian f64s
     let mut bytes = vec![0u8, 0, 0, 0, 1];
     bytes.extend_from_slice(&1.0f64.to_be_bytes());
     bytes.extend_from_slice(&2.0f64.to_be_bytes());
@@ -84,12 +81,9 @@ fn from_wkb_rejects_trailing_bytes() {
     let g = Geometry::Point(Point::new(1.0, 2.0));
     let mut bytes = to_wkb(&g);
     let exact_len = bytes.len();
-    // exact bytes decode
     assert_eq!(from_wkb(&bytes).unwrap(), g);
-    // a trailing byte is rejected by the strict decoder
     bytes.push(0xFF);
     assert!(from_wkb(&bytes).is_err(), "trailing byte must be rejected");
-    // but the prefix decoder parses the geometry and reports bytes consumed
     let (decoded, consumed) = from_wkb_prefix(&bytes).unwrap();
     assert_eq!(decoded, g);
     assert_eq!(consumed, exact_len);

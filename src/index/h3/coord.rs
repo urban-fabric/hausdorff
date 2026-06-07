@@ -301,7 +301,6 @@ impl Vec2d {
 }
 
 impl From<Vec2d> for CoordIJK {
-    // Containing hex in IJK for a 2D cartesian coordinate vector (DGGRID).
     #[inline]
     fn from(value: Vec2d) -> Self {
         let k = 0;
