@@ -12,7 +12,7 @@ use geo::{
 };
 
 use hausdorff::space::r2::{
-    AffineOps, AffineTransform, Closest, ClosestPoint, CoordsIter, Extremes, LineInterpolatePoint,
+    AffineOps, AffineTransform, Closest, ClosestPoint, Extremes, LineInterpolatePoint,
     LineLocatePoint, Rotate, Scale, Skew, Translate,
 };
 use hausdorff::{Coord, Geometry, Line, LineString, MultiPoint, Point, Polygon, Rect, Triangle};
