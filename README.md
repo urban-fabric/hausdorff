@@ -27,22 +27,36 @@ use the same internal implementation.
   Includes `Area`, `Centroid`, `BoundingRect`, `ConvexHull`, `ConcaveHull`,
   `Extremes`, `Simplify`, `Distance` / `min_distance`, `ClosestPoint`,
   `Intersects`, `Length` / `Perimeter` / `Densify` (under the `Euclidean`,
-  `Haversine`, or rhumb-line `Rhumb` metric), linear referencing
+  `Haversine`, ellipsoidal `Geodesic`, or rhumb-line `Rhumb` metric),
+  `GeodesicArea` (exact ellipsoidal polygon area/perimeter) beside the
+  spherical `ChamberlainDuquetteArea`, linear referencing
   (`LineInterpolatePoint` / `LineLocatePoint`), affine transforms
-  (`AffineTransform` with `Translate` / `Rotate` / `Scale` / `Skew`), `Orient`,
-  `Validation` (OGC validity with typed reasons), `RemoveRepeatedPoints`,
-  `InteriorPoint`, `BooleanOps` plus cascaded `unary_union`, `relate` (DE-9IM),
-  the `StrTree` spatial index, `PreparedGeometry`, spatial joins, and set/curve
-  distances (`hausdorff_distance` / `frechet_distance`).
+  (`AffineTransform` with `Translate` / `Rotate` / `Scale` / `Skew`),
+  `MapCoords`, `Orient`, `Validation` (OGC validity with typed reasons),
+  `RemoveRepeatedPoints`, `InteriorPoint`, `BooleanOps` plus cascaded
+  `unary_union`, `relate` (DE-9IM), the `StrTree` spatial index,
+  `PreparedGeometry`, spatial joins, and set/curve distances
+  (`hausdorff_distance` / `frechet_distance`).
 - **`space::s2`** — spherical S2 primitives ported from golang/geo: cell ids,
   normalized cell-set unions (`CellUnion` with union / intersection /
   difference), caps, lat/lng rectangles (`Rect`, antimeridian-aware),
-  polylines, edge crossings, orientation predicates, and measures.
-  **`RegionCoverer` is experimental** (see *Stability*).
+  polylines, edge crossings, orientation predicates, measures, and
+  great-circle arc kernels (`s2::arc`: slerp, cross/along-track, latitude
+  extremes). **`RegionCoverer` is experimental** (see *Stability*).
 - **`space::r3` / `space::s1`** — supporting unit-less vector / angle types.
-- **`earth`** — the WGS84 lat/lon layer: `GeoPoint`, haversine and geodesic
-  distances, rhumb-line (loxodrome) distance / bearing / destination /
-  interpolation (`earth::rhumb`), bounding boxes, `RadialGrid` (a
+- **`earth`** — the WGS84 lat/lon layer: `GeoPoint`, spherical (haversine) and
+  ellipsoidal geodesics (Karney direct/inverse/area on any `Ellipsoid` — WGS84,
+  GRS80, Mars, …; differential-tested against `geographiclib-rs`), geodesic
+  lines for cheap waypoint sampling (`Ellipsoid::line`), ellipsoidal polygon
+  perimeter/area (`Ellipsoid::ring_perimeter_area_m`), rhumb-line (loxodrome)
+  distance / bearing / destination / interpolation (`earth::rhumb`),
+  planet-flexible sphere geodesics (`sphere::Sphere`), great-circle arc
+  operations (`earth::arc`: interpolation, cross/along-track distance, arc
+  intersection, spherical point-in-ring, Clairaut-aware arc bboxes),
+  geocentric/local frames (`earth::ecef`: ECEF ↔ geodetic, ENU tangent
+  frames), map projections (`projection`: Web Mercator, Transverse Mercator /
+  UTM, with whole-geometry `project_geometry` / `inverse_geometry`), bounding
+  boxes, `RadialGrid` (a
   concentric-ring sampler around a point), and the Hausdorff / Fréchet
   curve-similarity measures (`earth::similarity`).
 - **`algebra`** — metric / vector-space traits (`MetricSpace`, `Norm`,
@@ -59,8 +73,9 @@ treat this as guidance, not a guarantee):
 
 - **Stable** — exercised by conformance suites and used downstream:
   `index::h3`, `index::geohash`, the `space::r2` geometry / algorithm surface,
-  `format` (wkt / wkb / geojson, shapefile read), `earth` (points, geodesics,
-  bbox, `RadialGrid`, `similarity`), and `algebra`. The `space::r2` trait names
+  `format` (wkt / wkb / geojson, shapefile read), `earth` (points, geodesics —
+  spherical and ellipsoidal — ellipsoids, projections, bbox, `RadialGrid`,
+  `similarity`), and `algebra`. The `space::r2` trait names
   intentionally mirror `geo` as **migration shims** — they exist so callers can
   swap the import path, and may diverge from `geo` over time.
 - **Experimental** — `space::s2::RegionCoverer`. Fixed-level covers, adaptive

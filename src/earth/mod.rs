@@ -14,11 +14,20 @@ pub mod batch;
 mod bbox;
 mod bearing;
 mod geodesic;
+mod karney;
 mod point;
 mod radial_grid;
 mod rhumb;
 mod similarity;
 
+/// Great-circle arc operations: interpolation, cross/along-track distances,
+/// arc intersection, spherical point-in-ring, and Clairaut-aware arc bboxes.
+pub mod arc;
+/// Geocentric (ECEF) coordinates and local east/north/up frames.
+pub mod ecef;
+/// Reference ellipsoids — the datum/planet model behind projections and
+/// ellipsoidal geodesics.
+pub mod ellipsoid;
 /// Map projections anchored to the Earth (e.g. UTM).
 pub mod projection;
 /// The planet-flexible metric layer: arc lengths and areas on a sphere of a
@@ -28,6 +37,8 @@ pub mod sphere;
 pub use batch::LonLatBatch;
 pub use bbox::{BBox, BBoxParseError};
 pub use bearing::Bearing;
+pub use ecef::{EcefPoint, Enu, EnuFrame};
+pub use ellipsoid::{Ellipsoid, GeodesicDirect, GeodesicInverse, GeodesicLine};
 pub use geodesic::{EARTH_RADIUS_M, destination, destination_m, haversine_m, haversine_meters};
 pub use point::{FixedGeoPoint, GeoPoint};
 pub use radial_grid::{RadialGrid, RingPoint};

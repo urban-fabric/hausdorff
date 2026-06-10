@@ -1,13 +1,16 @@
-//! Spherical polygon area via the Chamberlain–Duquette formula — mirror of
-//! `geo`'s `ChamberlainDuquetteArea`. Coordinates are interpreted as **lon/lat
-//! degrees** (`x = lon`, `y = lat`); the result is in **metres²** on a sphere of
-//! the equatorial Earth radius (matching geo, and the JPL Publication 07-03
-//! derivation).
+//! Polygon area on the round Earth, two ways — mirrors of `geo`'s traits.
+//! Coordinates are interpreted as **lon/lat degrees** (`x = lon`, `y = lat`);
+//! results are in **metres²**.
 //!
-//! This is the cheap spherical approximation. The ellipsoidal (Karney) geodesic
-//! area is a future addition.
+//! - [`ChamberlainDuquetteArea`] — the cheap **spherical** approximation
+//!   (JPL Publication 07-03), evaluated on a sphere of the equatorial Earth
+//!   radius for exact agreement with geo. Off by up to ~0.5% vs the ellipsoid.
+//! - [`GeodesicArea`] — the exact **ellipsoidal** (Karney) area and perimeter
+//!   on WGS84, via [`crate::earth::Ellipsoid::ring_perimeter_area_m`].
 
-use super::{LineString, MultiPolygon, Polygon};
+use crate::earth::{Ellipsoid, GeoPoint};
+
+use super::{Geometry, LineString, MultiPolygon, Polygon, Rect, Triangle};
 
 /// Equatorial Earth radius (WGS84), the radius the Chamberlain–Duquette formula
 /// is conventionally evaluated at — kept identical to geo for exact agreement.
@@ -68,5 +71,145 @@ impl ChamberlainDuquetteArea for MultiPolygon {
         self.iter()
             .map(ChamberlainDuquetteArea::chamberlain_duquette_signed_area)
             .sum()
+    }
+}
+
+/// Exact ellipsoidal (Karney) area and perimeter on WGS84 — mirror of `geo`'s
+/// `GeodesicArea`. Areas are in m², perimeters in metres.
+///
+/// The *signed* forms assume the simple-feature convention — exterior rings
+/// counter-clockwise, holes clockwise — and return a negative area for a
+/// clockwise exterior. The *unsigned* forms read every exterior as wound
+/// counter-clockwise, which also makes them correct for polygons enclosing
+/// more than half the planet (where the signed form wraps).
+pub trait GeodesicArea {
+    /// Signed geodesic area, m² (counter-clockwise exterior positive).
+    fn geodesic_area_signed(&self) -> f64 {
+        self.geodesic_perimeter_area_signed().1
+    }
+
+    /// Unsigned geodesic area, m².
+    fn geodesic_area_unsigned(&self) -> f64 {
+        self.geodesic_perimeter_area_unsigned().1
+    }
+
+    /// Geodesic perimeter, metres: every ring's boundary length (exterior
+    /// plus holes), like [`Perimeter`](super::Perimeter).
+    fn geodesic_perimeter(&self) -> f64 {
+        self.geodesic_perimeter_area_signed().0
+    }
+
+    /// Perimeter and signed area in one pass.
+    fn geodesic_perimeter_area_signed(&self) -> (f64, f64);
+
+    /// Perimeter and unsigned area in one pass.
+    fn geodesic_perimeter_area_unsigned(&self) -> (f64, f64);
+}
+
+/// Perimeter and area of `poly` under the geo convention: the exterior ring is
+/// read as counter-clockwise-positive and the holes as clockwise-positive;
+/// hole areas are subtracted by magnitude, following the exterior's sign.
+fn polygon_perimeter_area(poly: &Polygon, signed: bool) -> (f64, f64) {
+    let e = Ellipsoid::WGS84;
+    let ring = |r: &LineString, ccw: bool| {
+        // x = lon, y = lat → (lat, lon) for the geodesic kernel.
+        let latlon: Vec<GeoPoint> =
+            r.0.iter()
+                .map(|c| GeoPoint::from_lon_lat(c.x, c.y))
+                .collect();
+        e.ring_perimeter_area_winding_m(&latlon, ccw, signed)
+    };
+
+    let (outer_perimeter, outer_area) = ring(poly.exterior(), true);
+    let mut inner_perimeter = 0.0;
+    let mut inner_area = 0.0;
+    for hole in poly.interiors() {
+        let (p, a) = ring(hole, false);
+        inner_perimeter += p;
+        inner_area += a.abs();
+    }
+    if outer_area < 0.0 && inner_area > 0.0 {
+        inner_area = -inner_area;
+    }
+    (outer_perimeter + inner_perimeter, outer_area - inner_area)
+}
+
+impl GeodesicArea for Polygon {
+    fn geodesic_perimeter_area_signed(&self) -> (f64, f64) {
+        polygon_perimeter_area(self, true)
+    }
+
+    fn geodesic_perimeter_area_unsigned(&self) -> (f64, f64) {
+        polygon_perimeter_area(self, false)
+    }
+}
+
+impl GeodesicArea for MultiPolygon {
+    fn geodesic_perimeter_area_signed(&self) -> (f64, f64) {
+        self.iter()
+            .map(GeodesicArea::geodesic_perimeter_area_signed)
+            .fold((0.0, 0.0), |(p, a), (pi, ai)| (p + pi, a + ai))
+    }
+
+    fn geodesic_perimeter_area_unsigned(&self) -> (f64, f64) {
+        self.iter()
+            .map(GeodesicArea::geodesic_perimeter_area_unsigned)
+            .fold((0.0, 0.0), |(p, a), (pi, ai)| (p + pi, a + ai))
+    }
+}
+
+impl GeodesicArea for Rect {
+    fn geodesic_perimeter_area_signed(&self) -> (f64, f64) {
+        self.to_polygon().geodesic_perimeter_area_signed()
+    }
+
+    fn geodesic_perimeter_area_unsigned(&self) -> (f64, f64) {
+        self.to_polygon().geodesic_perimeter_area_unsigned()
+    }
+}
+
+impl GeodesicArea for Triangle {
+    fn geodesic_perimeter_area_signed(&self) -> (f64, f64) {
+        self.to_polygon().geodesic_perimeter_area_signed()
+    }
+
+    fn geodesic_perimeter_area_unsigned(&self) -> (f64, f64) {
+        self.to_polygon().geodesic_perimeter_area_unsigned()
+    }
+}
+
+/// Areal parts contribute; puntal and linear parts are zero; collections sum.
+impl GeodesicArea for Geometry {
+    fn geodesic_perimeter_area_signed(&self) -> (f64, f64) {
+        geometry_perimeter_area(self, true)
+    }
+
+    fn geodesic_perimeter_area_unsigned(&self) -> (f64, f64) {
+        geometry_perimeter_area(self, false)
+    }
+}
+
+fn geometry_perimeter_area(g: &Geometry, signed: bool) -> (f64, f64) {
+    let go = |x: &dyn GeodesicArea| {
+        if signed {
+            x.geodesic_perimeter_area_signed()
+        } else {
+            x.geodesic_perimeter_area_unsigned()
+        }
+    };
+    match g {
+        Geometry::Polygon(p) => go(p),
+        Geometry::MultiPolygon(mp) => go(mp),
+        Geometry::Rect(r) => go(r),
+        Geometry::Triangle(t) => go(t),
+        Geometry::GeometryCollection(gs) => gs
+            .iter()
+            .map(|sub| geometry_perimeter_area(sub, signed))
+            .fold((0.0, 0.0), |(p, a), (pi, ai)| (p + pi, a + ai)),
+        Geometry::Point(_)
+        | Geometry::MultiPoint(_)
+        | Geometry::Line(_)
+        | Geometry::LineString(_)
+        | Geometry::MultiLineString(_) => (0.0, 0.0),
     }
 }

@@ -15,49 +15,19 @@
 //! [`TransverseMercator`](crate::earth::projection::TransverseMercator) (the basis
 //! of [`Utm`](crate::earth::projection::Utm)). The trivial `x = lon`, `y = lat`
 //! relabelling — *not* a projection — stays in [`crate::convert`].
+//!
+//! Whole geometries project vertex-by-vertex through
+//! [`Projection::project_geometry`](crate::earth::projection::Projection::project_geometry) /
+//! [`Projection::inverse_geometry`](crate::earth::projection::Projection::inverse_geometry)
+//! (via [`MapCoords`](crate::space::r2::MapCoords)), so lon/lat `r2` geometry
+//! can be carried into projected metres, computed on, and carried back.
 
 use std::f64::consts::PI;
 
 use crate::earth::GeoPoint;
-use crate::space::r2::Coord;
+use crate::space::r2::{Coord, MapCoords};
 
-/// A reference ellipsoid (or sphere) — the datum/planet a projection is built on.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Ellipsoid {
-    /// Semi-major axis, metres.
-    pub a: f64,
-    /// Flattening (`0` for a perfect sphere).
-    pub f: f64,
-}
-
-impl Ellipsoid {
-    /// WGS84 (the GPS datum).
-    pub const WGS84: Ellipsoid = Ellipsoid {
-        a: 6_378_137.0,
-        f: 1.0 / 298.257_223_563,
-    };
-    /// GRS80 (almost identical to WGS84).
-    pub const GRS80: Ellipsoid = Ellipsoid {
-        a: 6_378_137.0,
-        f: 1.0 / 298.257_222_101,
-    };
-    /// A perfect sphere of the WGS84 mean radius.
-    pub const SPHERE: Ellipsoid = Ellipsoid {
-        a: 6_371_008.8,
-        f: 0.0,
-    };
-    /// Mars (IAU 2009).
-    pub const MARS: Ellipsoid = Ellipsoid {
-        a: 3_396_190.0,
-        f: 1.0 / 169.894_447_223_612,
-    };
-
-    /// First eccentricity squared `e² = f(2 − f)`.
-    #[must_use]
-    pub fn e2(self) -> f64 {
-        self.f * (2.0 - self.f)
-    }
-}
+pub use crate::earth::ellipsoid::Ellipsoid;
 
 /// A map projection: geographic ↔ projected planar metres.
 pub trait Projection {
@@ -65,6 +35,45 @@ pub trait Projection {
     fn project(&self, p: GeoPoint) -> Coord;
     /// Planar metres → geographic.
     fn inverse(&self, c: Coord) -> GeoPoint;
+
+    /// Project a lon/lat planar coordinate (`x = lon`, `y = lat` degrees — the
+    /// [`crate::convert`] relabelling) to projected planar metres.
+    fn project_coord(&self, c: Coord) -> Coord {
+        self.project(GeoPoint::from_lon_lat(c.x, c.y))
+    }
+
+    /// Inverse-project planar metres back to a lon/lat planar coordinate
+    /// (`x = lon`, `y = lat` degrees).
+    fn inverse_coord(&self, c: Coord) -> Coord {
+        let p = self.inverse(c);
+        Coord::new(p.lon, p.lat)
+    }
+
+    /// Project a whole geometry, vertex by vertex, from lon/lat degrees
+    /// (`x = lon`, `y = lat`) into projected planar metres — after which the
+    /// `r2` algorithms compute in metres. Inverse-pair to
+    /// [`inverse_geometry`](Self::inverse_geometry).
+    ///
+    /// Only vertices are mapped: an edge stays the straight segment between its
+    /// projected endpoints, so a long edge is *not* densified along the
+    /// projected curve (and a [`Rect`](crate::space::r2::Rect) maps by its two
+    /// corners — see [`MapCoords`]).
+    fn project_geometry<G: MapCoords>(&self, g: &G) -> G
+    where
+        Self: Sized,
+    {
+        g.map_coords(|c| self.project_coord(c))
+    }
+
+    /// Inverse-project a whole geometry, vertex by vertex, from projected
+    /// planar metres back to lon/lat degrees (`x = lon`, `y = lat`).
+    /// Inverse-pair to [`project_geometry`](Self::project_geometry).
+    fn inverse_geometry<G: MapCoords>(&self, g: &G) -> G
+    where
+        Self: Sized,
+    {
+        g.map_coords(|c| self.inverse_coord(c))
+    }
 }
 
 /// Web Mercator (spherical Mercator) — the projection of web map tiles. Planar

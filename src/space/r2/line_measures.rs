@@ -1,18 +1,16 @@
 //! Metric spaces and the measures over them — [`Euclidean`] (planar),
-//! [`Haversine`] (great-circle) and [`Rhumb`] (loxodrome) — mirroring `geo`'s
-//! `line_measures`: [`Distance`], [`Length`], [`Bearing`], [`Destination`],
+//! [`Haversine`] (great-circle), [`Rhumb`] (loxodrome), and [`Geodesic`]
+//! (WGS84 ellipsoidal, Karney) — mirroring `geo`'s `line_measures`:
+//! [`Distance`], [`Length`], [`Bearing`], [`Destination`],
 //! [`InterpolatePoint`].
 //!
-//! Under [`Haversine`] and [`Rhumb`], a [`Point`]/[`Coord`] is read as **`x = lon`,
-//! `y = lat` degrees** (the geo convention) and the spherical work is delegated
-//! to the crate's validated [`crate::earth`] kernels, so results stay consistent
-//! with the rest of the crate.
-//!
-//! The ellipsoidal `Geodesic` (Karney) metric space is a future addition — it
-//! needs a geographiclib-style port rather than the spherical kernels here.
+//! Under the geographic metrics, a [`Point`]/[`Coord`] is read as **`x = lon`,
+//! `y = lat` degrees** (the geo convention) and the spherical/ellipsoidal work
+//! is delegated to the crate's validated [`crate::earth`] kernels, so results
+//! stay consistent with the rest of the crate.
 
 use crate::earth::{
-    Bearing as CompassBearing, GeoPoint, destination_m, haversine_m, rhumb_bearing,
+    Bearing as CompassBearing, Ellipsoid, GeoPoint, destination_m, haversine_m, rhumb_bearing,
     rhumb_destination_m, rhumb_distance_m, rhumb_point_at_ratio,
 };
 
@@ -32,6 +30,13 @@ pub struct Haversine;
 /// constant-bearing courses, straight lines on a Mercator chart.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Rhumb;
+/// The WGS84 **ellipsoidal** geodesic metric space (coordinates read as
+/// `x = lon`, `y = lat`) — Karney's algorithms via
+/// [`Ellipsoid::WGS84`](crate::earth::Ellipsoid::WGS84). Exact to round-off
+/// where [`Haversine`]'s spherical model is off by up to ~0.5%; roughly an
+/// order of magnitude slower.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Geodesic;
 
 /// A `(x = lon, y = lat)` planar point as a spherical [`GeoPoint`].
 #[inline]
@@ -94,6 +99,24 @@ impl Distance<GeoPoint, GeoPoint> for Rhumb {
     }
 }
 
+impl Distance<Coord, Coord> for Geodesic {
+    fn distance(&self, a: Coord, b: Coord) -> f64 {
+        Ellipsoid::WGS84.distance_m(as_geo(a), as_geo(b))
+    }
+}
+
+impl Distance<Point, Point> for Geodesic {
+    fn distance(&self, a: Point, b: Point) -> f64 {
+        self.distance(a.0, b.0)
+    }
+}
+
+impl Distance<GeoPoint, GeoPoint> for Geodesic {
+    fn distance(&self, a: GeoPoint, b: GeoPoint) -> f64 {
+        Ellipsoid::WGS84.distance_m(a, b)
+    }
+}
+
 /// Total length of a linear geometry under a metric space.
 pub trait Length<G> {
     fn length(&self, geometry: &G) -> f64;
@@ -112,6 +135,12 @@ impl Length<LineString> for Haversine {
 }
 
 impl Length<LineString> for Rhumb {
+    fn length(&self, ls: &LineString) -> f64 {
+        ls.0.windows(2).map(|w| self.distance(w[0], w[1])).sum()
+    }
+}
+
+impl Length<LineString> for Geodesic {
     fn length(&self, ls: &LineString) -> f64 {
         ls.0.windows(2).map(|w| self.distance(w[0], w[1])).sum()
     }
@@ -245,6 +274,21 @@ impl Bearing<Coord, Coord> for Rhumb {
     }
 }
 
+impl Bearing<Point, Point> for Geodesic {
+    fn bearing(&self, a: Point, b: Point) -> f64 {
+        self.bearing(a.0, b.0)
+    }
+}
+
+impl Bearing<Coord, Coord> for Geodesic {
+    fn bearing(&self, a: Coord, b: Coord) -> f64 {
+        Ellipsoid::WGS84
+            .inverse(as_geo(a), as_geo(b))
+            .initial_bearing
+            .degrees()
+    }
+}
+
 /// The forward geodesic: the point reached from `origin` by travelling
 /// `distance` along the initial compass `bearing_degrees`.
 pub trait Destination {
@@ -265,6 +309,17 @@ impl Destination for Haversine {
 impl Destination for Rhumb {
     fn destination(&self, origin: Point, bearing_degrees: f64, distance: f64) -> Point {
         let dest = rhumb_destination_m(
+            as_geo(origin.0),
+            CompassBearing::from_degrees(bearing_degrees),
+            distance,
+        );
+        Point::new(dest.lon, dest.lat)
+    }
+}
+
+impl Destination for Geodesic {
+    fn destination(&self, origin: Point, bearing_degrees: f64, distance: f64) -> Point {
+        let dest = Ellipsoid::WGS84.destination_m(
             as_geo(origin.0),
             CompassBearing::from_degrees(bearing_degrees),
             distance,
