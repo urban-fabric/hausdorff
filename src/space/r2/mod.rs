@@ -35,6 +35,7 @@ pub mod index;
 pub mod intersects;
 pub mod join;
 pub mod line_measures;
+pub mod map_coords;
 pub mod min_distance;
 pub mod prepared;
 pub mod relate;
@@ -62,7 +63,10 @@ pub use geodesic_area::ChamberlainDuquetteArea;
 pub use index::StrTree;
 pub use intersects::Intersects;
 pub use join::{GeometryIndex, nested_loop_join, spatial_join, spatial_join_candidates};
-pub use line_measures::{Bearing, Destination, Distance, Euclidean, Haversine, Length, Perimeter};
+pub use line_measures::{
+    Bearing, Destination, Distance, Euclidean, Geodesic, Haversine, Length, Perimeter,
+};
+pub use map_coords::MapCoords;
 pub use min_distance::{MinDistanceWorkspace, euclidean_distance, euclidean_within};
 pub use prepared::PreparedGeometry;
 pub use relate::SpatialPredicate;

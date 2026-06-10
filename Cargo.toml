@@ -33,6 +33,9 @@ profiling = ["dep:huygens"]
 
 [dev-dependencies]
 h3o = "0.10.0"
+# Reference oracle for the ported Karney ellipsoidal geodesics
+# (earth::karney) — already in the tree as geo's geodesic backend.
+geographiclib-rs = "0.2.7"
 # Reference oracles — used only to conformance-check the native kernels/codecs
 # (the same role h3o plays for the H3 core). Never runtime dependencies.
 geo = "0.33"

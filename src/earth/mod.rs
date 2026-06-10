@@ -14,10 +14,14 @@ pub mod batch;
 mod bbox;
 mod bearing;
 mod geodesic;
+mod karney;
 mod point;
 mod radial_grid;
 mod similarity;
 
+/// Reference ellipsoids — the datum/planet model behind projections and
+/// ellipsoidal geodesics.
+pub mod ellipsoid;
 /// Map projections anchored to the Earth (e.g. UTM).
 pub mod projection;
 /// The planet-flexible metric layer: arc lengths and areas on a sphere of a
@@ -27,6 +31,7 @@ pub mod sphere;
 pub use batch::LonLatBatch;
 pub use bbox::{BBox, BBoxParseError};
 pub use bearing::Bearing;
+pub use ellipsoid::{Ellipsoid, GeodesicDirect, GeodesicInverse};
 pub use geodesic::{EARTH_RADIUS_M, destination, destination_m, haversine_m, haversine_meters};
 pub use point::{FixedGeoPoint, GeoPoint};
 pub use radial_grid::{RadialGrid, RingPoint};

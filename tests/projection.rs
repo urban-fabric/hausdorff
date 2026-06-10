@@ -5,6 +5,7 @@ use std::f64::consts::PI;
 
 use hausdorff::earth::GeoPoint;
 use hausdorff::earth::projection::{Ellipsoid, Projection, TransverseMercator, Utm, WebMercator};
+use hausdorff::space::r2::{Area, Geometry, Length, LineString, Point, Polygon};
 
 fn g(lat: f64, lon: f64) -> GeoPoint {
     GeoPoint::from_lat_lon(lat, lon)
@@ -67,6 +68,87 @@ fn utm_easting_increases_eastward() {
     let cm = Utm::from_geo(g(45.0, 3.0)).easting;
     let east = Utm::from_geo(g(45.0, 5.0)).easting;
     assert!(east > cm && (cm - 500_000.0).abs() < 1.0);
+}
+
+#[test]
+fn geometry_projects_and_round_trips() {
+    // A city-block polygon (with a hole) in lon/lat degrees around Paris.
+    let poly = Polygon::new(
+        LineString::from(vec![
+            (2.350, 48.853),
+            (2.360, 48.853),
+            (2.360, 48.860),
+            (2.350, 48.860),
+        ]),
+        vec![LineString::from(vec![
+            (2.354, 48.855),
+            (2.356, 48.855),
+            (2.356, 48.857),
+            (2.354, 48.857),
+        ])],
+    );
+    let g = Geometry::Polygon(poly);
+    let utm = TransverseMercator::utm(31, true);
+
+    let projected = utm.project_geometry(&g);
+    // In projected metres the planar area must be physically plausible:
+    // ~0.01° lon × 0.007° lat at 48.86°N ≈ (733 m × 778 m) minus the hole.
+    let Geometry::Polygon(p) = &projected else {
+        panic!("polygon should project to polygon");
+    };
+    let area = p.unsigned_area();
+    assert!(
+        (500_000.0..600_000.0).contains(&area),
+        "projected area {area} m²"
+    );
+    assert!(p.exterior().is_closed() && p.interiors().len() == 1);
+
+    let back = utm.inverse_geometry(&projected);
+    let Geometry::Polygon(b) = &back else {
+        panic!("round trip should preserve the variant");
+    };
+    for (orig, rt) in g_coords(&g).zip(g_coords(&Geometry::Polygon(b.clone()))) {
+        assert!((orig.0 - rt.0).abs() < 1e-8 && (orig.1 - rt.1).abs() < 1e-8);
+    }
+}
+
+fn g_coords(g: &Geometry) -> impl Iterator<Item = (f64, f64)> + '_ {
+    let Geometry::Polygon(p) = g else {
+        panic!("test helper expects a polygon")
+    };
+    p.exterior()
+        .coords()
+        .chain(p.interiors().iter().flat_map(|r| r.coords()))
+        .map(|c| (c.x, c.y))
+}
+
+#[test]
+fn projected_length_approximates_haversine() {
+    // A ~1.1 km segment: its planar length in UTM metres should approximate
+    // the great-circle metres. The dominant error is haversine's own spherical
+    // model (mean-radius sphere vs the ellipsoid, up to ~0.5%), not the
+    // projection (UTM scale error ≤ 4e-4 near the CM).
+    let ls = LineString::from(vec![(2.350, 48.853), (2.360, 48.860)]);
+    let utm = TransverseMercator::utm(31, true);
+    let projected = utm.project_geometry(&ls);
+
+    let planar = hausdorff::space::r2::Euclidean.length(&projected);
+    let spherical = hausdorff::space::r2::Haversine.length(&ls);
+    assert!(
+        (planar - spherical).abs() / spherical < 5e-3,
+        "planar {planar} vs spherical {spherical}"
+    );
+}
+
+#[test]
+fn project_geometry_works_for_bare_types() {
+    // The generic surface accepts any MapCoords geometry, not just the enum.
+    let utm = TransverseMercator::utm(31, true);
+    let pt = Point::new(3.0, 0.0);
+    let projected = utm.project_geometry(&pt);
+    assert!((projected.x() - 500_000.0).abs() < 1e-3);
+    let back = utm.inverse_geometry(&projected);
+    assert!((back.x() - 3.0).abs() < 1e-8 && back.y().abs() < 1e-8);
 }
 
 #[test]

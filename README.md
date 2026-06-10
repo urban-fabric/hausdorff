@@ -23,18 +23,23 @@ use the same internal implementation.
   whose shapes (Coord, Point, Line, LineString, Polygon, MultiPolygon, …) and
   trait names mirror `geo` so callers migrate by changing the import path.
   Includes `Area`, `Centroid`, `BoundingRect`, `ConvexHull`, `ConcaveHull`,
-  `Simplify`, `Distance` / `min_distance`, `Intersects`, `Length` / `Perimeter`,
-  `Orient`, `BooleanOps`, `relate` (DE-9IM), the `StrTree` spatial index,
-  `PreparedGeometry`, spatial joins, and set/curve distances
+  `Simplify`, `Distance` / `min_distance`, `Intersects`, `Length` / `Perimeter`
+  (under the `Euclidean`, `Haversine`, or ellipsoidal `Geodesic` metric),
+  `MapCoords`, `Orient`, `BooleanOps`, `relate` (DE-9IM), the `StrTree` spatial
+  index, `PreparedGeometry`, spatial joins, and set/curve distances
   (`hausdorff_distance` / `frechet_distance`).
 - **`space::s2`** — spherical S2 primitives ported from golang/geo: cell ids,
   caps, edge crossings, orientation predicates, and measures. **`RegionCoverer`
   is experimental** (see *Stability*).
 - **`space::r3` / `space::s1`** — supporting unit-less vector / angle types.
-- **`earth`** — the WGS84 lat/lon layer: `GeoPoint`, haversine and geodesic
-  distances, bounding boxes, `RadialGrid` (a concentric-ring sampler around a
-  point), and the Hausdorff / Fréchet curve-similarity measures
-  (`earth::similarity`).
+- **`earth`** — the WGS84 lat/lon layer: `GeoPoint`, spherical (haversine) and
+  ellipsoidal geodesics (Karney direct/inverse on any `Ellipsoid` — WGS84,
+  GRS80, Mars, …; differential-tested against `geographiclib-rs`),
+  planet-flexible sphere geodesics (`sphere::Sphere`), map projections
+  (`projection`: Web Mercator, Transverse Mercator / UTM, with whole-geometry
+  `project_geometry` / `inverse_geometry`), bounding boxes, `RadialGrid` (a
+  concentric-ring sampler around a point), and the Hausdorff / Fréchet
+  curve-similarity measures (`earth::similarity`).
 - **`algebra`** — metric / vector-space traits (`MetricSpace`, `Norm`,
   `InnerProduct`, `VectorSpace`) and the generic Hausdorff / Fréchet kernels.
 - **`format`** — native WKT, WKB, and GeoJSON codecs over `space::r2::Geometry`,
@@ -49,8 +54,9 @@ treat this as guidance, not a guarantee):
 
 - **Stable** — exercised by conformance suites and used downstream:
   `index::h3`, `index::geohash`, the `space::r2` geometry / algorithm surface,
-  `format` (wkt / wkb / geojson, shapefile read), `earth` (points, geodesics,
-  bbox, `RadialGrid`, `similarity`), and `algebra`. The `space::r2` trait names
+  `format` (wkt / wkb / geojson, shapefile read), `earth` (points, geodesics —
+  spherical and ellipsoidal — ellipsoids, projections, bbox, `RadialGrid`,
+  `similarity`), and `algebra`. The `space::r2` trait names
   intentionally mirror `geo` as **migration shims** — they exist so callers can
   swap the import path, and may diverge from `geo` over time.
 - **Experimental** — `space::s2::RegionCoverer`. Its cell-intersection test is
