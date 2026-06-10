@@ -29,6 +29,7 @@ pub mod concave_hull;
 pub mod contains;
 pub mod convex_hull;
 pub mod coords_iter;
+pub mod densify;
 pub mod dimensions;
 pub mod geodesic_area;
 pub mod index;
@@ -57,12 +58,16 @@ pub use concave_hull::ConcaveHull;
 pub use contains::Contains;
 pub use convex_hull::ConvexHull;
 pub use coords_iter::CoordsIter;
+pub use densify::Densify;
 pub use dimensions::{Dimensions, HasDimensions};
 pub use geodesic_area::ChamberlainDuquetteArea;
 pub use index::StrTree;
 pub use intersects::Intersects;
 pub use join::{GeometryIndex, nested_loop_join, spatial_join, spatial_join_candidates};
-pub use line_measures::{Bearing, Destination, Distance, Euclidean, Haversine, Length, Perimeter};
+pub use line_measures::{
+    Bearing, Destination, Distance, Euclidean, Haversine, InterpolatePoint, Length, Perimeter,
+    Rhumb,
+};
 pub use min_distance::{MinDistanceWorkspace, euclidean_distance, euclidean_within};
 pub use prepared::PreparedGeometry;
 pub use relate::SpatialPredicate;
