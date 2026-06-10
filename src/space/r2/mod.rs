@@ -42,6 +42,11 @@ pub mod set_distance;
 pub mod simplify;
 pub mod winding;
 
+pub mod affine;
+pub mod closest_point;
+pub mod extremes;
+pub mod line_locate_interpolate;
+
 pub use coord::{Coord, Point};
 pub use geometry::Geometry;
 pub use line_string::{LineString, MultiLineString};
@@ -69,3 +74,8 @@ pub use relate::SpatialPredicate;
 pub use set_distance::{directed_hausdorff_distance, frechet_distance, hausdorff_distance};
 pub use simplify::Simplify;
 pub use winding::{Direction, Orient, Winding, WindingOrder};
+
+pub use affine::{AffineOps, AffineTransform, Rotate, Scale, Skew, Translate};
+pub use closest_point::{Closest, ClosestPoint};
+pub use extremes::{Extreme, Extremes, Outcome};
+pub use line_locate_interpolate::{LineInterpolatePoint, LineLocatePoint};

@@ -2,7 +2,10 @@
 //! `BoundingRect` trait (with its `Output` distinction: always-present for a
 //! single coordinate, `Option` for collections that may be empty).
 
-use super::{Coord, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon, Rect};
+use super::{
+    Coord, Line, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon, Rect,
+    Triangle,
+};
 
 /// The bounding rectangle of a geometry.
 pub trait BoundingRect {
@@ -50,6 +53,29 @@ impl BoundingRect for Rect {
     type Output = Rect;
     fn bounding_rect(&self) -> Rect {
         *self
+    }
+}
+
+impl BoundingRect for Line {
+    type Output = Rect;
+    fn bounding_rect(&self) -> Rect {
+        Rect::new(self.start, self.end)
+    }
+}
+
+impl BoundingRect for Triangle {
+    type Output = Rect;
+    fn bounding_rect(&self) -> Rect {
+        Rect::new(
+            Coord::new(
+                self.0.x.min(self.1.x).min(self.2.x),
+                self.0.y.min(self.1.y).min(self.2.y),
+            ),
+            Coord::new(
+                self.0.x.max(self.1.x).max(self.2.x),
+                self.0.y.max(self.1.y).max(self.2.y),
+            ),
+        )
     }
 }
 
