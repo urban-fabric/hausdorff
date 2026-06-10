@@ -16,6 +16,7 @@ mod bearing;
 mod geodesic;
 mod point;
 mod radial_grid;
+mod rhumb;
 mod similarity;
 
 /// Map projections anchored to the Earth (e.g. UTM).
@@ -30,6 +31,10 @@ pub use bearing::Bearing;
 pub use geodesic::{EARTH_RADIUS_M, destination, destination_m, haversine_m, haversine_meters};
 pub use point::{FixedGeoPoint, GeoPoint};
 pub use radial_grid::{RadialGrid, RingPoint};
+pub use rhumb::{
+    rhumb_bearing, rhumb_destination, rhumb_destination_m, rhumb_distance_m, rhumb_distance_meters,
+    rhumb_point_at_ratio,
+};
 pub use similarity::{
     directed_hausdorff_m, frechet_distance, frechet_distance_m, hausdorff_distance,
     hausdorff_distance_m,

@@ -1,16 +1,20 @@
-//! Metric spaces and the measures over them — [`Euclidean`] (planar) and
-//! [`Haversine`] (great-circle) — mirroring `geo`'s `line_measures`:
-//! [`Distance`], [`Length`], [`Bearing`], [`Destination`].
+//! Metric spaces and the measures over them — [`Euclidean`] (planar),
+//! [`Haversine`] (great-circle) and [`Rhumb`] (loxodrome) — mirroring `geo`'s
+//! `line_measures`: [`Distance`], [`Length`], [`Bearing`], [`Destination`],
+//! [`InterpolatePoint`].
 //!
-//! Under [`Haversine`], a [`Point`]/[`Coord`] is read as **`x = lon`, `y = lat`
-//! degrees** (the geo convention) and the spherical work is delegated to the
-//! crate's validated [`crate::earth`] kernels, so results stay consistent with the
-//! rest of the crate.
+//! Under [`Haversine`] and [`Rhumb`], a [`Point`]/[`Coord`] is read as **`x = lon`,
+//! `y = lat` degrees** (the geo convention) and the spherical work is delegated
+//! to the crate's validated [`crate::earth`] kernels, so results stay consistent
+//! with the rest of the crate.
 //!
 //! The ellipsoidal `Geodesic` (Karney) metric space is a future addition — it
 //! needs a geographiclib-style port rather than the spherical kernels here.
 
-use crate::earth::{Bearing as CompassBearing, GeoPoint, destination_m, haversine_m};
+use crate::earth::{
+    Bearing as CompassBearing, GeoPoint, destination_m, haversine_m, rhumb_bearing,
+    rhumb_destination_m, rhumb_distance_m, rhumb_point_at_ratio,
+};
 
 use super::{Coord, Geometry, LineString, MultiLineString, MultiPolygon, Point, Polygon};
 
@@ -22,6 +26,12 @@ pub struct Euclidean;
 /// `y = lat`), on a sphere of [`crate::earth::EARTH_RADIUS_M`].
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Haversine;
+
+/// The spherical rhumb-line (loxodrome) metric space (coordinates read as
+/// `x = lon`, `y = lat`), on a sphere of [`crate::earth::EARTH_RADIUS_M`]:
+/// constant-bearing courses, straight lines on a Mercator chart.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Rhumb;
 
 /// A `(x = lon, y = lat)` planar point as a spherical [`GeoPoint`].
 #[inline]
@@ -66,6 +76,24 @@ impl Distance<GeoPoint, GeoPoint> for Haversine {
     }
 }
 
+impl Distance<Coord, Coord> for Rhumb {
+    fn distance(&self, a: Coord, b: Coord) -> f64 {
+        rhumb_distance_m(as_geo(a), as_geo(b))
+    }
+}
+
+impl Distance<Point, Point> for Rhumb {
+    fn distance(&self, a: Point, b: Point) -> f64 {
+        rhumb_distance_m(as_geo(a.0), as_geo(b.0))
+    }
+}
+
+impl Distance<GeoPoint, GeoPoint> for Rhumb {
+    fn distance(&self, a: GeoPoint, b: GeoPoint) -> f64 {
+        rhumb_distance_m(a, b)
+    }
+}
+
 /// Total length of a linear geometry under a metric space.
 pub trait Length<G> {
     fn length(&self, geometry: &G) -> f64;
@@ -78,6 +106,12 @@ impl Length<LineString> for Euclidean {
 }
 
 impl Length<LineString> for Haversine {
+    fn length(&self, ls: &LineString) -> f64 {
+        ls.0.windows(2).map(|w| self.distance(w[0], w[1])).sum()
+    }
+}
+
+impl Length<LineString> for Rhumb {
     fn length(&self, ls: &LineString) -> f64 {
         ls.0.windows(2).map(|w| self.distance(w[0], w[1])).sum()
     }
@@ -199,6 +233,18 @@ impl Bearing<Coord, Coord> for Haversine {
     }
 }
 
+impl Bearing<Point, Point> for Rhumb {
+    fn bearing(&self, a: Point, b: Point) -> f64 {
+        rhumb_bearing(as_geo(a.0), as_geo(b.0)).degrees()
+    }
+}
+
+impl Bearing<Coord, Coord> for Rhumb {
+    fn bearing(&self, a: Coord, b: Coord) -> f64 {
+        rhumb_bearing(as_geo(a), as_geo(b)).degrees()
+    }
+}
+
 /// The forward geodesic: the point reached from `origin` by travelling
 /// `distance` along the initial compass `bearing_degrees`.
 pub trait Destination {
@@ -212,6 +258,75 @@ impl Destination for Haversine {
             CompassBearing::from_degrees(bearing_degrees),
             distance,
         );
+        Point::new(dest.lon, dest.lat)
+    }
+}
+
+impl Destination for Rhumb {
+    fn destination(&self, origin: Point, bearing_degrees: f64, distance: f64) -> Point {
+        let dest = rhumb_destination_m(
+            as_geo(origin.0),
+            CompassBearing::from_degrees(bearing_degrees),
+            distance,
+        );
+        Point::new(dest.lon, dest.lat)
+    }
+}
+
+/// Point interpolation along a metric space's "straight line" between two
+/// endpoints — the basis for [`Densify`](super::densify::Densify). The
+/// `Haversine` impl is a future addition (it needs a great-circle
+/// intermediate-point kernel).
+pub trait InterpolatePoint {
+    /// The point `ratio_from_start` of the way (by this metric's distance)
+    /// from `start` to `end`: `0` is `start`, `1` is `end`.
+    fn point_at_ratio_between(&self, start: Point, end: Point, ratio_from_start: f64) -> Point;
+
+    /// The point `distance_from_start` along the line from `start` toward
+    /// `end` (the metres unit for spherical metrics, the plane's own unit for
+    /// [`Euclidean`]).
+    fn point_at_distance_between(
+        &self,
+        start: Point,
+        end: Point,
+        distance_from_start: f64,
+    ) -> Point;
+}
+
+impl InterpolatePoint for Euclidean {
+    fn point_at_ratio_between(&self, start: Point, end: Point, ratio_from_start: f64) -> Point {
+        let d = end.0 - start.0;
+        Point::new(
+            start.x() + d.x * ratio_from_start,
+            start.y() + d.y * ratio_from_start,
+        )
+    }
+
+    fn point_at_distance_between(
+        &self,
+        start: Point,
+        end: Point,
+        distance_from_start: f64,
+    ) -> Point {
+        let total = self.distance(start, end);
+        self.point_at_ratio_between(start, end, distance_from_start / total)
+    }
+}
+
+impl InterpolatePoint for Rhumb {
+    fn point_at_ratio_between(&self, start: Point, end: Point, ratio_from_start: f64) -> Point {
+        let p = rhumb_point_at_ratio(as_geo(start.0), as_geo(end.0), ratio_from_start);
+        Point::new(p.lon, p.lat)
+    }
+
+    fn point_at_distance_between(
+        &self,
+        start: Point,
+        end: Point,
+        distance_from_start: f64,
+    ) -> Point {
+        let bearing = rhumb_bearing(as_geo(start.0), as_geo(end.0));
+        let dest = rhumb_destination_m(as_geo(start.0), bearing, distance_from_start);
         Point::new(dest.lon, dest.lat)
     }
 }
