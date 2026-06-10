@@ -47,6 +47,18 @@ impl IntersectionMatrix {
         self.m[a][b] < 0
     }
 
+    /// Dimension (`-1` = none, else `0`/`1`/`2`) of Interior(A) ∩ Interior(B).
+    #[must_use]
+    pub fn interior_interior_dim(&self) -> i8 {
+        self.m[I][I]
+    }
+
+    /// Dimension (`-1` = none, else `0`/`1`/`2`) of Boundary(A) ∩ Boundary(B).
+    #[must_use]
+    pub fn boundary_boundary_dim(&self) -> i8 {
+        self.m[B][B]
+    }
+
     #[must_use]
     pub fn is_disjoint(&self) -> bool {
         self.is_f(I, I) && self.is_f(I, B) && self.is_f(B, I) && self.is_f(B, B)

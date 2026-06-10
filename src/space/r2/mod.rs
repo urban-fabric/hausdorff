@@ -46,7 +46,10 @@ pub mod winding;
 pub mod affine;
 pub mod closest_point;
 pub mod extremes;
+pub mod interior_point;
 pub mod line_locate_interpolate;
+pub mod remove_repeated_points;
+pub mod validation;
 
 pub use coord::{Coord, Point};
 pub use geometry::Geometry;
@@ -56,7 +59,7 @@ pub use primitives::{Line, Rect, Triangle};
 
 pub use area::Area;
 pub use batch::PointBatch;
-pub use bool_ops::{BooleanOps, Operation};
+pub use bool_ops::{BooleanOps, Operation, UnaryUnionOperand, unary_union};
 pub use bounding_rect::BoundingRect;
 pub use centroid::Centroid;
 pub use concave_hull::ConcaveHull;
@@ -83,4 +86,7 @@ pub use winding::{Direction, Orient, Winding, WindingOrder};
 pub use affine::{AffineOps, AffineTransform, Rotate, Scale, Skew, Translate};
 pub use closest_point::{Closest, ClosestPoint};
 pub use extremes::{Extreme, Extremes, Outcome};
+pub use interior_point::InteriorPoint;
 pub use line_locate_interpolate::{LineInterpolatePoint, LineLocatePoint};
+pub use remove_repeated_points::RemoveRepeatedPoints;
+pub use validation::Validation;
