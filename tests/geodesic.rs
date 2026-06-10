@@ -212,6 +212,131 @@ fn r2_geodesic_metric_matches_geo() {
 }
 
 #[test]
+fn geodesic_line_waypoints_match_direct() {
+    // Sampling a line must agree with independent direct solves at every
+    // distance, at a fraction of the cost.
+    let origin = g(40.6398, -73.7787);
+    let bearing = Bearing::from_degrees(51.0);
+    let line = Ellipsoid::WGS84.line(origin, bearing);
+    for i in 0..50 {
+        let s = -2_000_000.0 + (i as f64) * 300_000.0; // backwards too
+        let from_line = line.position_m(s);
+        let from_direct = Ellipsoid::WGS84.direct(origin, bearing, s);
+        assert!(
+            (from_line.point.lat - from_direct.point.lat).abs() < 1e-13
+                && (from_line.point.lon - from_direct.point.lon).abs() < 1e-13,
+            "waypoint {s} diverges: {:?} vs {:?}",
+            from_line.point,
+            from_direct.point
+        );
+        assert_eq!(from_line.final_bearing, from_direct.final_bearing);
+    }
+}
+
+#[test]
+fn geodesic_area_matches_geo() {
+    use geo::GeodesicArea as _;
+    use r2::GeodesicArea as _;
+
+    // CCW square with a CW hole, a CW-wound exterior, and a high-latitude
+    // sliver crossing the antimeridian.
+    let cases: Vec<(r2::Polygon, geo::Polygon)> = vec![
+        (
+            r2::Polygon::new(
+                r2::LineString::from(vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
+                vec![r2::LineString::from(vec![
+                    (0.25, 0.25),
+                    (0.25, 0.75),
+                    (0.75, 0.75),
+                    (0.75, 0.25),
+                ])],
+            ),
+            geo::Polygon::new(
+                geo::LineString::from(vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
+                vec![geo::LineString::from(vec![
+                    (0.25, 0.25),
+                    (0.25, 0.75),
+                    (0.75, 0.75),
+                    (0.75, 0.25),
+                ])],
+            ),
+        ),
+        (
+            // Clockwise exterior: signed area must come back negative.
+            r2::Polygon::new(
+                r2::LineString::from(vec![(2.0, 48.0), (2.0, 49.0), (3.0, 49.0), (3.0, 48.0)]),
+                vec![],
+            ),
+            geo::Polygon::new(
+                geo::LineString::from(vec![(2.0, 48.0), (2.0, 49.0), (3.0, 49.0), (3.0, 48.0)]),
+                vec![],
+            ),
+        ),
+        (
+            r2::Polygon::new(
+                r2::LineString::from(vec![
+                    (179.5, 70.0),
+                    (-179.5, 70.0),
+                    (-179.5, 71.0),
+                    (179.5, 71.0),
+                ]),
+                vec![],
+            ),
+            geo::Polygon::new(
+                geo::LineString::from(vec![
+                    (179.5, 70.0),
+                    (-179.5, 70.0),
+                    (-179.5, 71.0),
+                    (179.5, 71.0),
+                ]),
+                vec![],
+            ),
+        ),
+    ];
+
+    for (ours, theirs) in &cases {
+        let (p_ours, a_ours) = ours.geodesic_perimeter_area_signed();
+        let (p_geo, a_geo) = theirs.geodesic_perimeter_area_signed();
+        assert!((p_ours - p_geo).abs() < 1e-6, "{p_ours} vs {p_geo}");
+        assert!((a_ours - a_geo).abs() < 1e-2, "{a_ours} vs {a_geo}");
+
+        let (pu_ours, au_ours) = ours.geodesic_perimeter_area_unsigned();
+        let (pu_geo, au_geo) = theirs.geodesic_perimeter_area_unsigned();
+        assert!((pu_ours - pu_geo).abs() < 1e-6, "{pu_ours} vs {pu_geo}");
+        assert!((au_ours - au_geo).abs() < 1e-2, "{au_ours} vs {au_geo}");
+    }
+}
+
+#[test]
+fn geodesic_area_improves_on_spherical() {
+    use r2::{ChamberlainDuquetteArea as _, GeodesicArea as _};
+
+    // A 1°×1° square at mid-latitude: the spherical approximation should sit
+    // within ~0.6% of the exact ellipsoidal area, and they must disagree (the
+    // whole point of the Karney area).
+    let poly = r2::Polygon::new(
+        r2::LineString::from(vec![(2.0, 48.0), (3.0, 48.0), (3.0, 49.0), (2.0, 49.0)]),
+        vec![],
+    );
+    let exact = poly.geodesic_area_unsigned();
+    let spherical = poly.chamberlain_duquette_unsigned_area();
+    let rel = (exact - spherical).abs() / exact;
+    assert!(rel > 1e-5 && rel < 6e-3, "relative gap {rel}");
+
+    // Ellipsoid-level API agrees with the r2 trait.
+    let ring: Vec<GeoPoint> = [(48.0, 2.0), (48.0, 3.0), (49.0, 3.0), (49.0, 2.0)]
+        .iter()
+        .map(|&(lat, lon)| g(lat, lon))
+        .collect();
+    let (_, area) = Ellipsoid::WGS84.ring_perimeter_area_m(&ring);
+    assert!((area - exact).abs() < 1e-3, "{area} vs {exact}");
+
+    // The whole planet, both hemispheres: total area sanity.
+    let total = Ellipsoid::WGS84.total_area_m2();
+    assert!((total - 510.0656e12).abs() / total < 1e-4, "{total}");
+}
+
+#[test]
 fn ellipsoidal_vs_spherical_sanity() {
     // The ellipsoidal distance differs from haversine by less than ~0.6%
     // everywhere, and equals it (to round-off scale) on the f = 0 ellipsoid.

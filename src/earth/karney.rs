@@ -7,8 +7,9 @@
 //! Karney's GeographicLib (see the crate `NOTICE`); the algorithms are from
 //! Karney, *Algorithms for geodesics*, J. Geodesy 87, 43–55 (2013). The port
 //! drops the capability masks, arc-mode positioning, and the reduced-length /
-//! geodesic-scale / area outputs — [`Karney::inverse`] and [`Karney::direct`]
-//! always solve for distance and azimuths, nothing else. `sincosd` uses
+//! geodesic-scale outputs — [`Karney::inverse`] and [`Karney::direct`] always
+//! solve for distance and azimuths, and [`Karney::ring_perimeter_area`] is the
+//! `PolygonArea` accumulator (the C4 area series). `sincosd` uses
 //! GeographicLib's `fmod`-based quadrant reduction (the Python/JS form) rather
 //! than `remquo`, which hausdorff has no dependency for.
 //!
@@ -17,7 +18,7 @@
 //! kernel. Differential-tested against `geographiclib-rs` (see
 //! `tests/geodesic.rs`).
 
-use std::f64::consts::PI;
+use std::f64::consts::{FRAC_1_SQRT_2, PI};
 use std::sync::LazyLock;
 
 use crate::earth::ellipsoid::Ellipsoid;
@@ -28,6 +29,8 @@ const GEODESIC_ORDER: usize = 6;
 const CARR_SIZE: usize = GEODESIC_ORDER + 1;
 /// Number of entries in the `C3` coefficient triangle.
 const NC3X: usize = 15;
+/// Number of entries in the `C4` (area series) coefficient triangle.
+const NC4X: usize = 21;
 
 /// Newton-iteration budget before falling back to bisection alone.
 const MAXIT1: u64 = 20;
@@ -350,6 +353,43 @@ const COEFF_C3: [f64; 45] = [
     384.0, 5.0, -9.0, 5.0, 192.0, 7.0, 512.0, -14.0, 7.0, 512.0, 21.0, 2560.0,
 ];
 
+/// Coefficients of the `C₄` polynomials (area series) in the third flattening.
+const COEFF_C4: [f64; 77] = [
+    97.0, 15015.0, 1088.0, 156.0, 45045.0, -224.0, -4784.0, 1573.0, 45045.0, -10656.0, 14144.0,
+    -4576.0, -858.0, 45045.0, 64.0, 624.0, -4576.0, 6864.0, -3003.0, 15015.0, 100.0, 208.0, 572.0,
+    3432.0, -12012.0, 30030.0, 45045.0, 1.0, 9009.0, -2944.0, 468.0, 135135.0, 5792.0, 1040.0,
+    -1287.0, 135135.0, 5952.0, -11648.0, 9152.0, -2574.0, 135135.0, -64.0, -624.0, 4576.0, -6864.0,
+    3003.0, 135135.0, 8.0, 10725.0, 1856.0, -936.0, 225225.0, -8448.0, 4992.0, -1144.0, 225225.0,
+    -1440.0, 4160.0, -4576.0, 1716.0, 225225.0, -136.0, 63063.0, 1024.0, -208.0, 105105.0, 3584.0,
+    -3328.0, 1144.0, 315315.0, -128.0, 135135.0, -2560.0, 832.0, 405405.0, 128.0, 99099.0,
+];
+
+/// `+1`/`-1` if the edge `lon1 → lon2` crosses the prime meridian going east /
+/// west (`±0` counts as positive longitude), else `0` — the pole-encirclement
+/// counter of the polygon-area accumulator.
+fn transit(lon1: f64, lon2: f64) -> i64 {
+    let (lon12, _) = ang_diff(lon1, lon2);
+    let lon1 = ang_normalize(lon1);
+    let lon2 = ang_normalize(lon2);
+    if lon12 > 0.0 && ((lon1 < 0.0 && lon2 >= 0.0) || (lon1 > 0.0 && lon2 == 0.0)) {
+        1
+    } else if lon12 < 0.0 && lon1 >= 0.0 && lon2 < 0.0 {
+        -1
+    } else {
+        0
+    }
+}
+
+/// `e·atanh(e·x)` for an ellipsoid with signed `es = sign(f)·e` — handles both
+/// oblate (`atanh`) and prolate (`atan`) cases.
+fn eatanhe(x: f64, es: f64) -> f64 {
+    if es > 0.0 {
+        es * (es * x).atanh()
+    } else {
+        -es * (es * x).atan()
+    }
+}
+
 /// The geodesic solver for one ellipsoid: the ellipsoid's derived constants
 /// plus the `A₃`/`C₃` series coefficients, which depend only on the third
 /// flattening and so are computed once per ellipsoid.
@@ -357,12 +397,16 @@ pub(crate) struct Karney {
     a: f64,
     f: f64,
     f1: f64,
+    e2: f64,
     ep2: f64,
     n: f64,
     b: f64,
+    /// Authalic radius squared — half the ellipsoid's total area is `2π·c2`.
+    c2: f64,
     etol2: f64,
     a3x: [f64; GEODESIC_ORDER],
     c3x: [f64; NC3X],
+    c4x: [f64; NC4X],
 }
 
 /// The WGS84 solver, built once — the common case ([`Ellipsoid::WGS84`] and
@@ -380,9 +424,18 @@ impl Karney {
         let a = ellipsoid.a;
         let f = ellipsoid.f;
         let f1 = 1.0 - f;
+        let e2 = ellipsoid.e2();
         let ep2 = ellipsoid.ep2();
         let n = ellipsoid.n();
         let b = ellipsoid.b();
+        let c2 = (sq(a)
+            + sq(b)
+                * (if e2 == 0.0 {
+                    1.0
+                } else {
+                    eatanhe(1.0, (if f < 0.0 { -1.0 } else { 1.0 }) * e2.abs().sqrt()) / e2
+                }))
+            / 2.0;
         let etol2 = 0.1 * tol2() / (f.abs().max(0.001) * (1.0 - f / 2.0).min(1.0) / 2.0).sqrt();
 
         let mut a3x = [0.0; GEODESIC_ORDER];
@@ -405,16 +458,31 @@ impl Karney {
             }
         }
 
+        let mut c4x = [0.0; NC4X];
+        let mut o = 0;
+        let mut k = 0;
+        for l in 0..GEODESIC_ORDER {
+            for j in (l..GEODESIC_ORDER).rev() {
+                let m = GEODESIC_ORDER - j - 1;
+                c4x[k] = polyval(m, &COEFF_C4[o..], n) / COEFF_C4[o + m + 1];
+                k += 1;
+                o += m + 2;
+            }
+        }
+
         Karney {
             a,
             f,
             f1,
+            e2,
             ep2,
             n,
             b,
+            c2,
             etol2,
             a3x,
             c3x,
+            c4x,
         }
     }
 
@@ -433,6 +501,20 @@ impl Karney {
             mult *= eps;
             c[l] = mult * polyval(m, &self.c3x[o..], eps);
             o += m + 1;
+        }
+    }
+
+    /// The `C₄` Fourier coefficients (area series) at `eps`. Unlike the other
+    /// series this one is 0-indexed (used with `sinp = false`).
+    fn c4f(&self, eps: f64, c: &mut [f64; GEODESIC_ORDER]) {
+        let mut mult = 1.0;
+        let mut o = 0;
+        #[allow(clippy::needless_range_loop)]
+        for l in 0..GEODESIC_ORDER {
+            let m = GEODESIC_ORDER - l - 1;
+            c[l] = mult * polyval(m, &self.c4x[o..], eps);
+            o += m + 1;
+            mult *= eps;
         }
     }
 
@@ -645,8 +727,9 @@ impl Karney {
     /// One evaluation of the inverse problem for a trial `alp1`: the longitude
     /// mismatch `v = λ₁₂(alp1) − λ₁₂` (the Newton residual) and the geometry
     /// at that azimuth. Returns
-    /// `(v, salp2, calp2, sig12, ssig1, csig1, ssig2, csig2, eps, dv)`, where
-    /// `dv` is `dv/dalp1` when `diffp` (else NaN).
+    /// `(v, salp2, calp2, sig12, ssig1, csig1, ssig2, csig2, eps, domg12, dv)`,
+    /// where `dv` is `dv/dalp1` when `diffp` (else NaN) and `domg12` is the
+    /// ω−λ correction the area path needs.
     #[allow(clippy::too_many_arguments)]
     fn lambda12(
         &self,
@@ -664,7 +747,7 @@ impl Karney {
         c1a: &mut [f64; CARR_SIZE],
         c2a: &mut [f64; CARR_SIZE],
         c3a: &mut [f64; GEODESIC_ORDER],
-    ) -> (f64, f64, f64, f64, f64, f64, f64, f64, f64, f64) {
+    ) -> (f64, f64, f64, f64, f64, f64, f64, f64, f64, f64, f64) {
         if sbet1 == 0.0 && calp1 == 0.0 {
             // Break the degeneracy of an equatorial line: any azimuth works.
             calp1 = -tiny();
@@ -723,7 +806,7 @@ impl Karney {
             f64::NAN
         };
         (
-            lam12, salp2, calp2, sig12, ssig1, csig1, ssig2, csig2, eps, dlam12,
+            lam12, salp2, calp2, sig12, ssig1, csig1, ssig2, csig2, eps, domg12, dlam12,
         )
     }
 
@@ -732,6 +815,31 @@ impl Karney {
     /// for two points in latitude/longitude degrees. Returns
     /// `(s12, azi1, azi2)`; NaN for a non-finite or out-of-range latitude.
     pub(crate) fn inverse(&self, lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> (f64, f64, f64) {
+        let (s12, salp1, calp1, salp2, calp2, _) = self.gen_inverse(lat1, lon1, lat2, lon2, false);
+        (s12, atan2d(salp1, calp1), atan2d(salp2, calp2))
+    }
+
+    /// The inverse problem with the geodesic area: `(s12, S12)` where `S12` is
+    /// the signed area (m²) between the geodesic and the equator — the
+    /// edge-wise quantity [`ring_perimeter_area`](Self::ring_perimeter_area)
+    /// accumulates.
+    fn inverse_with_area(&self, lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> (f64, f64) {
+        let (s12, _, _, _, _, s12_area) = self.gen_inverse(lat1, lon1, lat2, lon2, true);
+        (s12, s12_area)
+    }
+
+    /// The shared inverse driver. Returns
+    /// `(s12, salp1, calp1, salp2, calp2, S12)`; `S12` (the area between the
+    /// geodesic and the equator, clockwise-positive before the final sign
+    /// fix-up) is NaN unless `want_area`.
+    fn gen_inverse(
+        &self,
+        lat1: f64,
+        lon1: f64,
+        lat2: f64,
+        lon2: f64,
+        want_area: bool,
+    ) -> (f64, f64, f64, f64, f64, f64) {
         let (mut lon12, mut lon12s) = ang_diff(lon1, lon2);
         let mut lonsign = if lon12 >= 0.0 { 1.0 } else { -1.0 };
 
@@ -795,6 +903,11 @@ impl Karney {
         let mut ssig2 = 0.0;
         let mut csig2 = 0.0;
         let mut s12x = 0.0;
+        // ω₁₂ bookkeeping for the area path; somg12 > 1 marks "not yet set"
+        // (fall back to omg12 at the end, as in the reference).
+        let mut somg12 = 2.0;
+        let mut comg12 = 0.0;
+        let mut omg12 = 0.0;
 
         if meridian {
             // The geodesic runs along the meridian (possibly over a pole).
@@ -834,6 +947,7 @@ impl Karney {
             salp1 = 1.0;
             salp2 = 1.0;
             s12x = self.a * lam12;
+            omg12 = lam12 / self.f1;
         } else if !meridian {
             let (sig12i, salp1i, calp1i, salp2i, calp2i, dnm) = self.inverse_start(
                 sbet1, cbet1, dn1, sbet2, cbet2, dn2, lam12, slam12, clam12, &mut c1a, &mut c2a,
@@ -847,6 +961,7 @@ impl Karney {
             if sig12 >= 0.0 {
                 // Short line: the starting guess is the answer.
                 s12x = sig12 * self.b * dnm;
+                omg12 = lam12 / (self.f1 * dnm);
             } else {
                 // Newton's method on alp1, bracketed by bisection.
                 let mut tripn = false;
@@ -856,24 +971,36 @@ impl Karney {
                 let mut salp1b = tiny();
                 let mut calp1b = -1.0;
                 let mut eps = 0.0;
+                let mut domg12 = 0.0;
                 for numit in 0..MAXIT2 {
-                    let (v, salp2i, calp2i, sig12i, ssig1i, csig1i, ssig2i, csig2i, epsi, dv) =
-                        self.lambda12(
-                            sbet1,
-                            cbet1,
-                            dn1,
-                            sbet2,
-                            cbet2,
-                            dn2,
-                            salp1,
-                            calp1,
-                            slam12,
-                            clam12,
-                            numit < MAXIT1,
-                            &mut c1a,
-                            &mut c2a,
-                            &mut c3a,
-                        );
+                    let (
+                        v,
+                        salp2i,
+                        calp2i,
+                        sig12i,
+                        ssig1i,
+                        csig1i,
+                        ssig2i,
+                        csig2i,
+                        epsi,
+                        domg12i,
+                        dv,
+                    ) = self.lambda12(
+                        sbet1,
+                        cbet1,
+                        dn1,
+                        sbet2,
+                        cbet2,
+                        dn2,
+                        salp1,
+                        calp1,
+                        slam12,
+                        clam12,
+                        numit < MAXIT1,
+                        &mut c1a,
+                        &mut c2a,
+                        &mut c3a,
+                    );
                     salp2 = salp2i;
                     calp2 = calp2i;
                     sig12 = sig12i;
@@ -882,6 +1009,7 @@ impl Karney {
                     ssig2 = ssig2i;
                     csig2 = csig2i;
                     eps = epsi;
+                    domg12 = domg12i;
 
                     if tripb || v.abs() < (if tripn { 8.0 } else { 1.0 }) * tol0() || v.is_nan() {
                         break;
@@ -922,7 +1050,67 @@ impl Karney {
                     &mut c2a,
                 );
                 s12x = s12b * self.b;
+                if want_area {
+                    let (sdomg12, cdomg12) = domg12.sin_cos();
+                    somg12 = slam12 * cdomg12 - clam12 * sdomg12;
+                    comg12 = clam12 * cdomg12 + slam12 * sdomg12;
+                }
             }
+        }
+
+        let mut s12_area = f64::NAN;
+        if want_area {
+            // The area S12 between the geodesic and the equator: the C4 series
+            // integral plus the spherical-excess term c2·α₁₂, computed in the
+            // canonical frame and sign-fixed with the swaps below.
+            let salp0 = salp1 * cbet1;
+            let calp0 = calp1.hypot(salp1 * sbet1);
+            s12_area = if calp0 != 0.0 && salp0 != 0.0 {
+                let mut ssig1 = sbet1;
+                let mut csig1 = calp1 * cbet1;
+                let mut ssig2 = sbet2;
+                let mut csig2 = calp2 * cbet2;
+                let k2 = sq(calp0) * self.ep2;
+                let eps = k2 / (2.0 * (1.0 + (1.0 + k2).sqrt()) + k2);
+                let a4 = sq(self.a) * calp0 * salp0 * self.e2;
+                norm2(&mut ssig1, &mut csig1);
+                norm2(&mut ssig2, &mut csig2);
+                let mut c4a = [0.0; GEODESIC_ORDER];
+                self.c4f(eps, &mut c4a);
+                let b41 = sin_cos_series(false, ssig1, csig1, &c4a);
+                let b42 = sin_cos_series(false, ssig2, csig2, &c4a);
+                a4 * (b42 - b41)
+            } else {
+                0.0
+            };
+
+            if !meridian && somg12 > 1.0 {
+                somg12 = omg12.sin();
+                comg12 = omg12.cos();
+            }
+
+            let alp12 = if !meridian && comg12 > -FRAC_1_SQRT_2 && sbet2 - sbet1 < 1.75 {
+                // Geodesic runs through the vertex: the spherical-excess
+                // half-angle form is the numerically stable one here.
+                let domg12 = 1.0 + comg12;
+                let dbet1 = 1.0 + cbet1;
+                let dbet2 = 1.0 + cbet2;
+                2.0 * (somg12 * (sbet1 * dbet2 + sbet2 * dbet1))
+                    .atan2(domg12 * (sbet1 * sbet2 + dbet1 * dbet2))
+            } else {
+                let mut salp12 = salp2 * calp1 - calp2 * salp1;
+                let mut calp12 = calp2 * calp1 + salp2 * salp1;
+                // alp12 = 0 with calp12 < 0 means alp12 = ±π: pick the sign
+                // consistent with alp1 so a half-planet edge doesn't flip.
+                if salp12 == 0.0 && calp12 < 0.0 {
+                    salp12 = tiny() * calp1;
+                    calp12 = -1.0;
+                }
+                salp12.atan2(calp12)
+            };
+            s12_area += self.c2 * alp12;
+            s12_area *= swapp * lonsign * latsign;
+            s12_area += 0.0;
         }
 
         // Undo the canonical swaps/sign flips on the azimuths.
@@ -935,7 +1123,70 @@ impl Karney {
         salp2 *= swapp * lonsign;
         calp2 *= swapp * latsign;
 
-        (s12x, atan2d(salp1, calp1), atan2d(salp2, calp2))
+        (s12x, salp1, calp1, salp2, calp2, s12_area)
+    }
+
+    /// The ellipsoid's total surface area, m².
+    pub(crate) fn total_area(&self) -> f64 {
+        4.0 * PI * self.c2
+    }
+
+    /// Perimeter (metres) and signed area (m²) of the polygon whose vertices
+    /// are `ring` as `(lat, lon)` degrees — GeographicLib's `PolygonArea`
+    /// accumulator. The ring closes itself (a trailing duplicate of the first
+    /// vertex contributes a zero-length edge, so closed rings are fine too).
+    ///
+    /// `ccw_positive` picks the winding that counts as positive. With
+    /// `signed`, a ring wound the other way comes back negative (wrong for
+    /// rings enclosing more than half the planet); without it, the area is
+    /// always the enclosed area in `[0, total)`.
+    pub(crate) fn ring_perimeter_area(
+        &self,
+        ring: &[(f64, f64)],
+        ccw_positive: bool,
+        signed: bool,
+    ) -> (f64, f64) {
+        let Some((&(first_lat, first_lon), rest)) = ring.split_first() else {
+            return (0.0, 0.0);
+        };
+        let mut perimeter = 0.0;
+        let mut area = 0.0;
+        let mut crossings: i64 = 0;
+        let (mut last_lat, mut last_lon) = (first_lat, first_lon);
+        for &(lat, lon) in rest.iter().chain(std::iter::once(&(first_lat, first_lon))) {
+            let (s12, s12_area) = self.inverse_with_area(last_lat, last_lon, lat, lon);
+            perimeter += s12;
+            area += s12_area;
+            crossings += transit(last_lon, lon);
+            (last_lat, last_lon) = (lat, lon);
+        }
+
+        // Fold the accumulated S12 into a polygon area: account for prime-
+        // meridian crossings (pole encirclement), fix the winding convention,
+        // and reduce modulo the ellipsoid's total area.
+        let area0 = 4.0 * PI * self.c2;
+        let mut area = area % area0;
+        if crossings % 2 != 0 {
+            area += if area < 0.0 {
+                area0 / 2.0
+            } else {
+                -area0 / 2.0
+            };
+        }
+        // S12 accumulates in the clockwise sense.
+        if ccw_positive {
+            area = -area;
+        }
+        if signed {
+            if area > area0 / 2.0 {
+                area -= area0;
+            } else if area <= -area0 / 2.0 {
+                area += area0;
+            }
+        } else if area < 0.0 {
+            area += area0;
+        }
+        (perimeter, area)
     }
 
     /// The direct geodesic problem: from a point in latitude/longitude
@@ -944,6 +1195,14 @@ impl Karney {
     /// with `azi2` the forward azimuth at the destination; NaN for a
     /// non-finite or out-of-range latitude.
     pub(crate) fn direct(&self, lat1: f64, lon1: f64, azi1: f64, s12: f64) -> (f64, f64, f64) {
+        self.line(lat1, lon1, azi1).position(s12)
+    }
+
+    /// Set up the geodesic line from a point with the given initial azimuth —
+    /// the origin-dependent half of the direct problem, factored out so a
+    /// caller placing many points along one geodesic
+    /// ([`LineKernel::position`]) pays it once.
+    pub(crate) fn line(&self, lat1: f64, lon1: f64, azi1: f64) -> LineKernel {
         let azi1 = ang_normalize(azi1);
         let (salp1, calp1) = sincosd(ang_round(azi1));
         let lat1 = lat_fix(lat1);
@@ -984,6 +1243,70 @@ impl Karney {
         self.c3f(eps, &mut c3a);
         let a3c = -self.f * salp0 * self.a3f(eps);
         let b31 = sin_cos_series(true, ssig1, csig1, &c3a);
+
+        LineKernel {
+            f: self.f,
+            f1: self.f1,
+            b: self.b,
+            lon1,
+            k2,
+            salp0,
+            calp0,
+            ssig1,
+            csig1,
+            somg1,
+            comg1,
+            stau1,
+            ctau1,
+            a1m1,
+            b11,
+            a3c,
+            b31,
+            c1a,
+            c1pa,
+            c3a,
+        }
+    }
+}
+
+/// A geodesic line: the precomputed origin-and-azimuth state of the direct
+/// problem, ready to place points at any distance ([`position`](Self::position))
+/// without re-deriving the series. The kernel behind
+/// [`crate::earth::GeodesicLine`].
+pub(crate) struct LineKernel {
+    f: f64,
+    f1: f64,
+    b: f64,
+    lon1: f64,
+    k2: f64,
+    salp0: f64,
+    calp0: f64,
+    ssig1: f64,
+    csig1: f64,
+    somg1: f64,
+    comg1: f64,
+    stau1: f64,
+    ctau1: f64,
+    a1m1: f64,
+    b11: f64,
+    a3c: f64,
+    b31: f64,
+    c1a: [f64; CARR_SIZE],
+    c1pa: [f64; CARR_SIZE],
+    c3a: [f64; GEODESIC_ORDER],
+}
+
+impl LineKernel {
+    /// The point `s12` metres along the line (negative is backwards), as
+    /// `(lat2, lon2, azi2)` with `azi2` the forward azimuth there.
+    pub(crate) fn position(&self, s12: f64) -> (f64, f64, f64) {
+        let (ssig1, csig1) = (self.ssig1, self.csig1);
+        let (somg1, comg1) = (self.somg1, self.comg1);
+        let (salp0, calp0) = (self.salp0, self.calp0);
+        let (a1m1, b11, a3c, b31, k2) = (self.a1m1, self.b11, self.a3c, self.b31, self.k2);
+        let (stau1, ctau1) = (self.stau1, self.ctau1);
+        let (c1a, c1pa, c3a) = (self.c1a, self.c1pa, self.c3a);
+        let lon1 = self.lon1;
 
         // Invert the distance series: s12 → sig12, via tau and the C1' series.
         let tau12 = s12 / (self.b * (1.0 + a1m1));
@@ -1070,6 +1393,30 @@ mod tests {
         let (dlat, dlon, _) = k.direct(lat1, lon1, azi1, s12);
         assert!((dlat - lat2).abs() < 1e-12, "lat {dlat}");
         assert!((dlon - lon2).abs() < 1e-12, "lon {dlon}");
+    }
+
+    #[test]
+    fn ring_area_matches_reference_value() {
+        // The documented geographiclib-rs PolygonArea example: a 1°×1° square
+        // on the equator, counter-clockwise.
+        let k = wgs84();
+        let ring = [(0.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, 0.0)];
+        let (perimeter, area) = k.ring_perimeter_area(&ring, true, true);
+        assert!(
+            (perimeter - 443_770.917_248_302).abs() < 1e-6,
+            "{perimeter}"
+        );
+        assert!((area - 12_308_778_361.469_452).abs() < 1e-3, "{area}");
+
+        // Reversed winding: same magnitude, negative sign when signed.
+        let rev = [(1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (0.0, 0.0)];
+        let (_, neg) = k.ring_perimeter_area(&rev, true, true);
+        assert!((neg + area).abs() < 1e-3, "{neg}");
+
+        // Unsigned: the reversed ring is read as enclosing the rest of the
+        // planet (the large-polygon example: 510 trillion m²).
+        let (_, large) = k.ring_perimeter_area(&rev, true, false);
+        assert!((large - 510_053_312_945_726.94).abs() < 1.0, "{large}");
     }
 
     #[test]

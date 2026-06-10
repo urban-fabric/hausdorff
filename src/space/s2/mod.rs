@@ -16,6 +16,7 @@
 //! orientation [`predicates`], and the [`Loop`] region (spherical polygon) — all
 //! computed from vectors, with no projection.
 
+pub mod arc;
 mod cap;
 mod cellid;
 mod coords;

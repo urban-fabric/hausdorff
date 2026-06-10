@@ -24,18 +24,25 @@ use the same internal implementation.
   trait names mirror `geo` so callers migrate by changing the import path.
   Includes `Area`, `Centroid`, `BoundingRect`, `ConvexHull`, `ConcaveHull`,
   `Simplify`, `Distance` / `min_distance`, `Intersects`, `Length` / `Perimeter`
-  (under the `Euclidean`, `Haversine`, or ellipsoidal `Geodesic` metric),
-  `MapCoords`, `Orient`, `BooleanOps`, `relate` (DE-9IM), the `StrTree` spatial
-  index, `PreparedGeometry`, spatial joins, and set/curve distances
-  (`hausdorff_distance` / `frechet_distance`).
+  / `Densify` (under the `Euclidean`, `Haversine`, or ellipsoidal `Geodesic`
+  metric), `GeodesicArea` (exact ellipsoidal polygon area/perimeter) beside the
+  spherical `ChamberlainDuquetteArea`, `MapCoords`, `Orient`, `BooleanOps`,
+  `relate` (DE-9IM), the `StrTree` spatial index, `PreparedGeometry`, spatial
+  joins, and set/curve distances (`hausdorff_distance` / `frechet_distance`).
 - **`space::s2`** — spherical S2 primitives ported from golang/geo: cell ids,
-  caps, edge crossings, orientation predicates, and measures. **`RegionCoverer`
-  is experimental** (see *Stability*).
+  caps, edge crossings, orientation predicates, measures, and great-circle
+  arc kernels (`s2::arc`: slerp, cross/along-track, latitude extremes).
+  **`RegionCoverer` is experimental** (see *Stability*).
 - **`space::r3` / `space::s1`** — supporting unit-less vector / angle types.
 - **`earth`** — the WGS84 lat/lon layer: `GeoPoint`, spherical (haversine) and
-  ellipsoidal geodesics (Karney direct/inverse on any `Ellipsoid` — WGS84,
-  GRS80, Mars, …; differential-tested against `geographiclib-rs`),
-  planet-flexible sphere geodesics (`sphere::Sphere`), map projections
+  ellipsoidal geodesics (Karney direct/inverse/area on any `Ellipsoid` — WGS84,
+  GRS80, Mars, …; differential-tested against `geographiclib-rs`), geodesic
+  lines for cheap waypoint sampling (`Ellipsoid::line`), ellipsoidal polygon
+  perimeter/area (`Ellipsoid::ring_perimeter_area_m`), planet-flexible sphere
+  geodesics (`sphere::Sphere`), great-circle arc operations (`earth::arc`:
+  interpolation, cross/along-track distance, arc intersection, spherical
+  point-in-ring, Clairaut-aware arc bboxes), geocentric/local frames
+  (`earth::ecef`: ECEF ↔ geodetic, ENU tangent frames), map projections
   (`projection`: Web Mercator, Transverse Mercator / UTM, with whole-geometry
   `project_geometry` / `inverse_geometry`), bounding boxes, `RadialGrid` (a
   concentric-ring sampler around a point), and the Hausdorff / Fréchet
