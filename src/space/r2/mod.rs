@@ -69,3 +69,12 @@ pub use relate::SpatialPredicate;
 pub use set_distance::{directed_hausdorff_distance, frechet_distance, hausdorff_distance};
 pub use simplify::Simplify;
 pub use winding::{Direction, Orient, Winding, WindingOrder};
+
+pub mod interior_point;
+pub mod remove_repeated_points;
+pub mod validation;
+
+pub use bool_ops::{UnaryUnionOperand, unary_union};
+pub use interior_point::InteriorPoint;
+pub use remove_repeated_points::RemoveRepeatedPoints;
+pub use validation::Validation;

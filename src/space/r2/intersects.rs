@@ -83,7 +83,7 @@ fn on_bbox(a: Coord, b: Coord, p: Coord) -> bool {
 }
 
 /// Robust segment intersection (CLRS), including collinear/touching cases.
-fn segments_intersect(a1: Coord, a2: Coord, b1: Coord, b2: Coord) -> bool {
+pub(crate) fn segments_intersect(a1: Coord, a2: Coord, b1: Coord, b2: Coord) -> bool {
     let d1 = orient(b1, b2, a1);
     let d2 = orient(b1, b2, a2);
     let d3 = orient(a1, a2, b1);
