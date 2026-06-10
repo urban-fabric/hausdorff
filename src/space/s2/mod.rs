@@ -27,6 +27,7 @@ pub mod measures;
 mod point;
 mod polygon;
 pub mod predicates;
+mod rect;
 mod region;
 mod vector;
 
@@ -40,4 +41,5 @@ pub use measures::{angle, girard_area, point_area, signed_area, turn_angle};
 pub use point::S2Point;
 pub use polygon::Polygon;
 pub use predicates::{robust_sign, sign};
+pub use rect::Rect;
 pub use region::{Region, RegionCoverer};
