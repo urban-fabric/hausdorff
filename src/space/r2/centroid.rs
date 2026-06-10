@@ -3,7 +3,10 @@
 //! mean of their vertices.
 
 use super::util::ring_vertices;
-use super::{Coord, LineString, MultiPoint, MultiPolygon, Point, Polygon};
+use super::{
+    Coord, Euclidean, Length, Line, LineString, MultiLineString, MultiPoint, MultiPolygon, Point,
+    Polygon, Rect, Triangle,
+};
 
 /// The centroid of a geometry, or `None` when it has no coordinates.
 pub trait Centroid {
@@ -131,5 +134,45 @@ impl Centroid for MultiPoint {
         let n = self.0.len() as f64;
         let sum = self.iter().fold(Coord::new(0.0, 0.0), |a, p| a + p.0);
         Some(Point(sum / n))
+    }
+}
+
+impl Centroid for Line {
+    fn centroid(&self) -> Option<Point> {
+        Some(Point((self.start + self.end) / 2.0))
+    }
+}
+
+impl Centroid for Rect {
+    fn centroid(&self) -> Option<Point> {
+        Some(self.center())
+    }
+}
+
+impl Centroid for Triangle {
+    fn centroid(&self) -> Option<Point> {
+        Some(Point((self.0 + self.1 + self.2) / 3.0))
+    }
+}
+
+impl Centroid for MultiLineString {
+    /// Length-weighted mean of the member centroids; if every member is
+    /// degenerate (zero length), the mean of the member centroids.
+    fn centroid(&self) -> Option<Point> {
+        let mut acc = Coord::new(0.0, 0.0);
+        let mut total = 0.0;
+        for ls in self.iter() {
+            if let Some(c) = ls.centroid() {
+                let len = Euclidean.length(ls);
+                acc = acc + c.0 * len;
+                total += len;
+            }
+        }
+        if total > 0.0 {
+            Some(Point(acc / total))
+        } else {
+            let pts: Vec<Point> = self.iter().filter_map(Centroid::centroid).collect();
+            MultiPoint::new(pts).centroid()
+        }
     }
 }
