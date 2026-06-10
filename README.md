@@ -13,28 +13,52 @@ use the same internal implementation.
 - **`index::h3`** — from-scratch Rust H3 hexagonal index. Cell
   construction/validation, lat/lon indexing, cell centers/boundaries, hierarchy
   operations, child positions, compaction/uncompaction, pentagon/base-cell
-  inspection, grid disk/ring traversal, neighbor checks, grid distance, local IJ
-  coordinates, grid paths, the grid-path polyline cover (`H3Line`), directed
-  edges and edge geometry, canonical vertex indexes, exact cell area, centroid
-  polygon cover, cell-set boundary dissolve, and the standard resolution
-  metadata tables. Differential-tested against `h3o`.
+  inspection, grid disk/ring traversal, neighbor checks, grid distance,
+  great-circle cell distance, local IJ coordinates (both directions), grid
+  paths, the grid-path polyline cover (`H3Line`), directed edges and edge
+  geometry, canonical vertex indexes, exact cell area, polygon-to-cells covers
+  in all three containment modes (centroid / overlapping / full, including
+  date-line-crossing rings), cell-set boundary dissolve, and the standard
+  resolution metadata tables. Differential-tested against `h3o`.
 - **`index::geohash`** — native geohash encode/decode of lon/lat points.
 - **`space::r2`** — planar (`f64`) geometry: a replacement for `geo`/`geo-types`
   whose shapes (Coord, Point, Line, LineString, Polygon, MultiPolygon, …) and
   trait names mirror `geo` so callers migrate by changing the import path.
   Includes `Area`, `Centroid`, `BoundingRect`, `ConvexHull`, `ConcaveHull`,
-  `Simplify`, `Distance` / `min_distance`, `Intersects`, `Length` / `Perimeter`,
-  `Orient`, `BooleanOps`, `relate` (DE-9IM), the `StrTree` spatial index,
+  `Extremes`, `Simplify`, `Distance` / `min_distance`, `ClosestPoint`,
+  `Intersects`, `Length` / `Perimeter` / `Densify` (under the `Euclidean`,
+  `Haversine`, ellipsoidal `Geodesic`, or rhumb-line `Rhumb` metric),
+  `GeodesicArea` (exact ellipsoidal polygon area/perimeter) beside the
+  spherical `ChamberlainDuquetteArea`, linear referencing
+  (`LineInterpolatePoint` / `LineLocatePoint`), affine transforms
+  (`AffineTransform` with `Translate` / `Rotate` / `Scale` / `Skew`),
+  `MapCoords`, `Orient`, `Validation` (OGC validity with typed reasons),
+  `RemoveRepeatedPoints`, `InteriorPoint`, `BooleanOps` plus cascaded
+  `unary_union`, `relate` (DE-9IM), the `StrTree` spatial index,
   `PreparedGeometry`, spatial joins, and set/curve distances
   (`hausdorff_distance` / `frechet_distance`).
 - **`space::s2`** — spherical S2 primitives ported from golang/geo: cell ids,
-  caps, edge crossings, orientation predicates, and measures. **`RegionCoverer`
-  is experimental** (see *Stability*).
+  normalized cell-set unions (`CellUnion` with union / intersection /
+  difference), caps, lat/lng rectangles (`Rect`, antimeridian-aware),
+  polylines, edge crossings, orientation predicates, measures, and
+  great-circle arc kernels (`s2::arc`: slerp, cross/along-track, latitude
+  extremes). **`RegionCoverer` is experimental** (see *Stability*).
 - **`space::r3` / `space::s1`** — supporting unit-less vector / angle types.
-- **`earth`** — the WGS84 lat/lon layer: `GeoPoint`, haversine and geodesic
-  distances, bounding boxes, `RadialGrid` (a concentric-ring sampler around a
-  point), and the Hausdorff / Fréchet curve-similarity measures
-  (`earth::similarity`).
+- **`earth`** — the WGS84 lat/lon layer: `GeoPoint`, spherical (haversine) and
+  ellipsoidal geodesics (Karney direct/inverse/area on any `Ellipsoid` — WGS84,
+  GRS80, Mars, …; differential-tested against `geographiclib-rs`), geodesic
+  lines for cheap waypoint sampling (`Ellipsoid::line`), ellipsoidal polygon
+  perimeter/area (`Ellipsoid::ring_perimeter_area_m`), rhumb-line (loxodrome)
+  distance / bearing / destination / interpolation (`earth::rhumb`),
+  planet-flexible sphere geodesics (`sphere::Sphere`), great-circle arc
+  operations (`earth::arc`: interpolation, cross/along-track distance, arc
+  intersection, spherical point-in-ring, Clairaut-aware arc bboxes),
+  geocentric/local frames (`earth::ecef`: ECEF ↔ geodetic, ENU tangent
+  frames), map projections (`projection`: Web Mercator, Transverse Mercator /
+  UTM, with whole-geometry `project_geometry` / `inverse_geometry`), bounding
+  boxes, `RadialGrid` (a
+  concentric-ring sampler around a point), and the Hausdorff / Fréchet
+  curve-similarity measures (`earth::similarity`).
 - **`algebra`** — metric / vector-space traits (`MetricSpace`, `Norm`,
   `InnerProduct`, `VectorSpace`) and the generic Hausdorff / Fréchet kernels.
 - **`format`** — native WKT, WKB, and GeoJSON codecs over `space::r2::Geometry`,
@@ -49,15 +73,18 @@ treat this as guidance, not a guarantee):
 
 - **Stable** — exercised by conformance suites and used downstream:
   `index::h3`, `index::geohash`, the `space::r2` geometry / algorithm surface,
-  `format` (wkt / wkb / geojson, shapefile read), `earth` (points, geodesics,
-  bbox, `RadialGrid`, `similarity`), and `algebra`. The `space::r2` trait names
+  `format` (wkt / wkb / geojson, shapefile read), `earth` (points, geodesics —
+  spherical and ellipsoidal — ellipsoids, projections, bbox, `RadialGrid`,
+  `similarity`), and `algebra`. The `space::r2` trait names
   intentionally mirror `geo` as **migration shims** — they exist so callers can
   swap the import path, and may diverge from `geo` over time.
-- **Experimental** — `space::s2::RegionCoverer`. Its cell-intersection test is
+- **Experimental** — `space::s2::RegionCoverer`. Fixed-level covers, adaptive
+  multi-level covers (normalized `CellUnion` output under a soft `max_cells`
+  budget), and interior coverings exist, but the cell-intersection test is
   conservative — it counts boundary touches and either-way nesting, so it
-  over-covers rather than dropping boundary-coincident cells — but it still uses a
-  soft cell budget and an approximate `Cap` bound and is not tuned for minimal
-  covers. Good for bucketing/partitioning; not yet a minimal-cover engine.
+  over-covers rather than dropping boundary-coincident cells — and it is not
+  tuned for minimal covers. Good for bucketing/partitioning; not yet a
+  minimal-cover engine.
 
 ### Semantics worth knowing
 

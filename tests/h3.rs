@@ -4,8 +4,8 @@
 use std::str::FromStr;
 
 use hausdorff::index::h3::{
-    H3Cell, H3CompactionError, H3DirectedEdge, H3Line, H3LineError, H3Polygon, H3PolygonError,
-    H3Vertex,
+    ContainmentMode, H3Cell, H3CompactionError, H3DirectedEdge, H3Line, H3LineError, H3LocalIJ,
+    H3Polygon, H3PolygonError, H3Vertex,
 };
 
 /// A spread of real cells: every base cell (res 0), plus cells from a lat/lon
@@ -821,13 +821,6 @@ fn polygon_rejects_invalid_rings() {
     );
     assert_eq!(
         H3Polygon::new(
-            vec![(0.0, -179.0), (0.0, 179.0), (1.0, 179.0)],
-            Vec::<Vec<(f64, f64)>>::new()
-        ),
-        Err(H3PolygonError::TransmeridianUnsupported)
-    );
-    assert_eq!(
-        H3Polygon::new(
             vec![(0.0, 200.0), (0.0, 201.0), (1.0, 200.5)],
             Vec::<Vec<(f64, f64)>>::new()
         ),
@@ -940,6 +933,286 @@ fn line_cover_validates_input() {
     );
     let line = H3Line::new(vec![(40.0, -74.0), (41.0, -73.0)]).expect("line");
     assert_eq!(line.to_cells(16), Err(H3LineError::InvalidResolution(16)));
+}
+
+/// h3o polygon-to-cells oracle. Rings are `(latitude, longitude)` degrees
+/// without a duplicated closing point, matching the `H3Polygon` convention.
+fn h3o_polygon_cells(
+    exterior: &[(f64, f64)],
+    holes: &[Vec<(f64, f64)>],
+    resolution: u8,
+    mode: h3o::geom::ContainmentMode,
+) -> std::collections::BTreeSet<u64> {
+    let to_ring = |ring: &[(f64, f64)]| {
+        geo::LineString::from(
+            ring.iter()
+                .map(|&(lat, lng)| (lng, lat))
+                .collect::<Vec<_>>(),
+        )
+    };
+    let polygon = geo::Polygon::new(
+        to_ring(exterior),
+        holes.iter().map(|hole| to_ring(hole)).collect(),
+    );
+    let mut tiler =
+        h3o::geom::TilerBuilder::new(h3o::Resolution::try_from(resolution).expect("resolution"))
+            .containment_mode(mode)
+            .build();
+    tiler.add(polygon).expect("add polygon");
+    tiler.into_coverage().map(u64::from).collect()
+}
+
+fn cell_set(cells: &[H3Cell]) -> std::collections::BTreeSet<u64> {
+    cells.iter().map(|cell| cell.as_u64()).collect()
+}
+
+/// `(exterior, holes)` rings in `(latitude, longitude)` degrees.
+type PolygonRings = (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>);
+
+#[test]
+fn polygon_to_cells_modes_match_h3o() {
+    let nyc_exterior = vec![
+        (40.70, -74.05),
+        (40.70, -73.90),
+        (40.85, -73.90),
+        (40.85, -74.05),
+    ];
+    let nyc_hole = vec![
+        (40.74, -74.01),
+        (40.74, -73.97),
+        (40.78, -73.97),
+        (40.78, -74.01),
+    ];
+    let berlin_triangle = vec![(52.40, 13.20), (52.60, 13.50), (52.30, 13.60)];
+
+    let cases: Vec<PolygonRings> = vec![
+        (nyc_exterior.clone(), Vec::new()),
+        (nyc_exterior, vec![nyc_hole]),
+        (berlin_triangle, Vec::new()),
+    ];
+
+    for (case, (exterior, holes)) in cases.into_iter().enumerate() {
+        let polygon = H3Polygon::new(exterior.clone(), holes.clone()).expect("polygon");
+        for res in [5u8, 6, 7, 8] {
+            let centroid = polygon
+                .to_cells_with_mode(res, ContainmentMode::Centroid)
+                .expect("centroid cells");
+            let full = polygon
+                .to_cells_with_mode(res, ContainmentMode::Full)
+                .expect("full cells");
+            let overlapping = polygon
+                .to_cells_with_mode(res, ContainmentMode::Overlapping)
+                .expect("overlapping cells");
+
+            assert_eq!(polygon.to_cells(res).expect("default cells"), centroid);
+            assert_eq!(
+                H3Cell::polygon_to_cells_with_mode(&polygon, res, ContainmentMode::Full),
+                Ok(full.clone())
+            );
+
+            let centroid = cell_set(&centroid);
+            let full = cell_set(&full);
+            let overlapping = cell_set(&overlapping);
+            assert!(full.is_subset(&centroid), "case {case} res {res}");
+            assert!(centroid.is_subset(&overlapping), "case {case} res {res}");
+
+            for (label, ours, h3o_mode) in [
+                (
+                    "centroid",
+                    &centroid,
+                    h3o::geom::ContainmentMode::ContainsCentroid,
+                ),
+                ("full", &full, h3o::geom::ContainmentMode::ContainsBoundary),
+                (
+                    "overlapping",
+                    &overlapping,
+                    h3o::geom::ContainmentMode::Covers,
+                ),
+            ] {
+                let oracle = h3o_polygon_cells(&exterior, &holes, res, h3o_mode);
+                assert_eq!(ours, &oracle, "{label} case {case} res {res}");
+            }
+        }
+    }
+}
+
+#[test]
+fn polygon_modes_reject_invalid_resolution() {
+    let polygon = H3Polygon::new(
+        vec![(0.0, 0.0), (0.0, 1.0), (1.0, 1.0)],
+        Vec::<Vec<(f64, f64)>>::new(),
+    )
+    .expect("polygon");
+    for mode in [
+        ContainmentMode::Centroid,
+        ContainmentMode::Full,
+        ContainmentMode::Overlapping,
+    ] {
+        assert_eq!(
+            polygon.to_cells_with_mode(16, mode),
+            Err(H3PolygonError::InvalidResolution(16))
+        );
+    }
+}
+
+#[test]
+fn transmeridian_polygon_to_cells_matches_h3o() {
+    let exterior = vec![
+        (-19.0, 178.0),
+        (-19.0, -178.0),
+        (-15.0, -178.0),
+        (-15.0, 178.0),
+    ];
+    let polygon = H3Polygon::new(exterior.clone(), Vec::<Vec<(f64, f64)>>::new()).expect("polygon");
+    assert!(polygon.is_transmeridian());
+
+    assert!(polygon.contains_lat_lng(-17.0, 179.5));
+    assert!(polygon.contains_lat_lng(-17.0, -179.5));
+    assert!(!polygon.contains_lat_lng(-17.0, 170.0));
+    assert!(!polygon.contains_lat_lng(-17.0, -170.0));
+    assert!(!polygon.contains_lat_lng(-10.0, 179.5));
+
+    for res in [2u8, 3, 4, 5] {
+        let ours = polygon.to_cells(res).expect("cells");
+        let oracle = h3o_polygon_cells(
+            &exterior,
+            &[],
+            res,
+            h3o::geom::ContainmentMode::ContainsCentroid,
+        );
+        assert_eq!(cell_set(&ours), oracle, "transmeridian centroid res {res}");
+        assert!(
+            ours.iter().any(|cell| cell.center_lat_lng().1 > 170.0)
+                && ours.iter().any(|cell| cell.center_lat_lng().1 < -170.0),
+            "cover should span both sides of the date line at res {res}"
+        );
+    }
+}
+
+#[test]
+fn transmeridian_polygon_modes_are_nested() {
+    let polygon = H3Polygon::new(
+        vec![
+            (-19.0, 178.0),
+            (-19.0, -178.0),
+            (-15.0, -178.0),
+            (-15.0, 178.0),
+        ],
+        Vec::<Vec<(f64, f64)>>::new(),
+    )
+    .expect("polygon");
+
+    for res in [3u8, 4] {
+        let centroid = cell_set(&polygon.to_cells(res).expect("centroid cells"));
+        let full = cell_set(
+            &polygon
+                .to_cells_with_mode(res, ContainmentMode::Full)
+                .expect("full cells"),
+        );
+        let overlapping = cell_set(
+            &polygon
+                .to_cells_with_mode(res, ContainmentMode::Overlapping)
+                .expect("overlapping cells"),
+        );
+
+        assert!(!full.is_empty(), "res {res}");
+        assert!(full.is_subset(&centroid), "res {res}");
+        assert!(centroid.is_subset(&overlapping), "res {res}");
+
+        for raw in &overlapping {
+            let cell = H3Cell::try_new(*raw).expect("cell");
+            let inside = full.contains(raw)
+                || cell
+                    .boundary_lat_lng()
+                    .iter()
+                    .any(|&(lat, lng)| polygon.contains_lat_lng(lat, lng));
+            let near_boundary = cell.grid_disk(1).iter().any(|n| {
+                let (lat, lng) = n.center_lat_lng();
+                polygon.contains_lat_lng(lat, lng)
+            });
+            assert!(
+                inside || near_boundary,
+                "overlapping cell {cell} is far from the polygon"
+            );
+        }
+    }
+}
+
+#[test]
+fn local_ij_to_cell_round_trips_and_matches_h3o() {
+    for raw in small_sample().into_iter().take(300) {
+        let oracle_origin = h3o::CellIndex::try_from(raw).expect("oracle origin");
+        let origin = H3Cell::try_new(raw).expect("origin");
+
+        for cell in origin.grid_disk(2) {
+            if let Some(ij) = cell.to_local_ij(origin) {
+                assert_eq!(ij.to_cell(), Some(cell), "round trip {raw:#x}");
+                assert_eq!(H3Cell::from_local_ij(ij), Some(cell));
+            }
+        }
+
+        let base = origin.to_local_ij(origin).expect("origin local IJ");
+        for di in -3i32..=3 {
+            for dj in -3i32..=3 {
+                let ij = H3LocalIJ {
+                    anchor: origin,
+                    i: base.i + di,
+                    j: base.j + dj,
+                };
+                let ours = ij.to_cell().map(H3Cell::as_u64);
+                let oracle = h3o::CellIndex::try_from(h3o::LocalIJ::new(
+                    oracle_origin,
+                    h3o::CoordIJ::new(ij.i, ij.j),
+                ))
+                .ok()
+                .map(u64::from);
+                assert_eq!(
+                    ours, oracle,
+                    "local_ij_to_cell origin={raw:#x} i={} j={}",
+                    ij.i, ij.j
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn great_circle_distance_matches_h3o() {
+    let cells = small_sample();
+    for pair in cells.windows(2).take(500) {
+        let a = H3Cell::try_new(pair[0]).expect("a");
+        let b = H3Cell::try_new(pair[1]).expect("b");
+        let oa: h3o::LatLng = h3o::CellIndex::try_from(pair[0]).expect("oracle a").into();
+        let ob: h3o::LatLng = h3o::CellIndex::try_from(pair[1]).expect("oracle b").into();
+
+        assert!(
+            (a.great_circle_distance_rads(b) - oa.distance_rads(ob)).abs() < 1e-9,
+            "distance rads {:#x} -> {:#x}",
+            pair[0],
+            pair[1]
+        );
+        assert!(
+            (a.great_circle_distance_km(b) - oa.distance_km(ob)).abs() < 1e-5,
+            "distance km {:#x} -> {:#x}",
+            pair[0],
+            pair[1]
+        );
+        assert!(
+            (a.great_circle_distance_m(b) - oa.distance_m(ob)).abs() < 1e-2,
+            "distance m {:#x} -> {:#x}",
+            pair[0],
+            pair[1]
+        );
+        assert_eq!(
+            a.great_circle_distance(b).as_meters(),
+            a.great_circle_distance_m(b)
+        );
+        assert_eq!(a.great_circle_distance_rads(a), 0.0);
+        assert_eq!(
+            a.great_circle_distance_rads(b),
+            b.great_circle_distance_rads(a)
+        );
+    }
 }
 
 #[test]

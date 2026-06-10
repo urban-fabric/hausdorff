@@ -32,6 +32,9 @@ use super::{Coord, CoordsIter, MultiPolygon, Polygon};
 mod assemble;
 use assemble::assemble;
 
+mod unary_union;
+pub use unary_union::{UnaryUnionOperand, unary_union};
+
 /// Which boolean operation to compute.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Operation {

@@ -263,3 +263,159 @@ fn stress_random_triangles_match_geo() {
         tested += 1;
     }
 }
+
+mod unary_union_conformance {
+    use super::*;
+    use hausdorff::space::r2::bool_ops::unary_union;
+
+    fn check_unary(polys: &[Vec<(f64, f64)>]) -> MultiPolygon {
+        let ours: Vec<Polygon> = polys.iter().map(|p| hpoly(&[p])).collect();
+        let theirs: Vec<geo::Polygon<f64>> = polys.iter().map(|p| gpoly(&[p])).collect();
+
+        let our_union = unary_union(&ours);
+        let geo_union = geo::algorithm::unary_union(&theirs);
+
+        assert!(
+            (ha(&our_union) - ga(&geo_union)).abs() < EPS,
+            "unary_union area {} vs geo {}",
+            ha(&our_union),
+            ga(&geo_union)
+        );
+        assert_eq!(
+            our_union.len(),
+            geo_union.0.len(),
+            "unary_union component count"
+        );
+        our_union
+    }
+
+    #[test]
+    fn overlapping_grid_of_squares_matches_geo() {
+        let mut polys = Vec::new();
+        for i in 0..4 {
+            for j in 0..4 {
+                let (x, y) = (i as f64, j as f64);
+                polys.push(sq(x, y, x + 1.5, y + 1.5));
+            }
+        }
+        let out = check_unary(&polys);
+        assert_eq!(out.len(), 1);
+        assert!((ha(&out) - 4.5 * 4.5).abs() < EPS);
+    }
+
+    #[test]
+    fn touching_grid_of_squares_matches_geo() {
+        let mut polys = Vec::new();
+        for i in 0..3 {
+            for j in 0..3 {
+                let (x, y) = (i as f64, j as f64);
+                polys.push(sq(x, y, x + 1.0, y + 1.0));
+            }
+        }
+        let out = check_unary(&polys);
+        assert_eq!(out.len(), 1);
+        assert!((ha(&out) - 9.0).abs() < EPS);
+    }
+
+    #[test]
+    fn disjoint_squares_match_geo() {
+        let polys: Vec<_> = (0..6)
+            .map(|i| {
+                let x = 3.0 * i as f64;
+                sq(x, 0.0, x + 1.0, 1.0)
+            })
+            .collect();
+        let out = check_unary(&polys);
+        assert_eq!(out.len(), 6);
+        assert!((ha(&out) - 6.0).abs() < EPS);
+    }
+
+    #[test]
+    fn nested_rings_match_geo() {
+        let donut = |lo: f64, hi: f64| {
+            let outer = sq(lo, lo, hi, hi);
+            let inner: Vec<(f64, f64)> = sq(lo + 1.0, lo + 1.0, hi - 1.0, hi - 1.0)
+                .into_iter()
+                .rev()
+                .collect();
+            hpoly(&[&outer, &inner])
+        };
+        let gdonut = |lo: f64, hi: f64| {
+            let outer = sq(lo, lo, hi, hi);
+            let inner: Vec<(f64, f64)> = sq(lo + 1.0, lo + 1.0, hi - 1.0, hi - 1.0)
+                .into_iter()
+                .rev()
+                .collect();
+            gpoly(&[&outer, &inner])
+        };
+
+        let ours = vec![
+            donut(0.0, 12.0),
+            donut(2.0, 10.0),
+            hpoly(&[&sq(5.0, 5.0, 7.0, 7.0)]),
+        ];
+        let theirs = vec![
+            gdonut(0.0, 12.0),
+            gdonut(2.0, 10.0),
+            gpoly(&[&sq(5.0, 5.0, 7.0, 7.0)]),
+        ];
+
+        let our_union = unary_union(&ours);
+        let geo_union = geo::algorithm::unary_union(&theirs);
+        assert!(
+            (ha(&our_union) - ga(&geo_union)).abs() < EPS,
+            "nested rings area {} vs geo {}",
+            ha(&our_union),
+            ga(&geo_union)
+        );
+    }
+
+    #[test]
+    fn multipolygon_operands_match_geo() {
+        let ours = vec![
+            hmp(&[&[&sq(0.0, 0.0, 2.0, 2.0)], &[&sq(1.0, 1.0, 3.0, 3.0)]]),
+            hmp(&[&[&sq(10.0, 0.0, 11.0, 1.0)]]),
+        ];
+        let theirs = vec![
+            gmp(&[&[&sq(0.0, 0.0, 2.0, 2.0)], &[&sq(1.0, 1.0, 3.0, 3.0)]]),
+            gmp(&[&[&sq(10.0, 0.0, 11.0, 1.0)]]),
+        ];
+        let our_union = unary_union(&ours);
+        let geo_union = geo::algorithm::unary_union(&theirs);
+        assert!((ha(&our_union) - ga(&geo_union)).abs() < EPS);
+        assert_eq!(our_union.len(), geo_union.0.len());
+    }
+
+    #[test]
+    fn area_is_conserved_on_known_fixture() {
+        let a = sq(0.0, 0.0, 4.0, 4.0);
+        let b = sq(2.0, 2.0, 6.0, 6.0);
+        let c = sq(10.0, 10.0, 12.0, 12.0);
+        let polys = vec![hpoly(&[&a]), hpoly(&[&b]), hpoly(&[&c])];
+        let out = unary_union(&polys);
+        let expected = 16.0 + 16.0 - 4.0 + 4.0;
+        assert!(
+            (ha(&out) - expected).abs() < EPS,
+            "area {} vs expected {expected}",
+            ha(&out)
+        );
+    }
+
+    #[test]
+    fn matches_linear_pairwise_fold() {
+        let mut rng = Lcg(0x5151_5151_5151_5151);
+        for _ in 0..20 {
+            let polys: Vec<Polygon> = (0..8).map(|_| hpoly(&[&rand_rect(&mut rng, 10)])).collect();
+            let cascaded = unary_union(&polys);
+            let linear = polys.iter().fold(MultiPolygon::default(), |acc, p| {
+                acc.union(&MultiPolygon::new(vec![p.clone()]))
+            });
+            assert!(
+                (ha(&cascaded) - ha(&linear)).abs() < EPS,
+                "cascaded {} vs linear {}",
+                ha(&cascaded),
+                ha(&linear)
+            );
+        }
+    }
+}

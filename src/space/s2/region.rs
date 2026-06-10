@@ -4,10 +4,13 @@
 //! intersect/contains queries that [`RegionCoverer`] uses to approximate the
 //! region by a set of S2 cells.
 
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
+
 use crate::space::r3::Vector;
 use crate::space::s1::Angle;
 
-use super::{Cap, Crossing, Loop, Polygon, S2CellId, S2Point, crossing_sign};
+use super::{Cap, CellUnion, Crossing, Loop, Polygon, S2CellId, S2Point, crossing_sign};
 
 /// The deepest S2 subdivision level (a leaf cell).
 const MAX_LEVEL: u32 = 30;
@@ -37,7 +40,7 @@ pub trait Region {
 /// The cell as a counter-clockwise spherical [`Loop`] (interior to the left). The
 /// cube→sphere projection can wind a cell either way depending on the face, so we
 /// orient by the cell center: a CCW loop contains its own center.
-fn cell_loop(cell: S2CellId) -> Loop {
+pub(super) fn cell_loop(cell: S2CellId) -> Loop {
     let verts = cell.vertices();
     let l = Loop::new(verts.to_vec());
     if l.contains_point(cell.center_point()) {
@@ -100,7 +103,7 @@ fn loops_overlap(a: &Loop, b: &Loop) -> bool {
 
 /// The bounding cap of a set of points: centered on their normalized vector mean,
 /// with radius equal to the farthest point's angular distance.
-fn bounding_cap_of(points: &[S2Point]) -> Cap {
+pub(super) fn bounding_cap_of(points: &[S2Point]) -> Cap {
     if points.is_empty() {
         return Cap::empty(S2Point::from_vector(Vector::new(1.0, 0.0, 0.0)));
     }
@@ -178,6 +181,11 @@ impl Region for Polygon {
 /// reached, cells at/above `min_level` are emitted coarsely instead of refined,
 /// so the result stays a valid (super-)cover rather than honouring the budget
 /// exactly (unlike golang/geo's priority-queue coverer).
+///
+/// [`RegionCoverer::adaptive_covering`] and
+/// [`RegionCoverer::interior_covering`] run the golang/geo-style priority-queue
+/// refinement instead, producing multi-level normalized [`CellUnion`]s under
+/// the same three parameters.
 #[derive(Clone, Copy, Debug)]
 pub struct RegionCoverer {
     /// Coarsest level a covering cell may have.
@@ -240,6 +248,151 @@ impl RegionCoverer {
         for child in cell.children() {
             self.cover_cell(region, child, out);
         }
+    }
+
+    /// An adaptive (multi-level) covering of `region`, golang/geo-style:
+    /// starting from the six face cells, the intersecting cell whose children
+    /// intersect the region the most is repeatedly subdivided until expanding
+    /// it would exceed the `max_cells` budget, at which point cells are
+    /// emitted as-is. Cells fully inside the region (at or below `min_level`)
+    /// are emitted without further subdivision; refinement never passes
+    /// `max_level`. Returns a normalized [`CellUnion`].
+    ///
+    /// The budget is honoured by the generation step but is still soft at the
+    /// margins: covering more than `max_cells` intersecting face cells, or a
+    /// `min_level` that forces subdivision, can exceed it. Normalization may
+    /// also merge four complete siblings emitted at `min_level` into their
+    /// parent, so a result cell can sit one level above `min_level`.
+    #[must_use]
+    pub fn adaptive_covering<R: Region + ?Sized>(&self, region: &R) -> CellUnion {
+        self.adaptive(region, false)
+    }
+
+    /// An adaptive *interior* covering of `region`: only cells fully contained
+    /// in the region are emitted, so the union of the result is a subset of the
+    /// region (the dual of [`RegionCoverer::adaptive_covering`]). Cells that
+    /// merely intersect are subdivided down to `max_level` and dropped if they
+    /// never become contained; the result can be empty for thin regions or
+    /// tight budgets. Returns a normalized [`CellUnion`].
+    #[must_use]
+    pub fn interior_covering<R: Region + ?Sized>(&self, region: &R) -> CellUnion {
+        self.adaptive(region, true)
+    }
+
+    fn adaptive<R: Region + ?Sized>(&self, region: &R, interior: bool) -> CellUnion {
+        let min_level = self.min_level.min(MAX_LEVEL);
+        let max_level = self.max_level.min(MAX_LEVEL).max(min_level);
+        let mut result: Vec<S2CellId> = Vec::new();
+        let mut heap: BinaryHeap<Candidate> = BinaryHeap::new();
+
+        for face in 0..6u8 {
+            add_candidate(
+                region,
+                S2CellId::from_face(face),
+                min_level,
+                max_level,
+                interior,
+                &mut result,
+                &mut heap,
+            );
+        }
+        while let Some(candidate) = heap.pop() {
+            let expand = candidate.cell.level() < min_level
+                || result.len() + heap.len() + candidate.children.len() <= self.max_cells;
+            if expand {
+                for child in candidate.children {
+                    add_candidate(
+                        region,
+                        child,
+                        min_level,
+                        max_level,
+                        interior,
+                        &mut result,
+                        &mut heap,
+                    );
+                }
+            } else if !interior {
+                result.push(candidate.cell);
+            }
+        }
+        CellUnion::from(result)
+    }
+}
+
+/// A cell awaiting subdivision in the adaptive coverer, with its
+/// region-intersecting children precomputed.
+struct Candidate {
+    cell: S2CellId,
+    children: Vec<S2CellId>,
+}
+
+impl Candidate {
+    /// Subdivision priority: most intersecting children first, then coarser
+    /// cells, then the smaller id for determinism.
+    fn key(&self) -> (usize, std::cmp::Reverse<u32>, std::cmp::Reverse<u64>) {
+        (
+            self.children.len(),
+            std::cmp::Reverse(self.cell.level()),
+            std::cmp::Reverse(self.cell.as_u64()),
+        )
+    }
+}
+
+impl PartialEq for Candidate {
+    fn eq(&self, other: &Self) -> bool {
+        self.key() == other.key()
+    }
+}
+
+impl Eq for Candidate {}
+
+impl PartialOrd for Candidate {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Candidate {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.key().cmp(&other.key())
+    }
+}
+
+/// Routes `cell` for the adaptive coverer: dropped if it misses the region,
+/// emitted if terminal (fully contained at/below `min_level`, or — for a
+/// non-interior covering — at `max_level`), otherwise queued with its
+/// intersecting children.
+fn add_candidate<R: Region + ?Sized>(
+    region: &R,
+    cell: S2CellId,
+    min_level: u32,
+    max_level: u32,
+    interior: bool,
+    result: &mut Vec<S2CellId>,
+    heap: &mut BinaryHeap<Candidate>,
+) {
+    if !region.intersects_cell(cell) {
+        return;
+    }
+    let level = cell.level();
+    if level >= min_level && region.contains_cell(cell) {
+        result.push(cell);
+        return;
+    }
+    if level >= max_level {
+        if !interior {
+            result.push(cell);
+        }
+        return;
+    }
+    let children: Vec<S2CellId> = cell
+        .children()
+        .iter()
+        .copied()
+        .filter(|&c| region.intersects_cell(c))
+        .collect();
+    if !children.is_empty() {
+        heap.push(Candidate { cell, children });
     }
 }
 
@@ -350,6 +503,137 @@ mod tests {
         let clamped = RegionCoverer::at_level(40);
         assert_eq!(clamped.min_level, MAX_LEVEL);
         assert_eq!(clamped.max_level, MAX_LEVEL);
+    }
+
+    /// Sample points on a lon/lat grid over `[lon0,lon1] × [lat0,lat1]`,
+    /// keeping those the region contains.
+    fn interior_samples<R: Region>(
+        region: &R,
+        lon0: f64,
+        lat0: f64,
+        lon1: f64,
+        lat1: f64,
+    ) -> Vec<S2Point> {
+        let mut samples = Vec::new();
+        let steps = 20;
+        for i in 0..=steps {
+            for j in 0..=steps {
+                let lon = lon0 + (lon1 - lon0) * f64::from(i) / f64::from(steps);
+                let lat = lat0 + (lat1 - lat0) * f64::from(j) / f64::from(steps);
+                let p = pt(lon, lat);
+                if region.contains_point(p) {
+                    samples.push(p);
+                }
+            }
+        }
+        samples
+    }
+
+    #[test]
+    fn adaptive_covering_of_cap_respects_budget_and_covers_samples() {
+        let cap = crate::space::s2::Cap::from_center_angle(
+            pt(-100.0, 40.0),
+            crate::space::s1::Angle::from_radians(0.1),
+        );
+        let coverer = RegionCoverer {
+            min_level: 0,
+            max_level: 30,
+            max_cells: 16,
+        };
+        let cover = coverer.adaptive_covering(&cap);
+        assert!(!cover.is_empty());
+        assert!(cover.len() <= 16, "budget exceeded: {}", cover.len());
+        for c in cover.iter() {
+            assert!(c.level() <= 30);
+            assert!(cap.intersects_cell(c), "cover cell {c} misses the cap");
+        }
+        let samples = interior_samples(&cap, -110.0, 30.0, -90.0, 50.0);
+        assert!(samples.len() > 50, "degenerate sample set");
+        for p in samples {
+            assert!(cover.contains_point(p), "interior point not covered");
+        }
+    }
+
+    #[test]
+    fn adaptive_covering_of_polygon_is_multi_level_and_complete() {
+        let poly = Polygon::new(
+            square(-4.0, -4.0, 4.0, 4.0),
+            vec![square(-1.0, -1.0, 1.0, 1.0)],
+        );
+        let coverer = RegionCoverer {
+            min_level: 2,
+            max_level: 14,
+            max_cells: 64,
+        };
+        let cover = coverer.adaptive_covering(&poly);
+        assert!(!cover.is_empty());
+        assert!(cover.len() <= 64);
+        let mut levels = std::collections::BTreeSet::new();
+        for c in cover.iter() {
+            assert!(c.level() <= 14);
+            assert!(poly.intersects_cell(c));
+            levels.insert(c.level());
+        }
+        assert!(levels.len() > 1, "expected a multi-level cover: {levels:?}");
+        for p in interior_samples(&poly, -5.0, -5.0, 5.0, 5.0) {
+            assert!(cover.contains_point(p), "interior point not covered");
+        }
+    }
+
+    #[test]
+    fn interior_covering_cells_are_contained_in_the_region() {
+        let cap = crate::space::s2::Cap::from_center_angle(
+            pt(10.0, 10.0),
+            crate::space::s1::Angle::from_radians(0.15),
+        );
+        let coverer = RegionCoverer {
+            min_level: 0,
+            max_level: 12,
+            max_cells: 32,
+        };
+        let interior = coverer.interior_covering(&cap);
+        assert!(!interior.is_empty(), "fat cap should admit interior cells");
+        assert!(interior.len() <= 32);
+        for c in interior.iter() {
+            assert!(
+                cap.contains_cell(c),
+                "interior cell {c} pokes outside the cap"
+            );
+        }
+        let cover = coverer.adaptive_covering(&cap);
+        for c in interior.iter() {
+            assert!(
+                cover.contains_cell(c),
+                "interior covering must be inside the covering"
+            );
+        }
+    }
+
+    #[test]
+    fn adaptive_covering_with_tight_budget_stays_coarse() {
+        let region = square(-30.0, -30.0, 30.0, 30.0);
+        let small = RegionCoverer {
+            min_level: 0,
+            max_level: 30,
+            max_cells: 6,
+        }
+        .adaptive_covering(&region);
+        assert!(!small.is_empty());
+        assert!(small.len() <= 6, "budget exceeded: {}", small.len());
+        let large = RegionCoverer {
+            min_level: 0,
+            max_level: 30,
+            max_cells: 60,
+        }
+        .adaptive_covering(&region);
+        assert!(
+            large.len() > small.len(),
+            "bigger budget should refine more"
+        );
+        for p in interior_samples(&region, -29.0, -29.0, 29.0, 29.0) {
+            assert!(small.contains_point(p));
+            assert!(large.contains_point(p));
+        }
     }
 
     #[test]

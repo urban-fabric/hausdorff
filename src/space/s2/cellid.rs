@@ -158,7 +158,9 @@ impl S2CellId {
         Self::from_geo_point(p).parent(level)
     }
 
-    fn from_point(p: S2Point) -> Self {
+    /// The leaf cell containing the given unit-sphere point.
+    #[must_use]
+    pub fn from_point(p: S2Point) -> Self {
         let (f, u, v) = coords::xyz_to_face_uv(p.vector());
         let i = coords::st_to_ij(coords::uv_to_st(u));
         let j = coords::st_to_ij(coords::uv_to_st(v));
@@ -358,6 +360,22 @@ impl S2CellId {
             corner(i + size, j + size),
             corner(i, j + size),
         ]
+    }
+
+    /// The cell's `(u, v)` rectangle on its cube face, as
+    /// `(face, (u_lo, u_hi), (v_lo, v_hi))` — the exact footprint the lat/lng
+    /// bound of a cell is computed from.
+    pub(super) fn face_uv_bounds(self) -> (u8, (f64, f64), (f64, f64)) {
+        let (f, i, j, _) = self.face_ij_orientation();
+        let size = size_ij(self.level());
+        let (i, j) = (i & -size, j & -size);
+        let bound = |lo: i64| {
+            (
+                coords::st_to_uv(lo as f64 / MAX_SIZE as f64),
+                coords::st_to_uv((lo + size) as f64 / MAX_SIZE as f64),
+            )
+        };
+        (f as u8, bound(i), bound(j))
     }
 
     /// The four cells adjacent across this cell's edges (down, right, up,

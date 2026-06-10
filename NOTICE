@@ -42,6 +42,20 @@ point/edge measures) and `crate::space::r3` are ported from golang/geo's `s2`
 and `r3` packages.
 
 ================================================================================
+GeographicLib / geographiclib-rs                              MIT
+    https://geographiclib.sourceforge.io
+    Copyright (c) Charles F. F. Karney
+    https://github.com/georust/geographiclib-rs
+    Copyright (c) Federico Dolce and Michael Kirk
+
+`crate::earth::karney` (the ellipsoidal direct/inverse geodesic solvers behind
+`Ellipsoid::{inverse, direct}` and the `space::r2` `Geodesic` metric) is ported
+from `geographiclib-rs`, the GeoRust port of Karney's GeographicLib. The
+algorithms are from C. F. F. Karney, "Algorithms for geodesics", J. Geodesy 87,
+43–55 (2013). `geographiclib-rs` is also a dev-dependency differential-test
+oracle for the port.
+
+================================================================================
 Algorithm references
 --------------------------------------------------------------------------------
 The following are algorithmic provenance, not source-code ports:
