@@ -4,9 +4,11 @@
 //! Covers the operations the workspace uses: the u64 index codec + validity,
 //! the icosahedral FaceIJK gnomonic projection (`for_point` / `center`),
 //! `parent` / `children`, child positions, compaction/uncompaction, `grid_disk`
-//! (k-ring), `grid_distance`, local IJ, grid paths, directed edges, canonical
-//! vertices, exact cell area, centroid polygon cover, grid-path polyline cover,
-//! cell-set boundary dissolve, `is_pentagon`, and cell/edge boundaries.
+//! (k-ring), `grid_distance`, local IJ (both directions), grid paths, directed
+//! edges, canonical vertices, exact cell area, great-circle cell distance,
+//! polygon cover with centroid/full/overlapping containment modes (including
+//! antimeridian-crossing polygons), grid-path polyline cover, cell-set boundary
+//! dissolve, `is_pentagon`, and cell/edge boundaries.
 //!
 //! Every operation is differential-tested against `h3o` (kept as a
 //! dev-dependency oracle only) plus a random-index validity sweep — see
@@ -31,4 +33,4 @@ pub use index::{
     InvalidH3DirectedEdge, InvalidH3Vertex, MAX_RESOLUTION,
 };
 pub use line::{H3Line, H3LineError};
-pub use polygon::{H3BoundaryRing, H3Polygon, H3PolygonError};
+pub use polygon::{ContainmentMode, H3BoundaryRing, H3Polygon, H3PolygonError};

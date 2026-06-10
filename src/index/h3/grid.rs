@@ -299,6 +299,149 @@ pub(super) fn local_ijk(cell: u64, origin: u64) -> Option<CoordIJK> {
     Some(ijk)
 }
 
+/// Reverse base cell direction -> leading index digit -> 60° CCW rotations,
+/// undoing the warp `PENTAGON_ROTATIONS` introduces when the origin is on a
+/// pentagon. `0xff` = invalid (the deleted K axis).
+#[rustfmt::skip]
+const PENTAGON_ROTATIONS_REVERSE: [[u8; 7]; 7] = [
+    [0,    0,    0,    0,    0,    0,    0],
+    [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff],
+    [0,    1,    0,    0,    0,    0,    0],
+    [0,    1,    0,    0,    0,    1,    0],
+    [0,    5,    0,    0,    0,    0,    0],
+    [0,    5,    0,    5,    0,    0,    0],
+    [0,    0,    0,    0,    0,    0,    0],
+];
+
+/// As `PENTAGON_ROTATIONS_REVERSE` for an index on a non-polar pentagon with a
+/// non-pentagon origin.
+#[rustfmt::skip]
+const PENTAGON_ROTATIONS_REVERSE_NONPOLAR: [[u8; 7]; 7] = [
+    [0,    0,    0,    0,    0,    0,    0],
+    [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff],
+    [0,    1,    0,    0,    0,    0,    0],
+    [0,    1,    0,    0,    0,    1,    0],
+    [0,    5,    0,    0,    0,    0,    0],
+    [0,    1,    0,    5,    1,    1,    0],
+    [0,    0,    0,    0,    0,    0,    0],
+];
+
+/// As `PENTAGON_ROTATIONS_REVERSE` for an index on a polar pentagon with a
+/// non-pentagon origin.
+#[rustfmt::skip]
+const PENTAGON_ROTATIONS_REVERSE_POLAR: [[u8; 7]; 7] = [
+    [0,    0,    0,    0,    0,    0,    0],
+    [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff],
+    [0,    1,    1,    1,    1,    1,    1],
+    [0,    1,    0,    0,    0,    1,    0],
+    [0,    1,    0,    0,    1,    1,    1],
+    [0,    1,    0,    5,    1,    1,    0],
+    [0,    1,    1,    0,    1,    1,    1],
+];
+
+/// Sets the cell index direction bits from a local IJK coordinate, finest
+/// resolution up, returning the leftover base-cell-level IJK. `None` when the
+/// coordinate is outside the representable grid (i32 overflow or a non-unit
+/// per-resolution step).
+fn checked_directions_bits_from_ijk(
+    mut ijk: CoordIJK,
+    bits: &mut u64,
+    res: u8,
+) -> Option<CoordIJK> {
+    for r in (1..=res).rev() {
+        let last_ijk = ijk;
+        let last_center = if is_class3(r) {
+            ijk = ijk.checked_up_aperture7::<CCW>()?;
+            ijk.down_aperture7::<CCW>()
+        } else {
+            ijk = ijk.checked_up_aperture7::<CW>()?;
+            ijk.down_aperture7::<CW>()
+        };
+        let digit = (last_ijk - last_center).normalize().checked_digit()?;
+        *bits = index::set_direction(*bits, digit, r);
+    }
+    Some(ijk)
+}
+
+/// The cell at IJK coordinate `coord` in `origin`'s local coordinate system —
+/// the inverse of [`local_ijk`] (mirrors H3 `localIjkToCell`). `None` when the
+/// coordinate is out of range or crosses a pentagon's deleted subsequence.
+pub(super) fn cell_from_local_ijk(origin: u64, coord: CoordIJK) -> Option<u64> {
+    let res = index::get_resolution(origin);
+    let origin_bc = index::get_base_cell(origin);
+    let origin_on_pent = base_cells::is_pentagon(origin_bc);
+
+    let mut bits = index::set_resolution(index::DEFAULT_CELL_INDEX, res);
+
+    if res == 0 {
+        let dir = coord.checked_digit()?;
+        let bc = base_cells::neighbor(origin_bc, dir)?;
+        return Some(index::set_base_cell(bits, bc));
+    }
+
+    let ijk = checked_directions_bits_from_ijk(coord, &mut bits, res)?;
+
+    let mut dir = ijk.checked_digit()?;
+    let mut base_cell = base_cells::neighbor(origin_bc, dir);
+    let index_on_pent = base_cell.is_some_and(base_cells::is_pentagon);
+
+    if dir != 0 {
+        let mut pentagon_rotations = 0u8;
+        if origin_on_pent {
+            let leading = index::first_axe(origin).unwrap_or(0);
+            pentagon_rotations = PENTAGON_ROTATIONS_REVERSE[leading as usize][dir as usize];
+            if pentagon_rotations == 0xff {
+                return None;
+            }
+            dir = index::rotate_direction(dir, pentagon_rotations as usize, CCW);
+            if dir == 1 {
+                return None;
+            }
+            base_cell = Some(base_cells::neighbor(origin_bc, dir)?);
+        }
+        let fixed_base_cell = base_cell?;
+        let base_cell_rotations = base_cells::neighbor_rotation(origin_bc, dir);
+
+        if index_on_pent {
+            let rev_dir = base_cells::direction_to(fixed_base_cell, origin_bc)?;
+            bits = index::rotate60(bits, base_cell_rotations as usize, CCW);
+
+            let leading = index::first_axe(bits).unwrap_or(0);
+            let pentagon_rotations = if base_cells::is_polar_pentagon(fixed_base_cell) {
+                PENTAGON_ROTATIONS_REVERSE_POLAR[rev_dir as usize][leading as usize]
+            } else {
+                PENTAGON_ROTATIONS_REVERSE_NONPOLAR[rev_dir as usize][leading as usize]
+            };
+            if pentagon_rotations == 0xff {
+                return None;
+            }
+            for _ in 0..pentagon_rotations {
+                bits = index::pentagon_rotate60(bits, CCW);
+            }
+        } else {
+            bits = index::rotate60(
+                bits,
+                (pentagon_rotations + base_cell_rotations) as usize,
+                CCW,
+            );
+        }
+    } else if origin_on_pent && index_on_pent {
+        let origin_leading = index::first_axe(origin).unwrap_or(0);
+        let index_leading = index::first_axe(bits).unwrap_or(0);
+        let rotations = PENTAGON_ROTATIONS_REVERSE[origin_leading as usize][index_leading as usize];
+        if rotations == 0xff {
+            return None;
+        }
+        bits = index::rotate60(bits, rotations as usize, CCW);
+    }
+
+    if index_on_pent && index::first_axe(bits) == Some(1) {
+        return None;
+    }
+
+    Some(index::set_base_cell(bits, base_cell?))
+}
+
 /// Grid distance between two cells (same resolution), or `None` if they can't
 /// be placed in a common local frame (different resolution / far apart / across
 /// a pentagon).

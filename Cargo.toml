@@ -32,7 +32,9 @@ huygens = { git = "ssh://git@github.com/urban-fabric/huygens.git", branch = "mai
 profiling = ["dep:huygens"]
 
 [dev-dependencies]
-h3o = "0.10.0"
+# The `geo` feature exposes h3o's polygon tiler (`h3o::geom`), the containment
+# -mode oracle for the H3Polygon covers.
+h3o = { version = "0.10.0", features = ["geo"] }
 # Reference oracles — used only to conformance-check the native kernels/codecs
 # (the same role h3o plays for the H3 core). Never runtime dependencies.
 geo = "0.33"

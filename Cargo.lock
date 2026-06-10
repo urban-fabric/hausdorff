@@ -369,6 +369,8 @@ dependencies = [
  "ahash",
  "either",
  "float_eq",
+ "geo",
+ "geo-traits",
  "h3o-bit",
  "libm",
  "ordered-float",
