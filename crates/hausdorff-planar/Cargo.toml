@@ -1,0 +1,23 @@
+[package]
+name = "hausdorff-planar"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Planar f64 geometry (the georust geo port): r2 types and algorithms, the algebra abstractions, and the hausdorff.toml tuning config."
+
+[dependencies]
+hausdorff-base = { workspace = true }
+cavalieri = { workspace = true }
+serde = { workspace = true }
+huygens = { workspace = true, optional = true }
+
+[features]
+# In-process profiling: hierarchical span timing of the kernels via huygens.
+# Off by default and compile-time zero-cost when off.
+profiling = ["dep:huygens"]
+
+[lints]
+workspace = true

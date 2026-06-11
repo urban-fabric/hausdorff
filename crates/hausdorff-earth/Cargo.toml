@@ -1,0 +1,19 @@
+[package]
+name = "hausdorff-earth"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "The integrated Earth layer: great-circle arcs over the S2 kernels, map projections, geographic similarity measures, columnar point batches, and the planar/spherical convert bridge. Re-exports hausdorff-base's earth core."
+
+[dependencies]
+hausdorff-base = { workspace = true }
+hausdorff-planar = { workspace = true }
+hausdorff-sphere = { workspace = true }
+hausdorff-index = { workspace = true }
+euclid = { workspace = true }
+
+[lints]
+workspace = true
