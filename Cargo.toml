@@ -1,52 +1,37 @@
-[workspace]
-resolver = "3"
-# hausdorff: urban-fabric's geometry and spatial indexing domain.
-# Flat layout — every crate lives directly under crates/. The dependency DAG is
-#   hausdorff-base → hausdorff-planar → {hausdorff-sphere, hausdorff-index,
-#   hausdorff-format} → hausdorff-earth → hausdorff (the façade),
-# cut so that thin consumers (GeoPoint / haversine / BBox) can depend on
-# hausdorff-base alone while the `hausdorff` façade preserves the original
-# single-crate public API unchanged.
-members = ["crates/*"]
-
-[workspace.package]
+[package]
+name = "hausdorff"
 version = "0.1.0"
 edition = "2024"
 license = "Proprietary"
 authors = ["Raymond Mead"]
-repository = "https://github.com/urban-fabric/hausdorff"
-rust-version = "1.95"
+description = "Internal geospatial primitives and index implementations for UrbanFabric."
 
-[workspace.dependencies]
-# Internal crates (path deps within the workspace; consumers in sibling repos
-# reach them through this repo's git URL with the package name they need).
-hausdorff-base = { path = "crates/hausdorff-base" }
-hausdorff-planar = { path = "crates/hausdorff-planar" }
-hausdorff-sphere = { path = "crates/hausdorff-sphere" }
-hausdorff-index = { path = "crates/hausdorff-index" }
-hausdorff-earth = { path = "crates/hausdorff-earth" }
-hausdorff-format = { path = "crates/hausdorff-format" }
-
-# Urban fabric sibling repositories.
+[dependencies]
+# Backing the canonical GeoPoint/FixedGeoPoint newtypes (POD layout + JSON).
+bytemuck = { version = "1.25", features = ["derive"] }
 # Bundled-TOML config loader (the `hausdorff.toml` tuning parameters).
 cavalieri = { git = "ssh://git@github.com/urban-fabric/cavalieri.git", branch = "main" }
 euclid = { git = "ssh://git@github.com/urban-fabric/euclid.git", branch = "main" }
-# Optional: in-process profiling (hierarchical span timing of the kernels),
-# gated behind the `profiling` feature (off by default). When the feature is
-# off the span hooks compile to nothing, so normal builds carry zero profiling
-# overhead.
-huygens = { git = "ssh://git@github.com/urban-fabric/huygens.git", branch = "main" }
-
-# External crates.
-# Backing the canonical GeoPoint/FixedGeoPoint newtypes (POD layout + JSON).
-bytemuck = { version = "1.25", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
-# Generic JSON layer for the native GeoJSON codec (format::geojson) — not a
+# Generic JSON layer for the native GeoJSON codec (r2_format::geojson) — not a
 # geo crate; replaces the `geojson` crate's JSON handling.
 serde_json = "1"
+# Optional: in-process profiling (hierarchical span timing of the kernels) via
+# huygens, gated behind the `profiling` feature (off by default). When the
+# feature is off the span hooks compile to nothing, so normal builds carry zero
+# profiling overhead.
+huygens = { git = "ssh://git@github.com/urban-fabric/huygens.git", branch = "main", optional = true }
 
 # No external geometry crate is a runtime dependency: every kernel/codec is
-# native. The crates below appear only as dev-dependency conformance oracles.
+# native. `geo`/`geo-types` appear only as dev-dependency conformance oracles.
+
+[features]
+# In-process profiling: hierarchical span timing of the kernels via huygens.
+# Off by default and compile-time zero-cost when off; enable it, then set the
+# runtime `hausdorff::huygens::ProfileMode` to collect a `PerfReport`.
+profiling = ["dep:huygens"]
+
+[dev-dependencies]
 # The `geo` feature exposes h3o's polygon tiler (`h3o::geom`), the containment
 # -mode oracle for the H3Polygon covers.
 h3o = { version = "0.10.0", features = ["geo"] }
@@ -64,6 +49,25 @@ geojson = { version = "1.0", features = ["geo-types"] }
 geohash = "0.13"
 wkb = "0.9"
 wkt = "0.14"
+# Reference oracle for the ported planar/spherical algorithms — used only in
+# tests to cross-check our in-house implementations (the same role h3o plays
+# for the H3 core). Never a runtime dependency.
+# Also needed by the relocated tests/ integration suite, which names the typed
+# LengthMeters returned across the public API (e.g. RadialGrid construction).
+euclid = { git = "ssh://git@github.com/urban-fabric/euclid.git", branch = "main" }
+# In-process benchmark harness (statistical per-call timing, TSC fast-clock,
+# comparison tables) — the shared replacement for the hand-rolled
+# std::time::Instant harness in benches/vs_external.rs.
+huygens = { git = "ssh://git@github.com/urban-fabric/huygens.git", branch = "main" }
 
-[workspace.lints.rust]
-unsafe_code = "deny"
+# Wall-clock comparison of hausdorff's kernels against the external reference
+# libraries (geo, h3o, geohash). Run: `cargo bench --bench vs_external`.
+[[bench]]
+name = "vs_external"
+harness = false
+
+# Hierarchical span profile of the instrumented kernels (needs the profiling
+# feature). Run: `cargo run --release --example profile_kernels --features profiling`.
+[[example]]
+name = "profile_kernels"
+required-features = ["profiling"]

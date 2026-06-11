@@ -8,24 +8,6 @@ see [`NOTICE`](NOTICE) for the open-source works it ports from.
 The H3 core was the first piece, moved out of Kolmogorov so other projects can
 use the same internal implementation.
 
-## Workspace layout
-
-A cargo workspace (flat layout, every crate under `crates/`). The `hausdorff`
-crate is a façade that re-exports the subcrates under the original single-crate
-module surface, so consumers depending on package `hausdorff` are unaffected by
-the split. Consumers that only need a slice can depend on a subcrate directly
-(same git URL, different `package` name):
-
-| crate | contents | depends on |
-|---|---|---|
-| `hausdorff-base` | `earth` core (`GeoPoint`, `BBox`, haversine/rhumb/Karney geodesy, `ecef`, `ellipsoid`, `RadialGrid`), `space::s1`, `space::r3` | — |
-| `hausdorff-planar` | `space::r2`, `algebra`, `config` (+ the `profiling` feature hooks) | base |
-| `hausdorff-sphere` | `space::s2` | base, planar |
-| `hausdorff-index` | `index::h3`, `index::geohash`, `index::grid` | base, planar |
-| `hausdorff-format` | `format` (WKB/WKT/GeoJSON/shapefile) | planar |
-| `hausdorff-earth` | `earth::{arc, projection, sphere, similarity, batch}`, `convert`; re-exports the base earth core as the complete `earth` module | base, planar, sphere, index |
-| `hausdorff` | the façade: re-exports everything under the original paths; hosts the integration test suite, benches, examples | all of the above |
-
 ## Modules
 
 - **`index::h3`** — from-scratch Rust H3 hexagonal index. Cell

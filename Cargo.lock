@@ -442,6 +442,8 @@ checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 name = "hausdorff"
 version = "0.1.0"
 dependencies = [
+ "bytemuck",
+ "cavalieri",
  "euclid",
  "geo",
  "geo-traits",
@@ -450,72 +452,11 @@ dependencies = [
  "geohash",
  "geojson",
  "h3o",
- "hausdorff-base",
- "hausdorff-earth",
- "hausdorff-format",
- "hausdorff-index",
- "hausdorff-planar",
- "hausdorff-sphere",
  "huygens",
- "wkb",
- "wkt",
-]
-
-[[package]]
-name = "hausdorff-base"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "euclid",
- "serde",
-]
-
-[[package]]
-name = "hausdorff-earth"
-version = "0.1.0"
-dependencies = [
- "euclid",
- "hausdorff-base",
- "hausdorff-index",
- "hausdorff-planar",
- "hausdorff-sphere",
-]
-
-[[package]]
-name = "hausdorff-format"
-version = "0.1.0"
-dependencies = [
- "hausdorff-planar",
  "serde",
  "serde_json",
-]
-
-[[package]]
-name = "hausdorff-index"
-version = "0.1.0"
-dependencies = [
- "euclid",
- "hausdorff-base",
- "hausdorff-planar",
-]
-
-[[package]]
-name = "hausdorff-planar"
-version = "0.1.0"
-dependencies = [
- "cavalieri",
- "hausdorff-base",
- "huygens",
- "serde",
-]
-
-[[package]]
-name = "hausdorff-sphere"
-version = "0.1.0"
-dependencies = [
- "hausdorff-base",
- "hausdorff-planar",
- "serde",
+ "wkb",
+ "wkt",
 ]
 
 [[package]]
