@@ -82,7 +82,6 @@ impl Buckets {
             max_col = max_col.max(c);
         }
 
-        // i128 spans avoid overflow for pathological `cell_deg`/coordinate ranges.
         let row_span = (max_row as i128) - (min_row as i128) + 1;
         let col_span = (max_col as i128) - (min_col as i128) + 1;
         let cell_count = row_span.saturating_mul(col_span);
@@ -98,8 +97,6 @@ impl Buckets {
             return Buckets::Sparse(map);
         }
 
-        // Dense path: counting sort of the points into a CSR grid. `cell_count`
-        // is within `budget` here, so the casts to `i64`/`usize` cannot overflow.
         let (rows, cols) = (row_span as i64, col_span as i64);
         let ncells = (rows * cols) as usize;
         let slot = |r: i64, c: i64| ((r - min_row) * cols + (c - min_col)) as usize;
@@ -150,7 +147,7 @@ impl Buckets {
 }
 
 /// A reusable uniform-grid index over lon/lat points tagged with a payload —
-/// build once, probe many (the broadcast analogue of [`within_join`]).
+/// build once, probe many.
 pub struct PointGrid<P> {
     cell_deg: f64,
     points: Vec<GridPoint<P>>,
@@ -211,7 +208,6 @@ impl<P: Copy> PointGrid<P> {
     ) -> Vec<(Q, P)> {
         const DEG_PER_M: f64 = 1.0 / 111_320.0;
         let radius_deg = meters * DEG_PER_M;
-        // cell_deg is finite and > 0 (enforced by `build`), so these are finite.
         let max_rings = ((180.0 / self.cell_deg).ceil() as i64).max(1);
         let lat_rings = ((radius_deg / self.cell_deg).ceil() as i64).clamp(1, max_rings);
         let mut out = Vec::new();

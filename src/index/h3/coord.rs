@@ -113,6 +113,40 @@ impl CoordIJK {
         ((v.i << 2) | (v.j << 1) | v.k) as u8
     }
 
+    /// As [`normalize`](Self::normalize), returning `None` on i32 overflow.
+    pub(super) fn checked_normalize(mut self) -> Option<Self> {
+        let min = self.i.min(self.j.min(self.k));
+        self.i = self.i.checked_sub(min)?;
+        self.j = self.j.checked_sub(min)?;
+        self.k = self.k.checked_sub(min)?;
+        Some(self)
+    }
+
+    /// As [`to_digit`](Self::to_digit), returning `None` when the coordinate is
+    /// not a unit vector.
+    pub(super) fn checked_digit(self) -> Option<u8> {
+        let v = self.normalize();
+        ((v.i | v.j | v.k) & !1 == 0).then_some(((v.i << 2) | (v.j << 1) | v.k) as u8)
+    }
+
+    /// As [`up_aperture7`](Self::up_aperture7), returning `None` on i32
+    /// overflow (arbitrary local IJ input can exceed the grid range).
+    pub(super) fn checked_up_aperture7<const CCW_: bool>(self) -> Option<Self> {
+        let ij = CoordIJ::from(self);
+        let (i, j) = if CCW_ {
+            (
+                f64::from(ij.i.checked_mul(3)?.checked_sub(ij.j)?) * ONE_SEVENTH,
+                f64::from(ij.j.checked_mul(2)?.checked_add(ij.i)?) * ONE_SEVENTH,
+            )
+        } else {
+            (
+                f64::from(ij.i.checked_mul(2)?.checked_add(ij.j)?) * ONE_SEVENTH,
+                f64::from(ij.j.checked_mul(3)?.checked_sub(ij.i)?) * ONE_SEVENTH,
+            )
+        };
+        Self::new(i.round() as i32, j.round() as i32, 0).checked_normalize()
+    }
+
     /// Indexing parent in an aperture-7 grid.
     #[inline]
     pub(super) fn up_aperture7<const CCW_: bool>(self) -> Self {
@@ -301,7 +335,6 @@ impl Vec2d {
 }
 
 impl From<Vec2d> for CoordIJK {
-    // Containing hex in IJK for a 2D cartesian coordinate vector (DGGRID).
     #[inline]
     fn from(value: Vec2d) -> Self {
         let k = 0;

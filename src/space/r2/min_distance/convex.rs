@@ -108,15 +108,12 @@ fn is_convex(verts: &[Coord]) -> bool {
 /// the caller can fall back to the exact brute/index scan — correctness never
 /// depends on GJK converging.
 fn convex_min_distance(va: &[Coord], vb: &[Coord]) -> Option<f64> {
-    // Support vertex of the Minkowski difference in direction `d`.
     let mink = |d: Coord| support(va, d) - support(vb, -d);
 
     let mut dir = vb[0] - va[0];
     if dir.x == 0.0 && dir.y == 0.0 {
         dir = Coord::new(1.0, 0.0);
     }
-    // Maintain a 2-point simplex (a segment of the Minkowski difference) and walk
-    // it toward the origin, replacing the farther endpoint with a better support.
     let mut a = mink(dir);
     let mut b = mink(-dir);
     let budget = 2 * (va.len() + vb.len()) + 8;
@@ -124,18 +121,15 @@ fn convex_min_distance(va: &[Coord], vb: &[Coord]) -> Option<f64> {
         let p = closest_on_segment_to_origin(a, b);
         let p_len2 = p.dot(p);
         if p_len2 <= 1e-24 {
-            return Some(0.0); // origin lies on the simplex → shapes touch
+            return Some(0.0);
         }
         let p_len = p_len2.sqrt();
-        let unit = p * (-1.0 / p_len); // unit direction from P toward the origin
+        let unit = p * (-1.0 / p_len);
         let c = mink(unit);
-        // Progress = how far the new support reaches past P toward the origin.
-        // `p.dot(unit)` is `-p_len`, so this is `c.dot(unit) + p_len ≥ 0`.
         let progress = c.dot(unit) - p.dot(unit);
         if progress < 1e-12 * (1.0 + p_len) {
             return Some(p_len);
         }
-        // Keep the endpoint nearer the origin; replace the other with `c`.
         if a.dot(a) <= b.dot(b) {
             b = c;
         } else {
@@ -164,9 +158,8 @@ fn closest_on_segment_to_origin(a: Coord, b: Coord) -> Coord {
     let ab = b - a;
     let len2 = ab.dot(ab);
     if len2 <= 0.0 {
-        return a; // degenerate segment
+        return a;
     }
-    // t = (O - a)·ab / |ab|², clamped to the segment.
     let t = ((-a).dot(ab) / len2).clamp(0.0, 1.0);
     a + ab * t
 }

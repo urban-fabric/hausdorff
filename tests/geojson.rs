@@ -40,7 +40,6 @@ fn native_round_trips() {
 fn parses_standard_strings() {
     let g = from_geojson(r#"{"type":"Point","coordinates":[3,4]}"#).unwrap();
     assert_eq!(g, Geometry::Point(Point::new(3.0, 4.0)));
-    // elevation (3rd ordinate) is ignored
     let g = from_geojson(r#"{"type":"Point","coordinates":[3,4,99]}"#).unwrap();
     assert_eq!(g, Geometry::Point(Point::new(3.0, 4.0)));
     assert!(from_geojson(r#"{"type":"Nope","coordinates":[]}"#).is_err());
@@ -51,14 +50,12 @@ fn parses_standard_strings() {
 fn matches_geojson_reference_crate() {
     for g in fixtures() {
         let geo_g = common::to_geo_geometry(&g);
-        // reference GeoJSON (the `geojson` crate) parses through native to g
         let reference = geojson::GeometryValue::from(&geo_g).to_string();
         assert_eq!(
             from_geojson(&reference).unwrap(),
             g,
             "native parse of reference GeoJSON"
         );
-        // native GeoJSON parses through the `geojson` crate back to g
         let parsed: geojson::Geometry = to_geojson(&g).parse().unwrap();
         let geo_parsed = geo_types::Geometry::<f64>::try_from(parsed.value).unwrap();
         assert_eq!(

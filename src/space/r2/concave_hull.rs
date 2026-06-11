@@ -70,7 +70,7 @@ pub(crate) fn concave_hull_coords(points: &[Coord], concavity: f64) -> Vec<Coord
                         boundary.insert(i + 1, pt);
                         interior.remove(idx);
                         changed = true;
-                        continue; // re-examine the new edge (a → pt)
+                        continue;
                     }
                 }
             }
@@ -78,7 +78,7 @@ pub(crate) fn concave_hull_coords(points: &[Coord], concavity: f64) -> Vec<Coord
         }
     }
 
-    boundary.push(boundary[0]); // close
+    boundary.push(boundary[0]);
     boundary
 }
 
@@ -135,7 +135,7 @@ fn insert_self_intersects(boundary: &[Coord], i: usize, pt: Coord) -> bool {
     let b = boundary[(i + 1) % n];
     for j in 0..n {
         if j == i {
-            continue; // the edge being split
+            continue;
         }
         let c = boundary[j];
         let d = boundary[(j + 1) % n];

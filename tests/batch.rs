@@ -27,7 +27,6 @@ fn lonlat_batch_construction_and_columns() {
         assert_eq!(b.lons()[i], p.lon);
         assert_eq!(b.lats()[i], p.lat);
     }
-    // from_columns validates equal column lengths
     assert!(LonLatBatch::from_columns(vec![1.0, 2.0], vec![3.0, 4.0]).is_some());
     assert!(LonLatBatch::from_columns(vec![1.0], vec![3.0, 4.0]).is_none());
     assert!(LonLatBatch::default().is_empty());
@@ -37,7 +36,7 @@ fn lonlat_batch_construction_and_columns() {
 fn lonlat_batch_haversine_matches_scalar() {
     let pts = sample_points();
     let b = LonLatBatch::from_points(&pts);
-    let target = GeoPoint::from_lat_lon(51.5074, -0.1278); // London
+    let target = GeoPoint::from_lat_lon(51.5074, -0.1278);
     let fan = b.haversine_to(target);
     assert_eq!(fan.len(), pts.len());
     for (i, p) in pts.iter().enumerate() {
@@ -59,7 +58,6 @@ fn lonlat_batch_h3_matches_scalar() {
             );
         }
     }
-    // out-of-range coordinates yield per-point None, same as the scalar path
     let bad = LonLatBatch::from_columns(vec![0.0, 200.0], vec![91.0, 0.0]).unwrap();
     let cells = bad.h3_cells(7);
     assert!(cells[0].is_none() && cells[1].is_none());
@@ -97,8 +95,6 @@ fn point_batch_matches_scalar() {
 
 #[test]
 fn point_batch_distances_to_matches_scalar() {
-    // 13 points (not a multiple of 4) exercises both the SIMD lane chunks and the
-    // scalar tail of the runtime-dispatched kernel.
     let coords: Vec<Coord> = (0..13)
         .map(|i| Coord::new(f64::from(i) * 1.5 - 4.0, f64::from(i % 5) * -2.25 + 1.0))
         .collect();
@@ -110,7 +106,6 @@ fn point_batch_distances_to_matches_scalar() {
     for (i, c) in coords.iter().enumerate() {
         let (dx, dy) = (c.x - target.x, c.y - target.y);
         let want = (dx * dx + dy * dy).sqrt();
-        // bit-identical: SIMD applies the same per-lane IEEE sub/mul/add/sqrt.
         assert_eq!(got[i], want, "distance mismatch at {i}");
     }
     assert!(PointBatch::default().distances_to(target).is_empty());

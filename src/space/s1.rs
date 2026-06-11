@@ -9,9 +9,6 @@
 //! I/O and human-facing values. Mirrors golang/geo's `s1.Angle` and subsumes
 //! `euclid`'s `AngleRadians`/`AngleDegrees`.
 
-// bytemuck's Pod/Zeroable derives expand to unsafe impls; the rest of the crate
-// stays deny(unsafe_code). These plain-old-data newtypes are the only place in
-// s1 that needs the allowance (matching geo::point).
 #![allow(unsafe_code)]
 
 use std::ops::{Add, Div, Mul, Neg, Sub};

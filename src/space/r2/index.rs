@@ -65,7 +65,6 @@ impl<T> StrTree<T> {
                 node_capacity: cap,
             };
         }
-        // Bottom-up: pack items into leaves, then pack levels until one root.
         let mut level = str_pack(
             items,
             cap,
@@ -149,8 +148,6 @@ impl<T> StrTree<T> {
         if k == 0 {
             return Vec::new();
         }
-        // A bounded max-heap (farthest on top): once it holds `k`, its top is the
-        // current k-th-nearest distance, which prunes whole subtrees.
         let mut heap: BinaryHeap<Neighbor<'_, T>> = BinaryHeap::new();
         if let Some(root) = &self.root {
             k_nearest_node(root, point, k, &mut heap);
@@ -251,7 +248,6 @@ fn nearest_node<'a, T>(node: &'a Node<T>, point: Coord, best: &mut Option<(f64, 
             }
         }
         Node::Internal { children, .. } => {
-            // Descend the closest child first so the bound tightens early.
             let mut order: Vec<&Node<T>> = children.iter().collect();
             order.sort_by(|a, b| {
                 point_rect_dist_sq(point, a.bbox()).total_cmp(&point_rect_dist_sq(point, b.bbox()))
@@ -312,7 +308,6 @@ fn k_nearest_node<'a, T>(
             }
         }
         Node::Internal { children, .. } => {
-            // Descend the closest child first so the bound tightens early.
             let mut order: Vec<&Node<T>> = children.iter().collect();
             order.sort_by(|a, b| {
                 point_rect_dist_sq(point, a.bbox()).total_cmp(&point_rect_dist_sq(point, b.bbox()))

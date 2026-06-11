@@ -47,7 +47,6 @@ pub fn relate(a: &Geometry, b: &Geometry) -> IntersectionMatrix {
         (Decomposed::new(a), Decomposed::new(b))
     };
     let mut im = IntersectionMatrix::empty();
-    // Exterior ∩ Exterior is always 2-D in the plane (for non-empty geometries).
     im.set_at_least(E, E, 2);
 
     let mut pts: Vec<Coord> = Vec::new();
@@ -101,11 +100,6 @@ struct Seg {
 /// directly — unlike `coords_iter()`, which materializes a `Vec` — so the
 /// disjoint-box fast path in [`relate`] allocates nothing.
 fn geom_bbox(g: &Geometry) -> Option<(Coord, Coord)> {
-    // Accumulate into `Coord`s rather than four scalars: a `Coord` is two packed
-    // f64s, so `Coord::new(lo.x.min(c.x), lo.y.min(c.y))` lowers to a single
-    // packed-min instruction (both lanes at once). Emptiness falls out of
-    // `lo.x > hi.x` (the untouched ±∞ initial values), avoiding an `any` flag
-    // whose per-step store would serialize the reduction.
     let mut lo = Coord::new(f64::INFINITY, f64::INFINITY);
     let mut hi = Coord::new(f64::NEG_INFINITY, f64::NEG_INFINITY);
     fold_coords(g, &mut |c| {
@@ -371,12 +365,6 @@ impl Decomposed {
                 Loc::Exterior => {}
             }
         }
-        // linear: boundary endpoints, then segment interiors / vertices. When
-        // polygons are present their ring edges (Boundary owner) are already
-        // covered by the areal branch above, and a point that reaches here is
-        // exterior to them — so skip ring edges and test only linear components.
-        // Purely-areal geometries have no linear edges, so this branch can't match
-        // (it would only scan ring edges to `continue`) — skip it entirely.
         if self.has_linear {
             let bpts = self.boundary_points();
             if bpts.contains(&p) {
@@ -449,8 +437,6 @@ fn locate_areal(p: Coord, polys: &[Polygon]) -> Loc {
 /// Do any ring edge of `ga` and ring edge of `gb` properly cross (strict interior
 /// crossing, not a shared vertex or collinear touch)?
 fn rings_cross(ga: &Decomposed, gb: &Decomposed) -> bool {
-    // A proper crossing needs overlapping bounding boxes, so index gb's ring
-    // edges and probe with ga's — only box-overlapping pairs are tested.
     let b_edges: Vec<(Rect, (Coord, Coord))> = gb
         .segments
         .iter()
@@ -728,7 +714,6 @@ impl ArealIndex {
         let bq = padded_box(p, p);
         let ray = Rect::new(p, Coord::new(f64::INFINITY, p.y));
 
-        // Single polygon (the common case): scalars, no per-call allocation.
         if self.n_polys == 1 {
             let mut on = false;
             self.tree
@@ -747,7 +732,6 @@ impl ArealIndex {
             };
         }
 
-        // Multi-polygon: per-polygon boundary flag and crossing parity.
         let mut on_poly = vec![false; self.n_polys];
         self.tree.query_each(bq, |_, &(a, b, poly)| {
             on_poly[poly as usize] |= point_on_segment(p, a, b);
@@ -761,7 +745,7 @@ impl ArealIndex {
             if on_poly[poly] {
                 any_boundary = true;
             } else if cross[poly] % 2 == 1 {
-                return Loc::Interior; // interior of some polygon wins
+                return Loc::Interior;
             }
         }
         if any_boundary {
@@ -828,8 +812,6 @@ fn contribute_edges(
 ) {
     for seg in &from.segments {
         let (a, b) = (seg.a, seg.b);
-        // split points on this edge, ordered along it — only the test points
-        // within the edge's box can lie on it, so query rather than scan all.
         let mut on: Vec<Coord> = vec![a, b];
         pts_index.query_each(padded_box(a, b), |_, &p| {
             if point_on_segment_interior(p, a, b) {
@@ -844,8 +826,6 @@ fn contribute_edges(
         on.dedup();
         for w in on.windows(2) {
             let mid = Coord::new((w[0].x + w[1].x) / 2.0, (w[0].y + w[1].y) / 2.0);
-            // the sub-edge interior is in `from`'s own Interior/Boundary by
-            // construction (tagged) — don't re-derive it with float geometry.
             let lf = seg.owner;
             let lo = other.locate(mid);
             let (la, lb) = if swapped { (lo, lf) } else { (lf, lo) };
@@ -861,11 +841,6 @@ fn contribute_areas(ga: &Decomposed, gb: &Decomposed, im: &mut IntersectionMatri
     let b_areal = !gb.polygons.is_empty();
 
     if a_areal && b_areal {
-        // Probe each areal interior at many points (vertices, edge-midpoints,
-        // centroids), and detect boundary crossings. A proper ring crossing means
-        // each interior straddles the other's boundary. Each sample is classified
-        // once through the indexed areal locate, short-circuiting once both an
-        // inside and an outside sample are seen.
         let cross = rings_cross(ga, gb);
         let (mut a_in, mut a_out) = (false, false);
         for poly in &ga.polygons {

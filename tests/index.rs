@@ -86,7 +86,6 @@ fn query_matches_brute_force() {
 #[test]
 fn nearest_matches_brute_force_on_points() {
     let mut rng = Rng(0xBEEF_F00D);
-    // degenerate (point) boxes → nearest is exact 1-NN
     let pts: Vec<(Rect, usize)> = (0..800)
         .map(|i| {
             let p = Coord::new(rng.f(1000.0), rng.f(1000.0));
@@ -116,7 +115,7 @@ fn query_each_visits_the_same_items() {
         .map(|i| (rect(i as f64, 0.0, 1.0, 1.0), i))
         .collect();
     let tree = StrTree::new(items);
-    let q = rect(10.5, -1.0, 5.0, 3.0); // spans x in [10.5, 15.5]
+    let q = rect(10.5, -1.0, 5.0, 3.0);
     let mut via_each: Vec<usize> = Vec::new();
     tree.query_each(q, |_, &i| via_each.push(i));
     via_each.sort_unstable();

@@ -1,8 +1,5 @@
 //! WGS84 coordinate and its compact fixed-point storage encoding.
 
-// bytemuck's `Pod`/`Zeroable` derives expand to `unsafe impl`s; the rest of the
-// crate stays `deny(unsafe_code)` (see lib.rs). These plain-old-data coordinate
-// structs are the only place that needs the allowance.
 #![allow(unsafe_code)]
 
 use bytemuck::{Pod, Zeroable};

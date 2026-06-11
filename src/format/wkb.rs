@@ -31,9 +31,9 @@ pub fn to_wkb(geom: &Geometry) -> Vec<u8> {
     out
 }
 
-const WKB_HDR: usize = 5; // 1-byte order + u32 geometry type
-const WKB_COUNT: usize = 4; // a u32 element/ring/coord count
-const WKB_COORD: usize = 16; // two f64 ordinates
+const WKB_HDR: usize = 5;
+const WKB_COUNT: usize = 4;
+const WKB_COORD: usize = 16;
 
 /// Bytes a ring of `n` coordinates occupies: its count plus the coordinates.
 fn ring_len(n: usize) -> usize {
@@ -87,7 +87,6 @@ fn hdr(out: &mut Vec<u8>, type_code: u32) {
 }
 
 fn put_u32(out: &mut Vec<u8>, v: usize) {
-    // WKB counts are u32; a geometry with >4B elements can't be represented.
     debug_assert!(v <= u32::MAX as usize, "WKB count {v} exceeds u32");
     out.extend_from_slice(&(v as u32).to_le_bytes());
 }
@@ -250,11 +249,10 @@ impl Reader<'_> {
         if raw & 0x2000_0000 != 0 {
             self.u32(le)?;
         }
-        // EWKB Z/M flags or ISO 1000/2000-offset both add ordinates per coord.
         let ewkb_z = raw & 0x8000_0000 != 0;
         let ewkb_m = raw & 0x4000_0000 != 0;
         let base = (raw & 0x0000_ffff) % 1000;
-        let iso = (raw & 0x0000_ffff) / 1000; // 0=2D, 1=Z, 2=M, 3=ZM
+        let iso = (raw & 0x0000_ffff) / 1000;
         let extra = usize::from(ewkb_z)
             + usize::from(ewkb_m)
             + usize::from(iso == 1 || iso == 2)

@@ -74,12 +74,11 @@ fn main() {
     set_mode(ProfileMode::Heavy);
     let mut rng = Rng(0x00C0_FFEE_1234_5678);
 
-    // ---- shared inputs ----
     let pa = poly(ring(0.0, 0.0, 5.0, 64));
     let ga = Geometry::Polygon(pa.clone());
-    let gb = Geometry::Polygon(poly(ring(20.0, 3.0, 4.0, 64))); // disjoint
+    let gb = Geometry::Polygon(poly(ring(20.0, 3.0, 4.0, 64)));
     let ov_a = Geometry::Polygon(poly(ring(0.0, 0.0, 10.0, 64)));
-    let ov_b = Geometry::Polygon(poly(ring(8.0, 0.0, 10.0, 64))); // overlapping
+    let ov_b = Geometry::Polygon(poly(ring(8.0, 0.0, 10.0, 64)));
     let pt_in = Coord::new(0.0, 0.0);
     let line_a = Geometry::LineString(LineString::from(ring(0.0, 0.0, 10.0, 64)));
     let line_b = Geometry::LineString(LineString::from(ring(8.0, 1.0, 9.0, 64)));
@@ -140,10 +139,8 @@ fn main() {
     let wkt_str = wkt::to_wkt(&ga);
     let gj_str = geojson::to_geojson(&ga);
 
-    // ---- per-kernel timings ----
     let mut r: Vec<Measurement> = Vec::new();
 
-    // measures / accessors (ns)
     prof(&mut r, "haversine_m", 1_000_000, || {
         black_box(haversine_m(g1, g2));
     });
@@ -163,7 +160,6 @@ fn main() {
         black_box(pa.contains(black_box(&pt_in)));
     });
 
-    // index encodings (ns)
     prof(&mut r, "geohash_encode (p9)", 1_000_000, || {
         black_box(geohash::encode(13.405, 52.52, 9));
     });
@@ -177,7 +173,6 @@ fn main() {
         black_box(cell.boundary_lat_lng());
     });
 
-    // predicates / distance kernels
     prof(&mut r, "intersects (disjoint)", 500_000, || {
         black_box(ga.intersects(&gb));
     });
@@ -200,7 +195,6 @@ fn main() {
         black_box(frechet_distance(&Euclidean, &line_a, &line_b));
     });
 
-    // constructions
     prof(&mut r, "convex_hull x500", 20_000, || {
         black_box(mp_hull.convex_hull());
     });
@@ -214,7 +208,6 @@ fn main() {
         black_box(m1.intersection(&m2));
     });
 
-    // batch / SIMD
     prof(&mut r, "dist_fan x1024 (SIMD)", 50_000, || {
         black_box(batch.distances_to(Coord::new(3.0, -7.0)));
     });
@@ -222,7 +215,6 @@ fn main() {
         black_box(lonlat.haversine_to(g1));
     });
 
-    // index
     prof(&mut r, "strtree_build x5000", 5_000, || {
         black_box(StrTree::new(idx_items.clone()));
     });
@@ -230,7 +222,6 @@ fn main() {
         black_box(tree.query(q));
     });
 
-    // codecs
     prof(&mut r, "wkb_roundtrip (64-gon)", 100_000, || {
         black_box(wkb::from_wkb(black_box(&wkb_bytes)).unwrap());
     });
@@ -245,7 +236,6 @@ fn main() {
     println!("\nper-call kernel timings (slowest first)\n");
     print!("{}", render_table(&r));
 
-    // ---- hierarchical span tree (instrumented ops on overlapping 512-gons) ----
     let big_a = MultiPolygon::new(vec![poly(ring(0.0, 0.0, 10.0, 512))]);
     let big_b = MultiPolygon::new(vec![poly(ring(8.0, 0.0, 10.0, 512))]);
     let gbig_a = Geometry::Polygon(poly(ring(0.0, 0.0, 10.0, 512)));

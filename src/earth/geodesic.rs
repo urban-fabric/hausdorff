@@ -16,19 +16,32 @@ pub const EARTH_RADIUS_M: f64 = 6_371_008.8;
 /// path is a single multiply rather than `2.0 * R * …`.
 const EARTH_DIAMETER_M: f64 = 2.0 * EARTH_RADIUS_M;
 
-/// Great-circle distance between `a` and `b` in **metres**, on a sphere of
-/// radius [`EARTH_RADIUS_M`].
-#[must_use]
-pub fn haversine_m(a: GeoPoint, b: GeoPoint) -> f64 {
+/// The haversine kernel parameterized by sphere *diameter* — `inline(always)`
+/// so the Earth wrapper keeps its folded [`EARTH_DIAMETER_M`] constant and the
+/// hot path stays a single multiply.
+#[inline(always)]
+fn haversine_diameter_m(a: GeoPoint, b: GeoPoint, diameter_m: f64) -> f64 {
     let lat1 = a.lat.to_radians();
     let lat2 = b.lat.to_radians();
     let sin_dlat = ((lat2 - lat1) * 0.5).sin();
     let sin_dlon = ((b.lon - a.lon).to_radians() * 0.5).sin();
     let h = sin_dlat * sin_dlat + lat1.cos() * lat2.cos() * sin_dlon * sin_dlon;
-    // 2·R·asin(√h) — equivalent to the atan2 form for h ∈ [0, 1], with one fewer
-    // sqrt and a cheaper single-argument inverse trig. (`min(1.0)` guards the
-    // asin domain against rounding past 1 for near-antipodal points.)
-    EARTH_DIAMETER_M * h.min(1.0).sqrt().asin()
+    diameter_m * h.min(1.0).sqrt().asin()
+}
+
+/// Great-circle distance between `a` and `b` in **metres**, on a sphere of
+/// radius [`EARTH_RADIUS_M`].
+#[must_use]
+pub fn haversine_m(a: GeoPoint, b: GeoPoint) -> f64 {
+    haversine_diameter_m(a, b, EARTH_DIAMETER_M)
+}
+
+/// Great-circle distance between `a` and `b` in metres on a sphere of
+/// `radius_m` metres — the planet-flexible kernel behind
+/// [`crate::earth::sphere::Sphere::distance`].
+#[must_use]
+pub(crate) fn haversine_on_m(a: GeoPoint, b: GeoPoint, radius_m: f64) -> f64 {
+    haversine_diameter_m(a, b, 2.0 * radius_m)
 }
 
 /// The point reached by travelling `distance_m` metres from `origin` along the
@@ -39,10 +52,22 @@ pub fn haversine_m(a: GeoPoint, b: GeoPoint) -> f64 {
 /// into `[-180, 180]`, so results stay valid across the poles and antimeridian.
 #[must_use]
 pub fn destination_m(origin: GeoPoint, bearing: Bearing, distance_m: f64) -> GeoPoint {
+    destination_on_m(origin, bearing, distance_m, EARTH_RADIUS_M)
+}
+
+/// [`destination_m`] on a sphere of `radius_m` metres — the planet-flexible
+/// kernel behind [`crate::earth::sphere::Sphere::destination`].
+#[must_use]
+pub(crate) fn destination_on_m(
+    origin: GeoPoint,
+    bearing: Bearing,
+    distance_m: f64,
+    radius_m: f64,
+) -> GeoPoint {
     let lat1 = origin.lat.to_radians();
     let lon1 = origin.lon.to_radians();
     let brg = bearing.radians();
-    let dr = distance_m / EARTH_RADIUS_M;
+    let dr = distance_m / radius_m;
 
     let sin_lat2 = (lat1.sin() * dr.cos() + lat1.cos() * dr.sin() * brg.cos()).clamp(-1.0, 1.0);
     let lat2 = sin_lat2.asin();

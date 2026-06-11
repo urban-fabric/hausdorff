@@ -69,9 +69,6 @@ impl H3Line {
             let cell =
                 H3Cell::for_point(lat, lng, resolution).ok_or(H3LineError::UnmappablePoint)?;
             match prev {
-                // Walk the grid line to this vertex's cell; the path includes
-                // `previous` (already emitted) and `cell`, and `seen` drops the
-                // shared joints and any cell revisited by a self-crossing line.
                 Some(previous) if previous != cell => {
                     let path = previous
                         .grid_path_cells(cell)

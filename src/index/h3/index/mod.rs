@@ -19,11 +19,11 @@ mod area;
 mod bits;
 mod validity;
 
-pub use bits::MAX_RESOLUTION;
 use area::{
     AVG_HEXAGON_AREA_KM2, AVG_HEXAGON_AREA_M2, AVG_HEXAGON_EDGE_LENGTH_KM,
     AVG_HEXAGON_EDGE_LENGTH_M, EARTH_RADIUS_KM, distance_rads, linear_ring_area_rads2,
 };
+pub use bits::MAX_RESOLUTION;
 use bits::{
     CELL_MODE, DIRECTED_EDGE_MODE, K_AXIS_DIGIT, VERTEX_MODE, get_digit, get_reserved_bits,
     has_nonzero_digit, set_mode, set_reserved_bits, set_unused,
@@ -143,10 +143,13 @@ impl H3Cell {
 
     /// The cell center as geographic `(latitude, longitude)` in **degrees**.
     pub fn center_lat_lng(self) -> (f64, f64) {
-        let res = self.resolution() as usize;
-        let fijk = faceijk::FaceIJK::from_cell(self.0, self.base_cell(), res);
-        let (lat, lng) = fijk.to_center_lat_lng_rad(res);
+        let (lat, lng) = self.center_lat_lng_rad();
         (lat.to_degrees(), lng.to_degrees())
+    }
+
+    fn center_lat_lng_rad(self) -> (f64, f64) {
+        let res = self.resolution() as usize;
+        faceijk::FaceIJK::from_cell(self.0, self.base_cell(), res).to_center_lat_lng_rad(res)
     }
 
     /// The cell at `resolution` containing the given geographic point (degrees).
@@ -240,10 +243,8 @@ impl H3Cell {
 
     /// The parent cell at `resolution` (coarser-or-equal), or `None`.
     pub fn parent(self, resolution: u8) -> Option<Self> {
-        (resolution <= self.resolution()).then(|| {
-            // Coarsening preserves validity; safe to construct directly.
-            Self(set_unused(set_resolution(self.0, resolution), resolution))
-        })
+        (resolution <= self.resolution())
+            .then(|| Self(set_unused(set_resolution(self.0, resolution), resolution)))
     }
 
     /// All descendant cells at `resolution` (finer-or-equal); empty if coarser
@@ -395,6 +396,14 @@ impl H3Cell {
             i: ij.i,
             j: ij.j,
         })
+    }
+
+    /// The cell at `ij` in its anchor's local coordinate system — the inverse
+    /// of [`to_local_ij`](Self::to_local_ij). Returns `None` when the
+    /// coordinate is outside the anchor's local frame (too far away or across
+    /// a pentagon's deleted subsequence).
+    pub fn from_local_ij(ij: H3LocalIJ) -> Option<Self> {
+        ij.to_cell()
     }
 
     /// True iff `other` is one grid step away from this cell.
@@ -620,6 +629,33 @@ impl H3Cell {
         AreaSquareMeters::new(self.area_m2())
     }
 
+    /// Great-circle (haversine) distance between this cell's center and
+    /// `other`'s, in radians.
+    pub fn great_circle_distance_rads(self, other: Self) -> f64 {
+        distance_rads(self.center_lat_lng_rad(), other.center_lat_lng_rad())
+    }
+
+    /// Great-circle (haversine) distance between this cell's center and
+    /// `other`'s, in kilometers.
+    pub fn great_circle_distance_km(self, other: Self) -> f64 {
+        self.great_circle_distance_rads(other) * EARTH_RADIUS_KM
+    }
+
+    /// Great-circle (haversine) distance between this cell's center and
+    /// `other`'s, in meters.
+    pub fn great_circle_distance_m(self, other: Self) -> f64 {
+        self.great_circle_distance_km(other) * 1000.0
+    }
+
+    /// Great-circle (haversine) distance between this cell's center and
+    /// `other`'s as a typed [`LengthMeters`] — prefer this over
+    /// [`great_circle_distance_m`](Self::great_circle_distance_m) so the
+    /// Earth-distance unit travels with the value (and isn't mistaken for the
+    /// radian measure [`great_circle_distance_rads`](Self::great_circle_distance_rads)).
+    pub fn great_circle_distance(self, other: Self) -> LengthMeters {
+        LengthMeters::new(self.great_circle_distance_m(other))
+    }
+
     /// Maximum number of cells in a grid disk of radius `k`.
     pub fn max_grid_disk_size(k: u32) -> u64 {
         let k = u64::from(k);
@@ -752,6 +788,17 @@ pub struct H3LocalIJ {
     pub i: i32,
     /// Local J coordinate.
     pub j: i32,
+}
+
+impl H3LocalIJ {
+    /// The cell this local IJ coordinate denotes, at the anchor's resolution —
+    /// the inverse of [`H3Cell::to_local_ij`] (mirrors H3 `localIjToCell`).
+    /// Returns `None` when the coordinate is outside the anchor's local frame
+    /// (too far away or across a pentagon's deleted subsequence).
+    pub fn to_cell(self) -> Option<H3Cell> {
+        let ijk = coord::CoordIJK::new(self.i, self.j, 0).checked_normalize()?;
+        grid::cell_from_local_ijk(self.anchor.0, ijk).and_then(H3Cell::try_new)
+    }
 }
 
 /// An H3 directed edge index.

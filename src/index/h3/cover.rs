@@ -28,9 +28,9 @@ use super::{H3Cell, H3Line, H3Polygon};
 /// densifying toward a true boundary-intersection cover.
 ///
 /// Returns `None` when no cover can be produced at all: a point is unmappable, a
-/// ring is invalid (degenerate, out-of-range coordinate, or transmeridian), a
-/// grid path is undefined (vertices too far apart or split by a pentagon), or
-/// `resolution` is out of range.
+/// ring is invalid (degenerate or out-of-range coordinate), a grid path is
+/// undefined (vertices too far apart or split by a pentagon), or `resolution`
+/// is out of range. Antimeridian-crossing polygons are supported.
 #[must_use]
 pub fn cover_geometry(geom: &Geometry, resolution: u8) -> Option<Vec<H3Cell>> {
     let mut cells = BTreeSet::new();
@@ -89,7 +89,6 @@ fn cover_polygon(poly: &Polygon, res: u8, out: &mut BTreeSet<H3Cell>) -> Option<
     let exterior = lat_lng(poly.exterior());
     let holes: Vec<Vec<(f64, f64)>> = poly.interiors().iter().map(lat_lng).collect();
 
-    // Interior fill: cells whose centre is inside the polygon.
     out.extend(
         H3Polygon::new(exterior.clone(), holes.clone())
             .ok()?
@@ -97,13 +96,6 @@ fn cover_polygon(poly: &Polygon, res: u8, out: &mut BTreeSet<H3Cell>) -> Option<
             .ok()?,
     );
 
-    // Boundary completion: the grid-path cover of every ring pulls in many of the
-    // edge-straddling cells the centroid fill omits. This is an approximation —
-    // H3Line walks the shortest grid path between vertex cells, not an exact
-    // segment↔cell intersection — so it is not a guaranteed superset. A ring whose
-    // grid path is undefined is fatal (`None`), matching line covers. The r2 rings
-    // are already closed (first == last), so every edge — including the closing one
-    // — is walked.
     for ring in std::iter::once(exterior).chain(holes) {
         out.extend(H3Line::new(ring).ok()?.to_cells(res).ok()?);
     }
@@ -130,6 +122,22 @@ mod tests {
         assert!(cells.len() >= 2);
         assert!(cells.contains(&H3Cell::for_point(50.0, 10.0, 8).unwrap()));
         assert!(cells.contains(&H3Cell::for_point(50.0, 10.5, 8).unwrap()));
+    }
+
+    #[test]
+    fn transmeridian_polygon_cover_spans_the_date_line() {
+        let verts = vec![
+            (178.0, -19.0),
+            (-178.0, -19.0),
+            (-178.0, -15.0),
+            (178.0, -15.0),
+            (178.0, -19.0),
+        ];
+        let g = Geometry::Polygon(Polygon::new(LineString::from(verts), vec![]));
+        let cells = cover_geometry(&g, 4).unwrap();
+        assert!(cells.iter().any(|c| c.center_lat_lng().1 > 170.0));
+        assert!(cells.iter().any(|c| c.center_lat_lng().1 < -170.0));
+        assert!(cells.contains(&H3Cell::for_point(-17.0, 180.0, 4).unwrap()));
     }
 
     #[test]
