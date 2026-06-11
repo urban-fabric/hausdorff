@@ -42,43 +42,47 @@ where
 /// over every point of `a`, of the distance to the nearest point of `b`.
 ///
 /// Asymmetric — `directed_hausdorff(m, a, b)` generally differs from
-/// `directed_hausdorff(m, b, a)`. Returns `0.0` if either set is empty.
+/// `directed_hausdorff(m, b, a)`. Returns `None` if either set is empty.
 #[must_use]
-pub fn directed_hausdorff<M, P>(metric: &M, a: &[P], b: &[P]) -> f64
+pub fn directed_hausdorff<M, P>(metric: &M, a: &[P], b: &[P]) -> Option<f64>
 where
     M: MetricSpace<P>,
     P: Copy,
 {
     if a.is_empty() || b.is_empty() {
-        return 0.0;
+        return None;
     }
-    a.iter().fold(0.0_f64, |max_min, &p| {
-        let nearest = b
-            .iter()
-            .fold(f64::INFINITY, |best, &q| best.min(metric.distance(p, q)));
-        max_min.max(nearest)
-    })
+    Some(
+        a.iter().fold(0.0_f64, |max_min, &p| {
+            let nearest = b
+                .iter()
+                .fold(f64::INFINITY, |best, &q| best.min(metric.distance(p, q)));
+            max_min.max(nearest)
+        }),
+    )
 }
 
 /// (Undirected) Hausdorff distance between two point sets under `metric`: the
-/// maximum of the two directed distances. Returns `0.0` if either set is empty.
+/// maximum of the two directed distances. Returns `None` if either set is empty.
 #[must_use]
-pub fn hausdorff_distance<M, P>(metric: &M, a: &[P], b: &[P]) -> f64
+pub fn hausdorff_distance<M, P>(metric: &M, a: &[P], b: &[P]) -> Option<f64>
 where
     M: MetricSpace<P>,
     P: Copy,
 {
-    directed_hausdorff(metric, a, b).max(directed_hausdorff(metric, b, a))
+    directed_hausdorff(metric, a, b).and_then(|ab| {
+        directed_hausdorff(metric, b, a).map(|ba| ab.max(ba))
+    })
 }
 
 /// Discrete Fréchet distance between two polylines under `metric` — the
 /// "dog walker on a leash" curve similarity, after Eiter & Mannila (1994).
 ///
-/// Sensitive to ordering, unlike [`hausdorff_distance`]. Returns `0.0` if either
+/// Sensitive to ordering, unlike [`hausdorff_distance`]. Returns `None` if either
 /// path is empty. `O(m·n)` time, `O(n)` space. Allocates one DP row per call;
 /// for a batch of comparisons reuse a [`FrechetWorkspace`] to amortize it.
 #[must_use]
-pub fn frechet_distance<M, P>(metric: &M, p: &[P], q: &[P]) -> f64
+pub fn frechet_distance<M, P>(metric: &M, p: &[P], q: &[P]) -> Option<f64>
 where
     M: MetricSpace<P>,
     P: Copy,
@@ -109,14 +113,15 @@ impl FrechetWorkspace {
 
     /// Discrete Fréchet distance between `p` and `q` under `metric`, reusing this
     /// workspace's row buffer. Identical result to [`frechet_distance`].
-    pub fn distance<M, P>(&mut self, metric: &M, p: &[P], q: &[P]) -> f64
+    /// Returns `None` if either path is empty.
+    pub fn distance<M, P>(&mut self, metric: &M, p: &[P], q: &[P]) -> Option<f64>
     where
         M: MetricSpace<P>,
         P: Copy,
     {
         let (m, n) = (p.len(), q.len());
         if m == 0 || n == 0 {
-            return 0.0;
+            return None;
         }
 
         let row = &mut self.row;
@@ -136,6 +141,6 @@ impl FrechetWorkspace {
                 diag = up;
             }
         }
-        row[n - 1]
+        Some(row[n - 1])
     }
 }
