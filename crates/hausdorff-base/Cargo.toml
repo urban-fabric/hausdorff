@@ -1,0 +1,17 @@
+[package]
+name = "hausdorff-base"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Geospatial foundations: GeoPoint/BBox, haversine and Karney WGS84 geodesy, ECEF, spheres, plus the unit-less s1 angles and r3 vectors."
+
+[dependencies]
+bytemuck = { workspace = true }
+euclid = { workspace = true }
+serde = { workspace = true }
+
+[lints]
+workspace = true

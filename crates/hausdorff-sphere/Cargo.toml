@@ -1,0 +1,17 @@
+[package]
+name = "hausdorff-sphere"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Unit-sphere geometry (the golang/geo S2 port): cell ids, caps, loops, edge predicates, region coverings."
+
+[dependencies]
+hausdorff-base = { workspace = true }
+hausdorff-planar = { workspace = true }
+serde = { workspace = true }
+
+[lints]
+workspace = true
