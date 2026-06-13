@@ -7,6 +7,8 @@
 //!   that the coordinate types implement.
 //! - [`orientation`] — the signed [`Orientation`] predicate (planar signed area
 //!   / ℝ³ triple product) and generic orientation-based containment.
+//! - [`simplex`] — the [`Simplex`] containment trait (point-in-triangle R2 /
+//!   point-in-tetrahedron R3) via a barycentric orientation partition.
 //!
 //! The concrete spaces in [`crate::space::r2`]/[`hausdorff_base::space::r3`]/`hausdorff-sphere`'s `space::s2` and the
 //! Earth layer build on these so generic algorithms are written once. The trait
@@ -14,10 +16,12 @@
 
 pub mod metric;
 pub mod orientation;
+pub mod simplex;
 pub mod vector;
 
 pub use metric::{
     FrechetWorkspace, MetricSpace, directed_hausdorff, frechet_distance, hausdorff_distance,
 };
 pub use orientation::{Orientation, in_triangle};
+pub use simplex::{Barycentric, Simplex, Tetrahedron};
 pub use vector::{InnerProduct, Norm, VectorSpace};
