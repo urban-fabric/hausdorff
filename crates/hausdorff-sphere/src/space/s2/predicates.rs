@@ -32,3 +32,37 @@ pub fn robust_sign(a: S2Point, b: S2Point, c: S2Point) -> i32 {
         0
     }
 }
+
+/// `S2Point` implements the shared [`Orientation`](hausdorff_planar::algebra::Orientation)
+/// predicate as the scalar triple product `(a × b) · c` of the position
+/// vectors — the same right-handed convention as the ℝ³ `Vector` instance, so
+/// the generic orientation algorithms (`in_triangle`, …) apply to spherical
+/// triangles. (Its laws are the `riemann` `triple_*` theorems.)
+impl hausdorff_planar::algebra::Orientation for S2Point {
+    #[inline]
+    fn orient(a: Self, b: Self, c: Self) -> f64 {
+        a.vector().cross(b.vector()).dot(c.vector())
+    }
+}
+
+#[cfg(test)]
+mod orientation_trait_tests {
+    use super::S2Point;
+    use hausdorff_base::earth::GeoPoint;
+    use hausdorff_planar::algebra::{Orientation, in_triangle};
+
+    fn pt(lat: f64, lon: f64) -> S2Point {
+        S2Point::from_geo_point(GeoPoint::from_lat_lon(lat, lon))
+    }
+
+    #[test]
+    fn s2point_orientation_and_containment() {
+        // Three mid-latitude points spread around, with a near-pole point inside.
+        let a = pt(10.0, 0.0);
+        let b = pt(10.0, 120.0);
+        let c = pt(10.0, 240.0);
+        let inside = pt(80.0, 0.0);
+        assert!(S2Point::orient(a, b, c).abs() > 0.0);
+        assert!(in_triangle(a, b, c, inside));
+    }
+}
