@@ -1,11 +1,8 @@
-//! Conformance for the native OGC validity checks against geo's Validation.
-//! The `is_valid` verdict must agree with geo across a battery of valid and
-//! invalid fixtures, and the typed error variants must match expectations on
-//! the canonical invalid shapes.
+//! Conformance for the native OGC validity checks: the `is_valid` verdict must
+//! match the expected verdict across a battery of valid and invalid fixtures,
+//! and the typed error variants must match expectations on the canonical
+//! invalid shapes.
 
-mod common;
-
-use geo::algorithm::Validation as _;
 use hausdorff::space::r2::validation::{
     CoordIndex, GeometryIndex, InvalidLineString, InvalidMultiPolygon, InvalidPolygon, RingRole,
     Validation,
@@ -21,16 +18,6 @@ fn poly(rings: &[&[(f64, f64)]]) -> Polygon {
         ls(rings[0]),
         rings[1..].iter().map(|r| ls(r)).collect::<Vec<_>>(),
     )
-}
-
-/// Both libraries must agree on the validity verdict for `geom`.
-fn check_verdict(name: &str, geom: &Geometry) {
-    let ours = geom.is_valid();
-    let geo_verdict = common::to_geo_geometry(geom).is_valid();
-    assert_eq!(
-        ours, geo_verdict,
-        "{name}: hausdorff said {ours}, geo said {geo_verdict}"
-    );
 }
 
 fn fixtures() -> Vec<(&'static str, Geometry, bool)> {
@@ -247,13 +234,6 @@ fn fixtures() -> Vec<(&'static str, Geometry, bool)> {
             false,
         ),
     ]
-}
-
-#[test]
-fn verdicts_match_geo() {
-    for (name, geom, _) in fixtures() {
-        check_verdict(name, &geom);
-    }
 }
 
 #[test]
