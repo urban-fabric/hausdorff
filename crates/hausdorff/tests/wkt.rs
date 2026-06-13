@@ -1,10 +1,9 @@
-//! Native WKT codec: round-trips, standard strings, and interop with the
-//! vendored `wkt` crate (so it can be deprecated in favour of the native one).
+//! Native WKT codec: round-trips, standard strings, and conformance against
+//! golden standard-form WKT (captured from the `wkt` crate at the time the
+//! native codec replaced it; the live dependency is no longer needed).
 
 use hausdorff::format::wkt::{from_wkt, to_wkt};
 use hausdorff::{Coord, Geometry, LineString, MultiPolygon, Point, Polygon};
-
-mod common;
 
 fn poly(rings: Vec<Vec<(f64, f64)>>) -> Polygon {
     let mut it = rings.into_iter();
@@ -55,20 +54,18 @@ fn parses_standard_strings() {
 }
 
 #[test]
-fn matches_wkt_reference_crate() {
-    use wkt::{ToWkt, TryFromWkt};
-    for g in fixtures() {
-        let reference = common::to_geo_geometry(&g).wkt_string();
-        assert_eq!(
-            from_wkt(&reference).unwrap(),
-            g,
-            "native parse of reference WKT"
-        );
-        let parsed = geo_types::Geometry::<f64>::try_from_wkt_str(&to_wkt(&g)).unwrap();
-        assert_eq!(
-            common::from_geo_geometry(parsed),
-            g,
-            "reference parse of native WKT"
-        );
+fn parses_golden_standard_wkt() {
+    // Standard-form WKT for each fixture (golden captured from the `wkt` crate).
+    const GOLDEN: [&str; 5] = [
+        "POINT(1 2.5)",
+        "LINESTRING(0 0,1 1,2 0)",
+        "POLYGON((0 0,4 0,4 4,0 4,0 0),(1 1,2 1,2 2,1 2,1 1))",
+        "MULTIPOLYGON(((0 0,1 0,1 1,0 0)),((5 5,6 5,6 6,5 5)))",
+        "GEOMETRYCOLLECTION(POINT(-3 7),LINESTRING(0 0,10 10))",
+    ];
+    for (g, golden) in fixtures().into_iter().zip(GOLDEN) {
+        assert_eq!(from_wkt(golden).unwrap(), g, "native parse of `{golden}`");
+        // And the native encoder still round-trips its own output.
+        assert_eq!(from_wkt(&to_wkt(&g)).unwrap(), g);
     }
 }

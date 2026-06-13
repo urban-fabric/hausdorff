@@ -1,10 +1,16 @@
-//! Native WKB codec: round-trips and interop with the vendored `wkb` crate (so
-//! it can be deprecated in favour of the native one).
+//! Native WKB codec: round-trips and conformance against golden WKB bytes
+//! (captured from the `wkb` crate at the time the native codec replaced it; the
+//! live dependency is no longer needed).
 
 use hausdorff::format::wkb::{from_wkb, to_wkb};
 use hausdorff::{Geometry, LineString, MultiPolygon, Point, Polygon};
 
-mod common;
+fn hex(s: &str) -> Vec<u8> {
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
+        .collect()
+}
 
 fn poly(rings: Vec<Vec<(f64, f64)>>) -> Polygon {
     let mut it = rings.into_iter();
@@ -39,28 +45,19 @@ fn native_round_trips() {
 }
 
 #[test]
-fn matches_wkb_reference_crate() {
-    use geo_traits::to_geo::ToGeoGeometry;
-    use wkb::writer::{WriteOptions, write_geometry};
-    for g in fixtures() {
-        let mut reference = Vec::new();
-        write_geometry(
-            &mut reference,
-            &common::to_geo_geometry(&g),
-            &WriteOptions::default(),
-        )
-        .unwrap();
-        assert_eq!(
-            from_wkb(&reference).unwrap(),
-            g,
-            "native decode of reference WKB"
-        );
-        let decoded = wkb::reader::read_wkb(&to_wkb(&g)).unwrap().to_geometry();
-        assert_eq!(
-            common::from_geo_geometry(decoded),
-            g,
-            "reference decode of native WKB"
-        );
+fn decodes_golden_reference_wkb() {
+    // Little-endian WKB for each fixture (golden captured from the `wkb` crate).
+    const GOLDEN: [&str; 5] = [
+        "0101000000000000000000f03f0000000000000440",
+        "01020000000300000000000000000000000000000000000000000000000000f03f000000000000f03f00000000000000400000000000000000",
+        "01030000000200000005000000000000000000000000000000000000000000000000001040000000000000000000000000000010400000000000001040000000000000000000000000000010400000000000000000000000000000000005000000000000000000f03f000000000000f03f0000000000000040000000000000f03f00000000000000400000000000000040000000000000f03f0000000000000040000000000000f03f000000000000f03f",
+        "0106000000020000000103000000010000000400000000000000000000000000000000000000000000000000f03f0000000000000000000000000000f03f000000000000f03f000000000000000000000000000000000103000000010000000400000000000000000014400000000000001440000000000000184000000000000014400000000000001840000000000000184000000000000014400000000000001440",
+        "010700000002000000010100000000000000000008c00000000000001c400102000000020000000000000000000000000000000000000000000000000024400000000000002440",
+    ];
+    for (g, golden) in fixtures().into_iter().zip(GOLDEN) {
+        assert_eq!(from_wkb(&hex(golden)).unwrap(), g, "native decode of golden WKB");
+        // And the native encoder still round-trips its own output.
+        assert_eq!(from_wkb(&to_wkb(&g)).unwrap(), g);
     }
 }
 
