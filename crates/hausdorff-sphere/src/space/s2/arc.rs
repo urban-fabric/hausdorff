@@ -27,6 +27,19 @@ pub fn interpolate(a: S2Point, b: S2Point, t: f64) -> S2Point {
     S2Point::from_vector(va.mul(c).add(axis.cross(va).mul(s)).normalize())
 }
 
+/// `S2Point` interpolates along the **great circle** (SLERP) — the spherical
+/// instance of the shared
+/// [`Interpolate`](hausdorff_planar::algebra::Interpolate) trait. The endpoint
+/// laws `lerp(a, b, 0) = a`, `lerp(a, b, 1) = b` are the riemann `Hausdorff/Slerp`
+/// theorems (`slerp_zero` / `slerp_angle`), so generic `Interpolate` code
+/// (`midpoint`, `sample`) runs on the sphere with no special case.
+impl hausdorff_planar::algebra::Interpolate for S2Point {
+    #[inline]
+    fn lerp(self, q: Self, t: f64) -> Self {
+        interpolate(self, q, t)
+    }
+}
+
 /// The midpoint of the arc `a → b`.
 #[must_use]
 pub fn midpoint(a: S2Point, b: S2Point) -> S2Point {
@@ -156,6 +169,23 @@ mod tests {
         assert!(mid.lat.abs() < 1e-12 && (mid.lon - 45.0).abs() < 1e-12);
         let q = interpolate(a, b, 1.0).to_geo_point();
         assert!((q.lon - 90.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn interpolate_trait_impl_walks_the_great_circle() {
+        use hausdorff_planar::algebra::{Interpolate, sample};
+        let a = sp(0.0, 0.0);
+        let b = sp(0.0, 90.0);
+        // Endpoint laws + great-circle midpoint through the shared trait.
+        assert!(a.lerp(b, 0.0).to_geo_point().lon.abs() < 1e-12);
+        assert!((a.lerp(b, 1.0).to_geo_point().lon - 90.0).abs() < 1e-12);
+        let mid = a.midpoint(b).to_geo_point();
+        assert!(mid.lat.abs() < 1e-12 && (mid.lon - 45.0).abs() < 1e-12);
+        // The generic `sample` walks the great circle (lon 0, 30, 60, 90).
+        let pts = sample(a, b, 3);
+        assert_eq!(pts.len(), 4);
+        assert!((pts[1].to_geo_point().lon - 30.0).abs() < 1e-12);
+        assert!((pts[2].to_geo_point().lon - 60.0).abs() < 1e-12);
     }
 
     #[test]
