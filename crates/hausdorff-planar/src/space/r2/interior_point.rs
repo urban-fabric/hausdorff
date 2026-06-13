@@ -117,7 +117,8 @@ fn polygon_interior_point_with_segment_length(polygon: &Polygon) -> Option<(Poin
     if polygon.coords_iter().any(|c| c.y == y_mid) {
         let next_closest = polygon
             .coords_iter()
-            .filter_map(|c| (c.y != y_mid).then(|| (c.y, (c.y - y_mid).abs())))
+            .filter(|&c| c.y != y_mid)
+            .map(|c| (c.y, (c.y - y_mid).abs()))
             .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(Ordering::Less));
         if let Some((closest, _)) = next_closest {
             y_mid = (y_mid + closest) / 2.0;
