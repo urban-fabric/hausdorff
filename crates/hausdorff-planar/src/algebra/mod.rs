@@ -7,17 +7,25 @@
 //!   that the coordinate types implement.
 //! - [`orientation`] — the signed [`Orientation`] predicate (planar signed area
 //!   / ℝ³ triple product) and generic orientation-based containment.
+//! - [`simplex`] — the [`Simplex`] containment trait (point-in-triangle R2 /
+//!   point-in-tetrahedron R3) via a barycentric orientation partition.
+//! - [`interpolate`] — the [`Interpolate`] trait (`lerp` with endpoint laws):
+//!   straight-line in R2/R3, great-circle SLERP on S2.
 //!
 //! The concrete spaces in [`crate::space::r2`]/[`hausdorff_base::space::r3`]/`hausdorff-sphere`'s `space::s2` and the
 //! Earth layer build on these so generic algorithms are written once. The trait
 //! laws are machine-checked in the `riemann` Lean development (`Geometry.*`).
 
+pub mod interpolate;
 pub mod metric;
 pub mod orientation;
+pub mod simplex;
 pub mod vector;
 
+pub use interpolate::{Interpolate, sample};
 pub use metric::{
     FrechetWorkspace, MetricSpace, directed_hausdorff, frechet_distance, hausdorff_distance,
 };
-pub use orientation::{Orientation, in_triangle};
+pub use orientation::{Orientation, in_triangle, left_of_all};
+pub use simplex::{Barycentric, Simplex, Tetrahedron};
 pub use vector::{InnerProduct, Norm, VectorSpace};
