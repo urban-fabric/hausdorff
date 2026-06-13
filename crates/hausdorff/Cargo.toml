@@ -26,27 +26,12 @@ huygens = { workspace = true, optional = true }
 profiling = ["dep:huygens", "hausdorff-planar/profiling"]
 
 [dev-dependencies]
-h3o = { workspace = true }
-geographiclib-rs = { workspace = true }
-geo = { workspace = true }
-geo-types = { workspace = true }
-geo-traits = { workspace = true }
-geojson = { workspace = true }
-geohash = { workspace = true }
-wkb = { workspace = true }
-wkt = { workspace = true }
 # The relocated tests/ integration suite names the typed LengthMeters returned
 # across the public API (e.g. RadialGrid construction).
 euclid = { workspace = true }
-# In-process benchmark harness (statistical per-call timing, TSC fast-clock,
-# comparison tables) for benches/vs_external.rs.
+# In-process benchmark harness (statistical per-call timing, TSC fast-clock)
+# for the kernel span-profile example.
 huygens = { workspace = true }
-
-# Wall-clock comparison of hausdorff's kernels against the external reference
-# libraries (geo, h3o, geohash). Run: `cargo bench --bench vs_external`.
-[[bench]]
-name = "vs_external"
-harness = false
 
 # Hierarchical span profile of the instrumented kernels (needs the profiling
 # feature). Run: `cargo run --release --example profile_kernels --features profiling`.
