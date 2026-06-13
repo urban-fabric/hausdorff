@@ -1,10 +1,9 @@
-//! Native GeoJSON codec: round-trips, standard strings, and interop with the
-//! vendored `geojson` crate (so it can be deprecated).
+//! Native GeoJSON codec: round-trips, standard strings, and conformance against
+//! golden GeoJSON (captured from the `geojson` crate at the time the native codec
+//! replaced it; the live dependency is no longer needed).
 
 use hausdorff::format::geojson::{from_geojson, to_geojson};
 use hausdorff::{Geometry, LineString, MultiPolygon, Point, Polygon};
-
-mod common;
 
 fn poly(rings: Vec<Vec<(f64, f64)>>) -> Polygon {
     let mut it = rings.into_iter();
@@ -47,21 +46,18 @@ fn parses_standard_strings() {
 }
 
 #[test]
-fn matches_geojson_reference_crate() {
-    for g in fixtures() {
-        let geo_g = common::to_geo_geometry(&g);
-        let reference = geojson::GeometryValue::from(&geo_g).to_string();
-        assert_eq!(
-            from_geojson(&reference).unwrap(),
-            g,
-            "native parse of reference GeoJSON"
-        );
-        let parsed: geojson::Geometry = to_geojson(&g).parse().unwrap();
-        let geo_parsed = geo_types::Geometry::<f64>::try_from(parsed.value).unwrap();
-        assert_eq!(
-            common::from_geo_geometry(geo_parsed),
-            g,
-            "reference parse of native GeoJSON"
-        );
+fn parses_golden_reference_geojson() {
+    // Standard GeoJSON for each fixture (golden captured from the `geojson` crate).
+    const GOLDEN: [&str; 5] = [
+        r#"{"type":"Point","coordinates":[1.0,2.5]}"#,
+        r#"{"type":"LineString","coordinates":[[0.0,0.0],[1.0,1.0],[2.0,0.0]]}"#,
+        r#"{"type":"Polygon","coordinates":[[[0.0,0.0],[4.0,0.0],[4.0,4.0],[0.0,4.0],[0.0,0.0]],[[1.0,1.0],[2.0,1.0],[2.0,2.0],[1.0,2.0],[1.0,1.0]]]}"#,
+        r#"{"type":"MultiPolygon","coordinates":[[[[0.0,0.0],[1.0,0.0],[1.0,1.0],[0.0,0.0]]]]}"#,
+        r#"{"type":"GeometryCollection","geometries":[{"type":"Point","coordinates":[-3.0,7.0]}]}"#,
+    ];
+    for (g, golden) in fixtures().into_iter().zip(GOLDEN) {
+        assert_eq!(from_geojson(golden).unwrap(), g, "native parse of `{golden}`");
+        // And the native encoder still round-trips its own output.
+        assert_eq!(from_geojson(&to_geojson(&g)).unwrap(), g);
     }
 }

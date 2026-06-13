@@ -1,12 +1,10 @@
 //! Conformance for the native minimum-distance kernel (the `ST_Distance` /
-//! `ST_DWithin` substrate) against geo's Euclidean geometry-to-geometry distance.
+//! `ST_DWithin` substrate) against an independent brute-force segment oracle,
+//! plus self-contained symmetry / DWithin invariants. No third-party crate.
 
-use geo::{Distance as _, Euclidean};
+use hausdorff::space::r2::Intersects as _;
 use hausdorff::space::r2::{MinDistanceWorkspace, euclidean_distance, euclidean_within};
 use hausdorff::{Coord, Geometry, Line, LineString, Point, Polygon};
-
-mod common;
-use common::to_geo_geometry;
 
 fn pt(x: f64, y: f64) -> Geometry {
     Geometry::Point(Point::new(x, y))
@@ -30,14 +28,91 @@ fn holed(shell: &[(f64, f64)], hole: &[(f64, f64)]) -> Geometry {
     ))
 }
 
-/// Compare the native min-distance to geo, and check symmetry + DWithin.
+// ---- independent brute-force min-distance oracle (dependency-free) ----
+
+/// Distance from point `p` to segment `ab`.
+fn point_seg(p: (f64, f64), a: (f64, f64), b: (f64, f64)) -> f64 {
+    let (vx, vy) = (b.0 - a.0, b.1 - a.1);
+    let (wx, wy) = (p.0 - a.0, p.1 - a.1);
+    let len2 = vx * vx + vy * vy;
+    let t = if len2 <= 0.0 {
+        0.0
+    } else {
+        ((wx * vx + wy * vy) / len2).clamp(0.0, 1.0)
+    };
+    let (cx, cy) = (a.0 + t * vx, a.1 + t * vy);
+    ((p.0 - cx).powi(2) + (p.1 - cy).powi(2)).sqrt()
+}
+
+/// Distance between two segments known not to cross (endpoints-to-segment min).
+fn seg_seg(p1: (f64, f64), p2: (f64, f64), q1: (f64, f64), q2: (f64, f64)) -> f64 {
+    point_seg(p1, q1, q2)
+        .min(point_seg(p2, q1, q2))
+        .min(point_seg(q1, p1, p2))
+        .min(point_seg(q2, p1, p2))
+}
+
+/// Decompose a geometry into its boundary segments and isolated points.
+fn primitives(g: &Geometry) -> (Vec<((f64, f64), (f64, f64))>, Vec<(f64, f64)>) {
+    let mut segs = Vec::new();
+    let mut pts = Vec::new();
+    fn push_ring(segs: &mut Vec<((f64, f64), (f64, f64))>, coords: &[Coord]) {
+        for w in coords.windows(2) {
+            segs.push(((w[0].x, w[0].y), (w[1].x, w[1].y)));
+        }
+    }
+    match g {
+        Geometry::Point(p) => pts.push((p.x(), p.y())),
+        Geometry::MultiPoint(mp) => pts.extend(mp.iter().map(|p| (p.x(), p.y()))),
+        Geometry::Line(l) => segs.push(((l.start.x, l.start.y), (l.end.x, l.end.y))),
+        Geometry::LineString(l) => push_ring(&mut segs, &l.0),
+        Geometry::Polygon(poly) => {
+            push_ring(&mut segs, &poly.exterior().0);
+            for h in poly.interiors() {
+                push_ring(&mut segs, &h.0);
+            }
+        }
+        _ => {}
+    }
+    (segs, pts)
+}
+
+/// Independent O(n·m) brute-force min distance: 0 if the geometries intersect
+/// (via the separate Intersects kernel), else the min over all boundary
+/// primitive pairs.
+fn brute_distance(a: &Geometry, b: &Geometry) -> f64 {
+    if a.intersects(b) {
+        return 0.0;
+    }
+    let (sa, pa) = primitives(a);
+    let (sb, pb) = primitives(b);
+    let mut best = f64::INFINITY;
+    for &(a1, a2) in &sa {
+        for &(b1, b2) in &sb {
+            best = best.min(seg_seg(a1, a2, b1, b2));
+        }
+        for &p in &pb {
+            best = best.min(point_seg(p, a1, a2));
+        }
+    }
+    for &p in &pa {
+        for &(b1, b2) in &sb {
+            best = best.min(point_seg(p, b1, b2));
+        }
+        for &q in &pb {
+            best = best.min(((p.0 - q.0).powi(2) + (p.1 - q.1).powi(2)).sqrt());
+        }
+    }
+    best
+}
+
+/// Compare the native min-distance to the brute oracle, plus symmetry + DWithin.
 fn check(a: &Geometry, b: &Geometry) {
     let ours = euclidean_distance(a, b);
-    let (ga, gb) = (to_geo_geometry(a), to_geo_geometry(b));
-    let theirs = Euclidean.distance(&ga, &gb);
+    let reference = brute_distance(a, b);
     assert!(
-        (ours - theirs).abs() <= 1e-9 * theirs.max(1.0),
-        "distance native={ours} geo={theirs}\n  A={a:?}\n  B={b:?}"
+        (ours - reference).abs() <= 1e-9 * reference.max(1.0),
+        "distance native={ours} brute={reference}\n  A={a:?}\n  B={b:?}"
     );
     assert!(
         (euclidean_distance(b, a) - ours).abs() < 1e-9,
@@ -260,10 +335,10 @@ fn stress_random_geometries_match_geo() {
         let kb = rng.next_u32();
         let b = mk(&mut rng, kb);
         let ours = euclidean_distance(&a, &b);
-        let theirs = Euclidean.distance(&to_geo_geometry(&a), &to_geo_geometry(&b));
+        let reference = brute_distance(&a, &b);
         assert!(
-            (ours - theirs).abs() <= 1e-7 * theirs.max(1.0),
-            "native={ours} geo={theirs}\n  A={a:?}\n  B={b:?}"
+            (ours - reference).abs() <= 1e-7 * reference.max(1.0),
+            "native={ours} brute={reference}\n  A={a:?}\n  B={b:?}"
         );
     }
 }

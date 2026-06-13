@@ -45,25 +45,5 @@ serde = { version = "1", features = ["derive"] }
 # geo crate; replaces the `geojson` crate's JSON handling.
 serde_json = "1"
 
-# No external geometry crate is a runtime dependency: every kernel/codec is
-# native. The crates below appear only as dev-dependency conformance oracles.
-# The `geo` feature exposes h3o's polygon tiler (`h3o::geom`), the containment
-# -mode oracle for the H3Polygon covers.
-h3o = { version = "0.10.0", features = ["geo"] }
-# Reference oracle for the ported Karney ellipsoidal geodesics
-# (earth::karney) — already in the tree as geo's geodesic backend.
-geographiclib-rs = "0.2.7"
-# Reference oracles — used only to conformance-check the native kernels/codecs
-# (the same role h3o plays for the H3 core). Never runtime dependencies.
-geo = "0.33"
-# `geo-types` is the bridge type for the conformance oracle (tests/common); it
-# backs `geojson`'s `geo-types` feature too. Test-only — not a runtime dep.
-geo-types = "0.7"
-geo-traits = "0.3"
-geojson = { version = "1.0", features = ["geo-types"] }
-geohash = "0.13"
-wkb = "0.9"
-wkt = "0.14"
-
 [workspace.lints.rust]
 unsafe_code = "deny"

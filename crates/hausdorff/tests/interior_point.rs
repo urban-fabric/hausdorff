@@ -1,12 +1,9 @@
-//! Conformance for the native InteriorPoint against geo's: where geo's answer
-//! is deterministic (the widest-scanline midpoint, vertex picks, centers) the
-//! points must match exactly; for the rest the contract must hold — the
+//! Conformance for the native InteriorPoint: the deterministic cases (the
+//! widest-scanline midpoint, vertex picks, centers) must match golden values
+//! captured from the reference; for the rest the contract must hold — the
 //! returned point intersects the geometry, and lies in the interior of areal
 //! geometries with non-empty interiors.
 
-mod common;
-
-use geo::InteriorPoint as _;
 use hausdorff::space::r2::InteriorPoint;
 use hausdorff::{
     Contains, Geometry, Intersects, Line, LineString, MultiLineString, MultiPoint, MultiPolygon,
@@ -24,21 +21,23 @@ fn poly(rings: &[&[(f64, f64)]]) -> Polygon {
     )
 }
 
-/// geo's interior point of `geom`, through the conformance bridge.
-fn geo_interior_point(geom: &Geometry) -> Option<(f64, f64)> {
-    common::to_geo_geometry(geom)
-        .interior_point()
-        .map(|p| (p.x(), p.y()))
-}
-
-fn check_matches_geo(name: &str, geom: &Geometry) {
-    let ours = geom.interior_point().map(|p| p.x_y());
-    let theirs = geo_interior_point(geom);
-    assert_eq!(ours, theirs, "{name}");
-}
-
 #[test]
-fn deterministic_cases_match_geo() {
+fn deterministic_cases_match_golden() {
+    // Golden interior points captured from the reference (geo) at conversion time.
+    const GOLDEN: [Option<(f64, f64)>; 12] = [
+        Some((1.0, 2.0)),
+        Some((2.0, 2.0)),
+        Some((2.0, 5.0)),
+        Some((8.5, 3.5)),
+        Some((2.0, 2.0)),
+        Some((0.0, 0.0)),
+        Some((1.0, 0.0)),
+        Some((3.0, 2.0)),
+        Some((7.0, -3.0)),
+        Some((0.0, 0.0)),
+        Some((2.0, 1.0)),
+        Some((1.0, 1.0)),
+    ];
     let fixtures: Vec<(&str, Geometry)> = vec![
         (
             "rhombus",
@@ -93,8 +92,8 @@ fn deterministic_cases_match_geo() {
             )),
         ),
     ];
-    for (name, geom) in &fixtures {
-        check_matches_geo(name, geom);
+    for ((name, geom), golden) in fixtures.iter().zip(GOLDEN) {
+        assert_eq!(geom.interior_point().map(|p| p.x_y()), golden, "{name}");
     }
 }
 

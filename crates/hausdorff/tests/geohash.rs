@@ -1,10 +1,12 @@
-//! Native geohash codec: round-trips and conformance against the `geohash` crate
-//! reference.
+//! Native geohash codec: round-trips and conformance against golden reference
+//! strings. The reference values below were captured from the `geohash` crate
+//! (and cross-validated by the native encoder at capture time); the live
+//! dependency is no longer needed.
 
 use hausdorff::index::geohash::{decode, encode, try_encode};
 
 #[test]
-fn matches_geohash_crate() {
+fn matches_golden_reference() {
     let samples = [
         (13.405, 52.52),
         (-0.1278, 51.5074),
@@ -12,14 +14,18 @@ fn matches_geohash_crate() {
         (0.0, 0.0),
         (-122.4194, 37.7749),
     ];
-    for &(lon, lat) in &samples {
-        for prec in [1usize, 5, 9, 12] {
-            let ours = encode(lon, lat, prec);
-            let theirs = geohash::encode(geohash::Coord { x: lon, y: lat }, prec).unwrap();
-            assert_eq!(
-                ours, theirs,
-                "geohash mismatch at ({lon},{lat}) prec {prec}"
-            );
+    // Reference geohashes at precisions [1, 5, 9, 12] (geohash-crate golden).
+    const GOLDEN: [[&str; 4]; 5] = [
+        ["u", "u33dc", "u33dc0cpp", "u33dc0cppjs7"],
+        ["g", "gcpvj", "gcpvj0duq", "gcpvj0duq533"],
+        ["r", "r3gx2", "r3gx2f77b", "r3gx2f77bn44"],
+        ["s", "s0000", "s00000000", "s00000000000"],
+        ["9", "9q8yy", "9q8yyk8yt", "9q8yyk8ytpxr"],
+    ];
+    for (&(lon, lat), golden) in samples.iter().zip(GOLDEN.iter()) {
+        for (&p, &want) in [1usize, 5, 9, 12].iter().zip(golden.iter()) {
+            let got = encode(lon, lat, p);
+            assert_eq!(got, want, "geohash mismatch at ({lon},{lat}) prec {p}");
         }
     }
 }

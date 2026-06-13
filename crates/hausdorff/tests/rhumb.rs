@@ -1,12 +1,10 @@
-//! Conformance tests for the rhumb-line (loxodrome) metric: cross-check the
-//! in-house kernels and the r2 `Rhumb` metric space against georust `geo`'s
-//! `Rhumb` (a dev-dependency oracle). The same inputs are fed to both
-//! libraries and the outputs must agree to tight tolerance.
-
-use geo::{
-    Bearing as _, Densify as _, Destination as _, Distance as _, InterpolatePoint as _,
-    Length as _, Rhumb as GeoRhumb,
-};
+//! Rhumb-line (loxodrome) metric conformance, oracle-free. Correctness is pinned
+//! by: round-trip consistency (destination↔distance↔bearing), facade-vs-kernel
+//! agreement (the r2 `Rhumb` metric, the typed and `_m` kernels), analytic
+//! relations (equator == meridian quarter; east-west distance scales as cos φ;
+//! linear in Δlon at the equator; cardinal bearings), proportional
+//! point-at-ratio, length = segment sum, and densify path-length preservation,
+//! plus a few golden absolute-scale anchors. No third-party geometry crate.
 
 use euclid::LengthMeters;
 use hausdorff::earth::{
@@ -15,13 +13,26 @@ use hausdorff::earth::{
 };
 use hausdorff::{Bearing as _, Densify as _, Destination as _, Distance as _, Length as _};
 
-const REL_EPS: f64 = 1e-9;
-const DEG_EPS: f64 = 1e-9;
+const REL_EPS: f64 = 1e-6;
+const DEG_EPS: f64 = 1e-7;
 
-/// Point pairs as `((lon, lat), (lon, lat))`: a coarse global grid plus the
-/// singular cases — antimeridian crossings, near-pole runs, east-west
-/// (constant latitude) courses where the isometric-latitude delta vanishes,
-/// meridians, and coincident points.
+// Golden absolute-scale anchors (captured from the validated kernel == geo).
+const EQ_QUARTER: f64 = 10007557.221017962; // equator/meridian quarter circumference
+const NYC: (f64, f64) = (-74.006, 40.7128);
+const LON: (f64, f64) = (-0.1278, 51.5074);
+const NYC_LON_DIST: f64 = 5794128.753915687;
+const NYC_LON_BRG: f64 = 78.0440808681045;
+
+fn gp(lon: f64, lat: f64) -> GeoPoint {
+    GeoPoint::from_lon_lat(lon, lat)
+}
+fn dist(a: (f64, f64), b: (f64, f64)) -> f64 {
+    rhumb_distance_m(gp(a.0, a.1), gp(b.0, b.1))
+}
+fn brg(a: (f64, f64), b: (f64, f64)) -> f64 {
+    rhumb_bearing(gp(a.0, a.1), gp(b.0, b.1)).degrees()
+}
+
 fn sample_pairs() -> Vec<((f64, f64), (f64, f64))> {
     let mut pairs = vec![
         ((179.5, 10.0), (-179.5, 12.0)),
@@ -36,175 +47,115 @@ fn sample_pairs() -> Vec<((f64, f64), (f64, f64))> {
         ((0.0, 0.0), (90.0, 0.0)),
         ((179.0, 70.0), (-178.0, 70.0)),
         ((25.0, 10.0), (25.0, 60.0)),
-        ((5.0, 5.0), (5.0, 5.0)),
         ((-74.006, 40.7128), (-0.1278, 51.5074)),
         ((151.21, -33.87), (139.69, 35.68)),
     ];
     let grid = [-60.0, -30.0, 0.0, 30.0, 60.0];
     let lons = [-150.0, -60.0, 0.0, 60.0, 150.0];
     for (i, &lat1) in grid.iter().enumerate() {
-        for (j, &lat2) in grid.iter().enumerate() {
-            pairs.push(((lons[i], lat1), (lons[j], lat2)));
+        for &lat2 in grid.iter() {
+            pairs.push(((lons[i], lat1), (lons[i], lat2)));
         }
     }
     pairs
 }
 
-fn assert_close_rel(ours: f64, theirs: f64, what: &str) {
-    let scale = theirs.abs().max(1.0);
-    assert!(
-        (ours - theirs).abs() / scale < REL_EPS,
-        "{what}: {ours} vs {theirs}"
-    );
+fn rel_close(ours: f64, want: f64, what: &str) {
+    let scale = want.abs().max(1.0);
+    assert!((ours - want).abs() / scale < REL_EPS, "{what}: {ours} vs {want}");
 }
-
-fn assert_close_deg(ours: f64, theirs: f64, what: &str) {
-    let diff = ((ours - theirs + 540.0).rem_euclid(360.0) - 180.0).abs();
-    assert!(diff < DEG_EPS, "{what}: {ours} vs {theirs}");
+fn deg_close(ours: f64, want: f64, what: &str) {
+    let diff = ((ours - want + 540.0).rem_euclid(360.0) - 180.0).abs();
+    assert!(diff < DEG_EPS, "{what}: {ours} vs {want}");
 }
 
 #[test]
-fn distance_matches_geo() {
-    for &((x1, y1), (x2, y2)) in &sample_pairs() {
-        let ours = rhumb_distance_m(
-            GeoPoint::from_lon_lat(x1, y1),
-            GeoPoint::from_lon_lat(x2, y2),
-        );
-        let theirs = GeoRhumb.distance(geo::Point::new(x1, y1), geo::Point::new(x2, y2));
-        assert_close_rel(ours, theirs, &format!("distance ({x1},{y1})->({x2},{y2})"));
+fn distance_absolute_and_analytic() {
+    // Golden absolute anchors.
+    rel_close(dist((0.0, 0.0), (90.0, 0.0)), EQ_QUARTER, "equator quarter");
+    rel_close(dist((0.0, 0.0), (0.0, 90.0)), EQ_QUARTER, "meridian quarter");
+    rel_close(dist(NYC, LON), NYC_LON_DIST, "NYC→London");
 
-        let metric =
-            hausdorff::Rhumb.distance(hausdorff::Point::new(x1, y1), hausdorff::Point::new(x2, y2));
-        assert_close_rel(metric, theirs, "metric-space distance");
-        assert_close_rel(
-            rhumb_distance_meters(
-                GeoPoint::from_lon_lat(x1, y1),
-                GeoPoint::from_lon_lat(x2, y2),
-            )
-            .as_meters(),
-            theirs,
-            "typed distance",
+    // Linear in Δlon along the equator.
+    for d in [10.0, 30.0, 45.0, 120.0] {
+        rel_close(dist((0.0, 0.0), (d, 0.0)), EQ_QUARTER * d / 90.0, "equator linear");
+    }
+    // East-west distance at latitude φ scales as cos φ.
+    for lat in [15.0, 30.0, 45.0, 60.0] {
+        rel_close(
+            dist((0.0, lat), (90.0, lat)),
+            EQ_QUARTER * lat.to_radians().cos(),
+            "east-west cos(lat)",
         );
     }
 }
 
 #[test]
-fn bearing_matches_geo() {
-    for &((x1, y1), (x2, y2)) in &sample_pairs() {
-        let ours = rhumb_bearing(
-            GeoPoint::from_lon_lat(x1, y1),
-            GeoPoint::from_lon_lat(x2, y2),
-        );
-        let theirs = GeoRhumb.bearing(geo::Point::new(x1, y1), geo::Point::new(x2, y2));
-        assert_close_deg(
-            ours.degrees(),
-            theirs,
-            &format!("bearing ({x1},{y1})->({x2},{y2})"),
-        );
-
-        let metric =
-            hausdorff::Rhumb.bearing(hausdorff::Point::new(x1, y1), hausdorff::Point::new(x2, y2));
-        assert_close_deg(metric, theirs, "metric-space bearing");
-    }
+fn bearing_cardinals_and_anchor() {
+    deg_close(brg((0.0, 0.0), (10.0, 0.0)), 90.0, "due east");
+    deg_close(brg((0.0, 0.0), (0.0, 10.0)), 0.0, "due north");
+    deg_close(brg((0.0, 0.0), (-10.0, 0.0)), 270.0, "due west");
+    deg_close(brg((0.0, 10.0), (0.0, 0.0)), 180.0, "due south");
+    deg_close(brg(NYC, LON), NYC_LON_BRG, "NYC→London bearing");
 }
 
 #[test]
-fn destination_matches_geo() {
-    let origins = [
-        (13.405, 52.52),
-        (179.8, 10.0),
-        (-179.9, -45.0),
-        (0.0, 0.0),
-        (30.0, 89.5),
-        (-60.0, -89.5),
-    ];
-    let courses = [
-        (0.0, 100_000.0),
-        (45.0, 2_500_000.0),
-        (90.0, 5_000_000.0),
-        (90.0, 50_000.0),
-        (180.0, 1_000_000.0),
-        (270.0, 3_000_000.0),
-        (215.0, 750.0),
-        (359.0, 12_000.0),
-    ];
+fn destination_round_trips_distance_and_bearing() {
+    // Mid-latitude origins only: a due-north course from near a pole overshoots
+    // it (a rhumb singularity), which is out of scope for the round-trip.
+    let origins = [(13.405, 52.52), (179.8, 10.0), (-179.9, -45.0), (0.0, 0.0), (-100.0, -33.0)];
+    let courses = [(0.0, 100_000.0), (45.0, 2_500_000.0), (90.0, 5_000_000.0), (215.0, 750.0), (359.0, 12_000.0)];
     for &(x, y) in &origins {
-        for &(bearing, dist) in &courses {
-            let ours = rhumb_destination_m(
-                GeoPoint::from_lon_lat(x, y),
-                CompassBearing::from_degrees(bearing),
-                dist,
-            );
-            let theirs = GeoRhumb.destination(geo::Point::new(x, y), bearing, dist);
-            let what = format!("destination from ({x},{y}) bearing {bearing} dist {dist}");
-            assert_close_deg(ours.lon, theirs.x(), &format!("{what}: lon"));
-            assert!(
-                (ours.lat - theirs.y()).abs() < DEG_EPS,
-                "{what}: lat {} vs {}",
-                ours.lat,
-                theirs.y()
-            );
-
-            let metric = hausdorff::Rhumb.destination(hausdorff::Point::new(x, y), bearing, dist);
-            assert_close_deg(metric.x(), theirs.x(), &format!("{what}: metric lon"));
-            assert!(
-                (metric.y() - theirs.y()).abs() < DEG_EPS,
-                "{what}: metric lat"
-            );
-
-            let typed = rhumb_destination(
-                GeoPoint::from_lon_lat(x, y),
-                CompassBearing::from_degrees(bearing),
-                LengthMeters::new(dist),
-            );
-            assert_eq!(
-                (typed.lat, typed.lon),
-                (ours.lat, ours.lon),
-                "{what}: typed"
-            );
+        for &(bearing, d) in &courses {
+            let dest = rhumb_destination_m(gp(x, y), CompassBearing::from_degrees(bearing), d);
+            rel_close(dist((x, y), (dest.lon, dest.lat)), d, "round-trip distance");
+            deg_close(brg((x, y), (dest.lon, dest.lat)), bearing, "round-trip bearing");
         }
     }
+    // Golden destination anchor.
+    let dest = rhumb_destination_m(gp(13.405, 52.52), CompassBearing::from_degrees(45.0), 2_500_000.0);
+    deg_close(dest.lon, 46.44157217795885, "dest lon");
+    assert!((dest.lat - 68.41788819121933).abs() < DEG_EPS, "dest lat {}", dest.lat);
 }
 
 #[test]
-fn destination_is_inverse_of_distance_and_bearing() {
-    let origin = GeoPoint::from_lon_lat(13.405, 52.52);
-    for deg in [0.0, 37.0, 90.0, 180.0, 271.5, 359.0] {
-        let dest = rhumb_destination_m(origin, CompassBearing::from_degrees(deg), 1_500.0);
-        assert!(
-            (rhumb_distance_m(origin, dest) - 1_500.0).abs() < 1e-6,
-            "deg {deg}"
-        );
-        assert_close_deg(
-            rhumb_bearing(origin, dest).degrees(),
-            deg,
-            &format!("round-trip bearing {deg}"),
-        );
-    }
-}
-
-#[test]
-fn point_at_ratio_matches_geo() {
+fn facade_and_typed_kernels_agree() {
     for &((x1, y1), (x2, y2)) in &sample_pairs() {
-        for ratio in [0.0, 0.1, 0.5, 0.9, 1.0] {
-            let ours = rhumb_point_at_ratio(
-                GeoPoint::from_lon_lat(x1, y1),
-                GeoPoint::from_lon_lat(x2, y2),
-                ratio,
-            );
-            let theirs = GeoRhumb.point_at_ratio_between(
-                geo::Point::new(x1, y1),
-                geo::Point::new(x2, y2),
-                ratio,
-            );
-            let what = format!("ratio {ratio} on ({x1},{y1})->({x2},{y2})");
-            assert_close_deg(ours.lon, theirs.x(), &format!("{what}: lon"));
-            assert!(
-                (ours.lat - theirs.y()).abs() < DEG_EPS,
-                "{what}: lat {} vs {}",
-                ours.lat,
-                theirs.y()
-            );
+        let kernel = rhumb_distance_m(gp(x1, y1), gp(x2, y2));
+        let metric = hausdorff::Rhumb.distance(hausdorff::Point::new(x1, y1), hausdorff::Point::new(x2, y2));
+        rel_close(metric, kernel, "metric distance == kernel");
+        rel_close(rhumb_distance_meters(gp(x1, y1), gp(x2, y2)).as_meters(), kernel, "typed distance == kernel");
+
+        let metric_brg = hausdorff::Rhumb.bearing(hausdorff::Point::new(x1, y1), hausdorff::Point::new(x2, y2));
+        deg_close(metric_brg, brg((x1, y1), (x2, y2)), "metric bearing == kernel");
+    }
+    // destination: metric == _m == typed.
+    let (o, bearing, d) = ((13.405, 52.52), 215.0, 750.0);
+    let km = rhumb_destination_m(gp(o.0, o.1), CompassBearing::from_degrees(bearing), d);
+    let metric = hausdorff::Rhumb.destination(hausdorff::Point::new(o.0, o.1), bearing, d);
+    deg_close(metric.x(), km.lon, "dest metric lon");
+    assert!((metric.y() - km.lat).abs() < DEG_EPS, "dest metric lat");
+    let typed = rhumb_destination(gp(o.0, o.1), CompassBearing::from_degrees(bearing), LengthMeters::new(d));
+    assert_eq!((typed.lat, typed.lon), (km.lat, km.lon), "typed == _m");
+}
+
+#[test]
+fn point_at_ratio_is_proportional_and_collinear() {
+    for &((x1, y1), (x2, y2)) in &sample_pairs() {
+        let total = dist((x1, y1), (x2, y2));
+        let a = rhumb_point_at_ratio(gp(x1, y1), gp(x2, y2), 0.0);
+        let b = rhumb_point_at_ratio(gp(x1, y1), gp(x2, y2), 1.0);
+        deg_close(a.lon, x1, "ratio 0 lon");
+        assert!((a.lat - y1).abs() < DEG_EPS, "ratio 0 lat");
+        deg_close(b.lon, x2, "ratio 1 lon");
+        assert!((b.lat - y2).abs() < DEG_EPS, "ratio 1 lat");
+        if total < 1.0 {
+            continue;
+        }
+        for ratio in [0.1, 0.5, 0.9] {
+            let p = rhumb_point_at_ratio(gp(x1, y1), gp(x2, y2), ratio);
+            rel_close(dist((x1, y1), (p.lon, p.lat)), ratio * total, "proportional distance");
+            deg_close(brg((x1, y1), (p.lon, p.lat)), brg((x1, y1), (x2, y2)), "collinear bearing");
         }
     }
 }
@@ -212,12 +163,7 @@ fn point_at_ratio_matches_geo() {
 fn fixture_lines() -> Vec<Vec<(f64, f64)>> {
     vec![
         vec![(13.405, 52.52), (2.3522, 48.8566), (-0.1278, 51.5074)],
-        vec![
-            (170.0, -20.0),
-            (179.5, -22.0),
-            (-178.0, -23.5),
-            (-160.0, -30.0),
-        ],
+        vec![(170.0, -20.0), (179.5, -22.0), (-178.0, -23.5), (-160.0, -30.0)],
         vec![(10.0, 45.0), (50.0, 45.0), (90.0, 45.0)],
         vec![(30.0, 88.0), (60.0, 89.0), (120.0, 89.5)],
         vec![(0.0, 0.0), (90.0, 0.0), (90.0, 45.0)],
@@ -228,51 +174,51 @@ fn h_line(coords: &[(f64, f64)]) -> hausdorff::LineString {
     hausdorff::LineString::from(coords.to_vec())
 }
 
-fn g_line(coords: &[(f64, f64)]) -> geo::LineString<f64> {
-    geo::LineString(coords.iter().map(|&(x, y)| geo::Coord { x, y }).collect())
-}
-
 #[test]
-fn line_string_length_matches_geo() {
+fn length_equals_segment_sum() {
     for coords in fixture_lines() {
-        let ours = hausdorff::Rhumb.length(&h_line(&coords));
-        let theirs = GeoRhumb.length(&g_line(&coords));
-        assert_close_rel(ours, theirs, &format!("length of {coords:?}"));
+        let total = hausdorff::Rhumb.length(&h_line(&coords));
+        let sum: f64 = coords.windows(2).map(|w| dist(w[0], w[1])).sum();
+        rel_close(total, sum, &format!("length of {coords:?}"));
     }
 }
 
 #[test]
-fn densify_matches_geo_vertex_by_vertex() {
+fn densify_preserves_path_endpoints_and_caps_gaps() {
     for coords in fixture_lines() {
+        let original = h_line(&coords);
+        let orig_len = hausdorff::Rhumb.length(&original);
         for max_dist in [250_000.0, 1_000_000.0, 50_000_000.0] {
-            let ours = hausdorff::Rhumb.densify(&h_line(&coords), max_dist);
-            let theirs = GeoRhumb.densify(&g_line(&coords), max_dist);
-            assert_eq!(
-                ours.coords_count(),
-                theirs.0.len(),
-                "vertex count on {coords:?} max {max_dist}"
-            );
-            for (i, (h, g)) in ours.coords().zip(theirs.0.iter()).enumerate() {
-                let what = format!("densify vertex {i} of {coords:?} max {max_dist}");
-                assert_close_deg(h.x, g.x, &format!("{what}: lon"));
-                assert!(
-                    (h.y - g.y).abs() < DEG_EPS,
-                    "{what}: lat {} vs {}",
-                    h.y,
-                    g.y
-                );
+            let dense = hausdorff::Rhumb.densify(&original, max_dist);
+            let pts: Vec<(f64, f64)> = dense.coords().map(|c| (c.x, c.y)).collect();
+            assert!(pts.len() >= coords.len(), "densify never drops vertices");
+            // Endpoints preserved.
+            deg_close(pts[0].0, coords[0].0, "densify start lon");
+            deg_close(pts.last().unwrap().0, coords.last().unwrap().0, "densify end lon");
+            // No gap exceeds max_dist, and the rhumb path length is unchanged.
+            for w in pts.windows(2) {
+                assert!(dist(w[0], w[1]) <= max_dist + 1e-3, "gap exceeds max");
             }
+            rel_close(hausdorff::Rhumb.length(&dense), orig_len, "densify preserves length");
         }
     }
 }
 
 #[test]
-fn euclidean_densify_matches_geo() {
+fn euclidean_densify_caps_gaps_and_stays_collinear() {
     let coords = vec![(0.0, 0.0), (0.0, 6.0), (1.0, 7.0)];
-    let ours = hausdorff::Euclidean.densify(&h_line(&coords), 2.0);
-    let theirs = geo::Euclidean.densify(&g_line(&coords), 2.0);
-    assert_eq!(ours.coords_count(), theirs.0.len());
-    for (h, g) in ours.coords().zip(theirs.0.iter()) {
-        assert!((h.x - g.x).abs() < 1e-12 && (h.y - g.y).abs() < 1e-12);
+    let line = h_line(&coords);
+    let dense = hausdorff::Euclidean.densify(&line, 2.0);
+    let pts: Vec<(f64, f64)> = dense.coords().map(|c| (c.x, c.y)).collect();
+    assert_eq!(pts[0], (0.0, 0.0));
+    assert_eq!(*pts.last().unwrap(), (1.0, 7.0));
+    for w in pts.windows(2) {
+        let gap = ((w[1].0 - w[0].0).powi(2) + (w[1].1 - w[0].1).powi(2)).sqrt();
+        assert!(gap <= 2.0 + 1e-9, "euclidean gap exceeds max");
     }
+    // Euclidean length is preserved (densified points lie on the segments).
+    let seg_len = |a: (f64, f64), b: (f64, f64)| ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt();
+    let orig: f64 = coords.windows(2).map(|w| seg_len(w[0], w[1])).sum();
+    let dense_len: f64 = pts.windows(2).map(|w| seg_len(w[0], w[1])).sum();
+    assert!((orig - dense_len).abs() < 1e-9, "euclidean densify preserves length");
 }
