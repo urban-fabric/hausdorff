@@ -97,7 +97,7 @@ mod tests {
         let b = Coord::new(1.0, 0.0);
         let c = Coord::new(0.0, 1.0);
         assert!(Coord::turns_positive(a, b, c)); // CCW
-        assert!(Coord::turns_positive(a, c, b) == false); // CW
+        assert!(!Coord::turns_positive(a, c, b)); // CW
         assert!(Coord::degenerate(a, b, Coord::new(2.0, 0.0))); // collinear
     }
 
