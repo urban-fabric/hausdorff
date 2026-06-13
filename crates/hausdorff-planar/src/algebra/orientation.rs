@@ -71,6 +71,22 @@ pub fn in_triangle<O: Orientation>(a: O, b: O, c: O, p: O) -> bool {
     }
 }
 
+/// **Strict point-in-convex-polygon**, generic over any [`Orientation`] space —
+/// the n-gon generalization of [`in_triangle`].
+///
+/// `p` is strictly inside the convex polygon `vertices` (given in
+/// counter-clockwise order, `≥ 3` vertices) iff it lies strictly to the **left**
+/// of every directed edge `vᵢ → vᵢ₊₁`. The "left of every edge" region is convex
+/// — proved once generically in `riemann` (`OrientGeom.leftOfAll_convex`,
+/// instantiated planar `leftOfAllStrict_convex` and spherical
+/// `sphereLeftOfAll_convex`) — so this is sound for planar polygons and spherical
+/// convex polygons alike. Fewer than 3 vertices bound no region (`false`).
+#[must_use]
+pub fn left_of_all<O: Orientation>(vertices: &[O], p: O) -> bool {
+    let n = vertices.len();
+    n >= 3 && (0..n).all(|i| O::orient(vertices[i], vertices[(i + 1) % n], p) > 0.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -103,5 +119,23 @@ mod tests {
         let z = Vector::new(0.0, 0.0, 1.0);
         assert!(Vector::orient(x, y, z) > 0.0); // right-handed
         assert!(Vector::degenerate(x, y, Vector::new(1.0, 1.0, 0.0))); // coplanar
+    }
+
+    #[test]
+    fn point_in_convex_polygon_works() {
+        // A CCW unit square.
+        let square = [
+            Coord::new(0.0, 0.0),
+            Coord::new(2.0, 0.0),
+            Coord::new(2.0, 2.0),
+            Coord::new(0.0, 2.0),
+        ];
+        assert!(left_of_all(&square, Coord::new(1.0, 1.0))); // centre, inside
+        assert!(!left_of_all(&square, Coord::new(3.0, 1.0))); // outside
+        assert!(!left_of_all(&square, Coord::new(1.0, 0.0))); // on an edge → not strict
+        // Agrees with in_triangle on the first three (CCW) vertices.
+        assert!(left_of_all(&square[..3], Coord::new(1.5, 0.25)));
+        // Degenerate: fewer than three vertices bound no region.
+        assert!(!left_of_all(&square[..2], Coord::new(1.0, 1.0)));
     }
 }

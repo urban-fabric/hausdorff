@@ -26,6 +26,6 @@ pub use interpolate::{Interpolate, sample};
 pub use metric::{
     FrechetWorkspace, MetricSpace, directed_hausdorff, frechet_distance, hausdorff_distance,
 };
-pub use orientation::{Orientation, in_triangle};
+pub use orientation::{Orientation, in_triangle, left_of_all};
 pub use simplex::{Barycentric, Simplex, Tetrahedron};
 pub use vector::{InnerProduct, Norm, VectorSpace};
