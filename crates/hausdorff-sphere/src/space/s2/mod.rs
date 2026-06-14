@@ -23,14 +23,18 @@ mod cellunion;
 mod coords;
 mod cover;
 pub mod edges;
+pub mod great_circle;
 mod loops;
 pub mod measures;
+pub mod metric;
 mod point;
 mod polygon;
 mod polyline;
 pub mod predicates;
 mod rect;
 mod region;
+pub mod simplex;
+pub mod triangle;
 mod vector;
 
 pub use cap::Cap;
@@ -38,11 +42,18 @@ pub use cellid::S2CellId;
 pub use cellunion::CellUnion;
 pub use cover::{cover_r2_geometry, cover_r2_geometry_at_level};
 pub use edges::{Crossing, crossing_sign, intersection};
+pub use great_circle::GreatCircle;
 pub use loops::Loop;
-pub use measures::{angle, girard_area, point_area, signed_area, signed_area_vos, polygon_signed_area_vos, turn_angle};
+pub use measures::{
+    angle, girard_area, point_area, polygon_signed_area_vos, signed_area, signed_area_vos,
+    turn_angle,
+};
+pub use metric::SphereMetric;
 pub use point::S2Point;
 pub use polygon::Polygon;
 pub use polyline::Polyline;
 pub use predicates::{robust_sign, sign};
 pub use rect::Rect;
 pub use region::{Region, RegionCoverer};
+pub use simplex::SphereTriangle;
+pub use triangle::SphericalTriangle;
