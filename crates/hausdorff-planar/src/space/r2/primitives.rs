@@ -315,6 +315,18 @@ impl Ellipse {
         [tx / len, ty / len]
     }
 
+    /// The **tangent line** at eccentric angle `t`, as `[A, B, C]` for the line
+    /// `A·x + B·y = C`. Its normal `(A, B) = (b cos t, a sin t)` is the surface
+    /// normal direction, and the boundary point lies on it. Proof-backed by
+    /// `riemann` `Hausdorff/Ellipse.{ellipse_on_tangent_line, ellipse_tangent_perp}`.
+    #[must_use]
+    pub fn tangent_line_at(self, t: f64) -> [f64; 3] {
+        let (s, c) = t.sin_cos();
+        let (na, nb) = (self.b * c, self.a * s); // line normal = ellipse normal dir
+        let cc = self.a * self.b + na * self.center.x + nb * self.center.y;
+        [na, nb, cc]
+    }
+
     /// This ellipse as a closed, counter-clockwise inscribed **`n`-gon** — `n`
     /// vertices on the boundary at equal eccentric-angle steps (`n` clamped to
     /// ≥ 3). Every vertex lies on the ellipse and the polygon ⊆ the (convex)
@@ -510,6 +522,24 @@ mod tests {
             // Tangent ⟂ normal.
             let tan = e.tangent_at(t);
             assert!((n[0] * tan[0] + n[1] * tan[1]).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn ellipse_tangent_line() {
+        let e = Ellipse::new(Coord::new(1.0, -2.0), 3.0, 2.0);
+        for &t in &[0.4, 1.3, 2.7, 4.5] {
+            let [a, b, c] = e.tangent_line_at(t);
+            let p = e.point_at_angle(t);
+            // The boundary point lies on its tangent line.
+            assert!((a * p.x + b * p.y - c).abs() < 1e-9);
+            // The line normal (a, b) is parallel to the unit surface normal.
+            let n = e.normal_at(t);
+            let len = a.hypot(b);
+            assert!((a / len - n[0]).abs() < 1e-12 && (b / len - n[1]).abs() < 1e-12);
+            // The tangent direction runs along the line (⟂ the line normal).
+            let tan = e.tangent_at(t);
+            assert!((a * tan[0] + b * tan[1]).abs() < 1e-12);
         }
     }
 
