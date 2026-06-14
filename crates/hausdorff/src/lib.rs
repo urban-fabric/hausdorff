@@ -25,6 +25,7 @@ pub use hausdorff_earth::{convert, earth};
 pub use hausdorff_format::format;
 pub use hausdorff_index::index;
 pub use hausdorff_planar::{algebra, config};
+pub use hausdorff_base::web;
 
 pub mod space {
     //! `space` — the unit-less **continuous** geometry spaces, organized after
