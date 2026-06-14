@@ -421,8 +421,27 @@ impl ConfidenceEllipse {
     pub fn contains_coord(self, coord: Coord) -> bool {
         let dx = coord.x - self.center.x;
         let dy = coord.y - self.center.y;
-        let det = self.sxx * self.syy - self.sxy * self.sxy;
-        self.syy * dx * dx - 2.0 * self.sxy * dx * dy + self.sxx * dy * dy <= self.k * self.k * det
+        self.syy * dx * dx - 2.0 * self.sxy * dx * dy + self.sxx * dy * dy
+            <= self.k * self.k * self.det()
+    }
+
+    /// The covariance determinant `sxx·syy − sxy²` (= `λ_max·λ_min`); the area is
+    /// `π k² √det`. Proof-backed by `riemann`
+    /// `Hausdorff/Ellipse.sym2_eig_prod_eq_det`.
+    #[must_use]
+    pub fn det(self) -> f64 {
+        self.sxx * self.syy - self.sxy * self.sxy
+    }
+
+    /// The two drawable **principal semi-axis vectors** — the major axis
+    /// `(semi_major·cosθ, semi_major·sinθ)` (`θ = rotation_rad`) and the minor
+    /// axis perpendicular to it: the eigenvectors of `Σ` scaled by the semi-axes
+    /// `k√λ`. Proof-backed by `riemann` `Hausdorff/Ellipse.sym2_eigenvalue`.
+    #[must_use]
+    pub fn axes(self) -> ([f64; 2], [f64; 2]) {
+        let (s, c) = self.rotation_rad().sin_cos();
+        let (maj, min) = (self.semi_major(), self.semi_minor());
+        ([maj * c, maj * s], [-min * s, min * c])
     }
 }
 
@@ -487,6 +506,25 @@ mod tests {
         assert!((e.rotation_rad() - std::f64::consts::FRAC_PI_4).abs() < 1e-12);
         // Area = π·k²·√(det Σ), det = 3.
         assert!((e.area() - std::f64::consts::PI * 3.0_f64.sqrt()).abs() < 1e-12);
+    }
+
+    #[test]
+    fn confidence_ellipse_eigenstructure() {
+        let e = ConfidenceEllipse::from_covariance(Coord::new(0.0, 0.0), 2.0, 1.0, 2.0, 1.0);
+        let (lmax, lmin) = e.eigenvalues();
+        // Each eigenvalue solves the characteristic equation det(M − λI) = 0
+        // (riemann sym2_eigenvalue).
+        for l in [lmax, lmin] {
+            let chi = (e.sxx - l) * (e.syy - l) - e.sxy * e.sxy;
+            assert!(chi.abs() < 1e-12, "char eq {chi} at λ={l}");
+        }
+        // The eigenvalue product is det Σ (riemann sym2_eig_prod_eq_det).
+        assert!((lmax * lmin - e.det()).abs() < 1e-12);
+        // The two semi-axis vectors are orthogonal with the right lengths.
+        let (maj, min) = e.axes();
+        assert!((maj[0] * min[0] + maj[1] * min[1]).abs() < 1e-12);
+        assert!((maj[0].hypot(maj[1]) - e.semi_major()).abs() < 1e-12);
+        assert!((min[0].hypot(min[1]) - e.semi_minor()).abs() < 1e-12);
     }
 
     #[test]
