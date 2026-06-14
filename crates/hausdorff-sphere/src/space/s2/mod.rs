@@ -39,7 +39,7 @@ pub use cellunion::CellUnion;
 pub use cover::{cover_r2_geometry, cover_r2_geometry_at_level};
 pub use edges::{Crossing, crossing_sign, intersection};
 pub use loops::Loop;
-pub use measures::{angle, girard_area, point_area, signed_area, turn_angle};
+pub use measures::{angle, girard_area, point_area, signed_area, signed_area_vos, polygon_signed_area_vos, turn_angle};
 pub use point::S2Point;
 pub use polygon::Polygon;
 pub use polyline::Polyline;

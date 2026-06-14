@@ -56,7 +56,7 @@ pub use coord::{Coord, Point};
 pub use geometry::Geometry;
 pub use line_string::{LineString, MultiLineString};
 pub use polygon::{MultiPoint, MultiPolygon, Polygon};
-pub use primitives::{Line, Rect, Triangle};
+pub use primitives::{ConfidenceEllipse, Ellipse, Line, Rect, Triangle};
 
 pub use area::Area;
 pub use batch::PointBatch;

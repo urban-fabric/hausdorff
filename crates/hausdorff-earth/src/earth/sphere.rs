@@ -12,6 +12,7 @@ use euclid::{AreaSquareMeters, Factor, LengthMeters};
 
 use crate::earth::{Bearing, GeoPoint};
 use hausdorff_base::space::s1::Angle;
+use hausdorff_sphere::space::s2::{S2Point, polygon_signed_area_vos};
 
 /// A sphere of a given radius — the bridge from unit-less spherical geometry to
 /// physical distances and areas.
@@ -85,6 +86,23 @@ impl Sphere {
         self.area(steradians).as_square_meters()
     }
 
+    /// **Native spherical area (m²) of a WGS84 polygon `ring`** — convert each
+    /// `(lat, lon)` to its unit-sphere point and sum the van Oosterom fan
+    /// excesses, then scale by `radius²`. No map projection: the geodesic
+    /// (great-circle) polygon is measured directly on the sphere.
+    ///
+    /// Returns the **unsigned** area; a ring of fewer than three points is `0`.
+    /// This reads geodetic latitude as spherical latitude (the spherical model);
+    /// for the true datum area on the spheroid use
+    /// [`Ellipsoid::ring_perimeter_area_m`](crate::earth::Ellipsoid::ring_perimeter_area_m).
+    /// Proof-backed by `riemann` Hausdorff/SphereArea (`polygon_signed_area_vos`,
+    /// the fan sum of van Oosterom triangle excesses).
+    #[must_use]
+    pub fn polygon_area_m2(self, ring: &[GeoPoint]) -> f64 {
+        let pts: Vec<S2Point> = ring.iter().map(|&p| S2Point::from_geo_point(p)).collect();
+        self.area_m2(polygon_signed_area_vos(&pts).abs())
+    }
+
     /// Great-circle (haversine) distance between two lat/lon points on this
     /// sphere. `Sphere::EARTH.distance(...)` matches
     /// [`crate::earth::haversine_meters`]; other radii give the same geodesic
@@ -152,5 +170,22 @@ mod tests {
         let dest = Sphere::MARS.destination_m(origin, bearing, 250_000.0);
         let back = Sphere::MARS.distance_m(origin, dest);
         assert!((back - 250_000.0).abs() < 1e-6, "round trip {back}");
+    }
+
+    #[test]
+    fn spherical_polygon_area_from_wgs84() {
+        use hausdorff_base::earth::Ellipsoid;
+        let g = GeoPoint::from_lat_lon;
+        // A ~1°×1° box near the equator (read natively on the sphere).
+        let bx = [g(0.0, 0.0), g(0.0, 1.0), g(1.0, 1.0), g(1.0, 0.0)];
+        let sph = Sphere::EARTH.polygon_area_m2(&bx);
+        // Right ballpark (~1.2e10 m²) and positive.
+        assert!(sph > 1.0e10 && sph < 1.5e10, "spherical area {sph}");
+        // Within ~2% of the ellipsoidal (Karney) area — the same geodesic
+        // polygon; the gap is the sphere-vs-spheroid flattening.
+        let (_, ell) = Ellipsoid::WGS84.ring_perimeter_area_unsigned_m(&bx);
+        assert!((sph - ell).abs() / ell < 0.02, "spherical {sph} vs ellipsoidal {ell}");
+        // A degenerate ring is zero.
+        assert_eq!(Sphere::EARTH.polygon_area_m2(&bx[..2]), 0.0);
     }
 }

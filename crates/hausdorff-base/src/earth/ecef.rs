@@ -35,8 +35,8 @@ impl Ellipsoid {
     pub fn geodetic_to_ecef(self, p: GeoPoint, height_m: f64) -> EcefPoint {
         let (slat, clat) = p.lat.to_radians().sin_cos();
         let (slon, clon) = p.lon.to_radians().sin_cos();
-        // Prime-vertical radius of curvature.
-        let n = self.a / (1.0 - self.e2() * slat * slat).sqrt();
+        // Prime-vertical radius of curvature (proof-backed; see `latitude`).
+        let n = self.prime_vertical_radius(p.lat);
         EcefPoint {
             x: (n + height_m) * clat * clon,
             y: (n + height_m) * clat * slon,
@@ -79,6 +79,19 @@ impl Ellipsoid {
         (GeoPoint::from_lat_lon(lat.to_degrees(), lon), height)
     }
 
+    /// True iff the ECEF point `p` lies on or inside this reference ellipsoid
+    /// (ellipsoidal height ≤ 0) — the division-free test
+    /// `b²(x² + y²) + a²z² ≤ a²b²` with semi-major `a` and semi-minor `b`.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/Ellipsoid.inEllipsoid` (the solid
+    /// spheroid is `inEllipsoid a a b`); the region is convex
+    /// (`inEllipsoid_convex`). The 3-D mirror of `space::r2::Ellipse`.
+    #[must_use]
+    pub fn ecef_contains(self, p: EcefPoint) -> bool {
+        let (a2, b2) = (self.a * self.a, self.b() * self.b());
+        b2 * (p.x * p.x + p.y * p.y) + a2 * p.z * p.z <= a2 * b2
+    }
+
     /// The local east/north/up tangent frame anchored at `origin` (at
     /// `height_m` above this ellipsoid).
     #[must_use]
@@ -90,7 +103,8 @@ impl Ellipsoid {
             origin: self.geodetic_to_ecef(origin, height_m),
             east: [-slon, clon, 0.0],
             north: [-slat * clon, -slat * slon, clat],
-            up: [clat * clon, clat * slon, slat],
+            // The `up` axis is the geodetic surface normal (proof-backed).
+            up: crate::earth::latitude::geodetic_normal(origin.lat, origin.lon),
         }
     }
 }
@@ -168,6 +182,22 @@ mod tests {
         assert!(p.x.abs() < 1e-9 && (p.y - e.a).abs() < 1e-9);
         let p = e.geodetic_to_ecef(g(90.0, 0.0), 0.0);
         assert!(p.x.abs() < 1e-9 && (p.z - e.b()).abs() < 1e-9);
+    }
+
+    #[test]
+    fn ecef_contains_classifies_height_sign() {
+        let e = Ellipsoid::WGS84;
+        for &lat in &[-89.0, -23.5, 0.0, 45.0, 89.0] {
+            for &lon in &[-120.0, 0.0, 121.5] {
+                // Below the surface is inside; above is outside. (The surface
+                // itself sits on the boundary to within float rounding, so it is
+                // not asserted — `≤` can flip by an ulp there.)
+                assert!(e.ecef_contains(e.geodetic_to_ecef(g(lat, lon), -1000.0)));
+                assert!(!e.ecef_contains(e.geodetic_to_ecef(g(lat, lon), 1000.0)));
+            }
+        }
+        // The geocentre is well inside.
+        assert!(e.ecef_contains(EcefPoint { x: 0.0, y: 0.0, z: 0.0 }));
     }
 
     #[test]
