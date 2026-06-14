@@ -28,11 +28,15 @@ pub mod ecef;
 /// Reference ellipsoids — the datum/planet model behind projections and
 /// ellipsoidal geodesics.
 pub mod ellipsoid;
+/// The ellipsoid latitude system (geodetic / geocentric / reduced) and the
+/// surface-of-revolution radii of curvature, proof-backed by `riemann`.
+pub mod latitude;
 
 pub use bbox::{BBox, BBoxParseError};
 pub use bearing::Bearing;
 pub use ecef::{EcefPoint, Enu, EnuFrame};
 pub use ellipsoid::{Ellipsoid, GeodesicDirect, GeodesicInverse, GeodesicLine};
+pub use latitude::geodetic_normal;
 pub use geodesic::{EARTH_RADIUS_M, destination, destination_m, haversine_m, haversine_meters};
 // Workspace-internal: the radius-parameterized kernels behind
 // `hausdorff-earth`'s `earth::sphere::Sphere` (hence `#[doc(hidden)]`).

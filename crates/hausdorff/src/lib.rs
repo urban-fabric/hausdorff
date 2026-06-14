@@ -69,8 +69,10 @@ pub use algebra::{InnerProduct, MetricSpace, Norm, VectorSpace};
 pub use earth::{FixedGeoPoint, GeoPoint};
 pub use space::r2::{
     Area, Bearing, BooleanOps, BoundingRect, Centroid, ChamberlainDuquetteArea, ConcaveHull,
-    Contains, ConvexHull, Coord, CoordsIter, Densify, Destination, Dimensions, Direction, Distance,
-    Euclidean, Geometry, HasDimensions, Haversine, InterpolatePoint, Intersects, Length, Line,
+    ConfidenceEllipse, Contains, ConvexHull, Coord, CoordsIter, Densify, Destination, Dimensions,
+    Direction, Distance, Ellipse, Euclidean, Geometry, HasDimensions, Haversine, InterpolatePoint,
+    Intersects, Length,
+    Line,
     LineString, MultiLineString, MultiPoint, MultiPolygon, Operation, Orient, Perimeter, Point,
     Polygon, Rect, Rhumb, Simplify, Triangle, Winding, WindingOrder,
 };

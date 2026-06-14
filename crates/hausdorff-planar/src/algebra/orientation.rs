@@ -14,7 +14,7 @@
 //! whose `orient` satisfies them inherits the proved containment/convexity
 //! results.
 
-use crate::space::r2::Coord;
+use crate::space::r2::{Coord, Point};
 use hausdorff_base::space::r3::Vector;
 
 /// A space carrying a signed orientation predicate on triples.
@@ -44,6 +44,15 @@ impl Orientation for Coord {
     #[inline]
     fn orient(a: Self, b: Self, c: Self) -> f64 {
         (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+    }
+}
+
+impl Orientation for Point {
+    /// A [`Point`] is a [`Coord`] with geometry semantics, so its orientation is
+    /// the same planar signed area `(b−a) × (c−a)`; delegates to `Coord`.
+    #[inline]
+    fn orient(a: Self, b: Self, c: Self) -> f64 {
+        Coord::orient(a.0, b.0, c.0)
     }
 }
 
@@ -110,6 +119,21 @@ mod tests {
         assert!(!in_triangle(a, b, c, Coord::new(3.0, 3.0)));
         // orientation-independent: reversed (CW) winding gives the same verdict
         assert!(in_triangle(a, c, b, Coord::new(1.0, 1.0)));
+    }
+
+    #[test]
+    fn point_orient_matches_coord() {
+        use crate::space::r2::Point;
+        // `Point` flows through the generic predicates identically to `Coord`.
+        let a = Point::new(0.0, 0.0);
+        let b = Point::new(4.0, 0.0);
+        let c = Point::new(0.0, 4.0);
+        assert!(Point::turns_positive(a, b, c)); // CCW
+        assert!(Point::degenerate(a, b, Point::new(2.0, 0.0))); // collinear
+        assert!(in_triangle(a, b, c, Point::new(1.0, 1.0)));
+        assert!(!in_triangle(a, b, c, Point::new(3.0, 3.0)));
+        // Same verdict as the underlying `Coord`.
+        assert_eq!(Point::orient(a, b, c), Coord::orient(a.0, b.0, c.0));
     }
 
     #[test]
