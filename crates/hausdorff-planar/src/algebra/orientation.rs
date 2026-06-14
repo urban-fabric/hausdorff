@@ -65,6 +65,20 @@ impl Orientation for Vector {
     }
 }
 
+/// **Collinearity** of three planar points — `true` iff `a`, `b`, `c` lie on one
+/// line, i.e. the orientation determinant `cross(a, b, c)` is zero within `tol`.
+/// The exact `tol = 0` test is [`Orientation::degenerate`]; this is the tolerant
+/// convenience for inexact (floating-point) coordinates.
+///
+/// Proof-backed by `riemann` `Hausdorff/LineGeometry`: `collinear_interp`
+/// (points interpolated along `a–b` have `cross = 0`) and its converse
+/// `interp_locate_of_collinear` — together `cross a b c = 0 ⇔ c` lies on the
+/// line `a–b`.
+#[must_use]
+pub fn is_collinear<O: Orientation>(a: O, b: O, c: O, tol: f64) -> bool {
+    O::orient(a, b, c).abs() <= tol
+}
+
 /// **Strict point-in-triangle**, generic over any [`Orientation`] space.
 ///
 /// `p` is strictly inside triangle `a, b, c` iff it lies on the inner side of
@@ -143,6 +157,27 @@ mod tests {
         let z = Vector::new(0.0, 0.0, 1.0);
         assert!(Vector::orient(x, y, z) > 0.0); // right-handed
         assert!(Vector::degenerate(x, y, Vector::new(1.0, 1.0, 0.0))); // coplanar
+    }
+
+    #[test]
+    fn is_collinear_detects_the_line() {
+        let a = Coord::new(0.0, 0.0);
+        let b = Coord::new(2.0, 2.0);
+        // c on the line a–b → collinear.
+        assert!(is_collinear(a, b, Coord::new(5.0, 5.0), 1e-9));
+        // c off the line → not collinear.
+        assert!(!is_collinear(a, b, Coord::new(5.0, 4.0), 1e-9));
+        // An interpolated point (collinear_interp) is collinear.
+        assert!(is_collinear(a, b, Coord::new(0.5, 0.5), 1e-9));
+        // The tolerance admits a tiny perpendicular offset.
+        assert!(is_collinear(a, b, Coord::new(1.0, 1.0 + 1e-12), 1e-9));
+        // Works through the `Point` orientation too.
+        assert!(is_collinear(
+            Point::new(0.0, 0.0),
+            Point::new(1.0, 0.0),
+            Point::new(3.0, 0.0),
+            1e-9
+        ));
     }
 
     #[test]

@@ -13,6 +13,9 @@ use super::{Coord, Euclidean, Length, Line, LineString, Point};
 /// Fractions below `0` (including negative infinity) return the starting
 /// point; fractions above `1` (including infinity) return the ending point.
 /// `NaN` fractions and non-finite coordinates return `None`.
+///
+/// The locate/interpolate round-trip `line_locate_point ∘ line_interpolate_point
+/// = id` is proof-backed by `riemann` `Hausdorff/LineGeometry.locate_interp`.
 pub trait LineInterpolatePoint {
     /// `Option<Point>` — `None` for degenerate inputs.
     type Output;
@@ -72,6 +75,9 @@ impl LineInterpolatePoint for LineString {
 ///
 /// A zero-length line locates everything at fraction `0`. Non-finite inputs
 /// (the point or any line coordinate) return `None`.
+///
+/// `line_locate_point ∘ line_interpolate_point = id` is the round-trip
+/// proof-backed by `riemann` `Hausdorff/LineGeometry.locate_interp`.
 pub trait LineLocatePoint<Rhs = Point> {
     /// `Option<f64>` — `None` for degenerate inputs.
     type Output;

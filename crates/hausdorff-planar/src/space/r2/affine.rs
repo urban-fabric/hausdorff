@@ -214,6 +214,65 @@ impl AffineTransform {
     pub fn yoff(&self) -> f64 {
         self.0[1][2]
     }
+
+    /// Whether this transform is **rigid** (a Euclidean isometry — distance- and
+    /// angle-preserving): true iff the linear part `[[a, b], [d, e]]` has
+    /// orthonormal columns — `a² + d² ≈ 1`, `b² + e² ≈ 1`, `a·b + d·e ≈ 0`
+    /// (within a `1e-9` tolerance). Orthonormal columns force `|det| = 1`, so
+    /// this is the full rigid / distance-preserving test (rotations, reflections,
+    /// translations and their composites pass; non-uniform scales and shears do
+    /// not).
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/AffineIsometry.act_isometry`
+    /// (orthonormal-column maps preserve squared distance) and `rotation_isometry`
+    /// (rotations are a special case).
+    #[must_use]
+    pub fn is_rigid(&self) -> bool {
+        const TOL: f64 = 1e-9;
+        let (a, b) = (self.0[0][0], self.0[0][1]);
+        let (d, e) = (self.0[1][0], self.0[1][1]);
+        (a * a + d * d - 1.0).abs() <= TOL
+            && (b * b + e * e - 1.0).abs() <= TOL
+            && (a * b + d * e).abs() <= TOL
+    }
+}
+
+/// Affine transforms form a **group** under composition. `a * b` is
+/// `a.compose(&b)` — applying `a` *then* `b`, the same order as
+/// [`compose`](AffineTransform::compose). With [`identity`](AffineTransform::identity)
+/// the unit and [`inverse`](AffineTransform::inverse) the (partial) inverse, this
+/// is the group structure.
+///
+/// Proof-backed by `riemann` `Hausdorff/AffineMap`: `act_comp` (compose is
+/// function composition — `(a*b).apply(p) == b.apply(a.apply(p))`), `comp_assoc`
+/// (associativity), `id_comp`/`comp_id` (identity), and `comp_inv`/`inv_comp`
+/// (inverses).
+impl std::ops::Mul for AffineTransform {
+    type Output = AffineTransform;
+
+    /// Compose, applying `self` then `rhs` (same order as
+    /// [`compose`](AffineTransform::compose)).
+    fn mul(self, rhs: AffineTransform) -> AffineTransform {
+        self.compose(&rhs)
+    }
+}
+
+/// By-reference composition, so chains need not move/copy the matrices. Same
+/// `self`-then-`rhs` order as [`AffineTransform::compose`].
+impl std::ops::Mul<&AffineTransform> for &AffineTransform {
+    type Output = AffineTransform;
+
+    fn mul(self, rhs: &AffineTransform) -> AffineTransform {
+        self.compose(rhs)
+    }
+}
+
+/// In-place composition: `a *= b` makes `a` apply its old self then `b` (same
+/// order as [`AffineTransform::compose`]).
+impl std::ops::MulAssign for AffineTransform {
+    fn mul_assign(&mut self, rhs: AffineTransform) {
+        *self = self.compose(&rhs);
+    }
 }
 
 impl fmt::Debug for AffineTransform {
@@ -701,6 +760,52 @@ mod tests {
         assert_eq!(poly.skew(0.0), poly);
         let skewed = poly.skew(30.0);
         assert!((skewed.exterior().0[0].x - -2.886751345948129).abs() < 1e-9);
+    }
+
+    #[test]
+    fn mul_is_compose_and_a_group() {
+        let a = AffineTransform::scale(2.0, 3.0, Coord::new(0.0, 0.0));
+        let b = AffineTransform::translate(10.0, -4.0);
+        let p = Coord::new(1.5, -2.0);
+        // `a * b` applies a then b — identical to `b.apply(a.apply(p))`.
+        assert_eq!((a * b).apply(p), b.apply(a.apply(p)));
+        assert_eq!((a * b).apply(p), a.compose(&b).apply(p));
+        // By-reference Mul agrees (called explicitly: the values are `Copy`, so
+        // the `&a * &b` sugar would trip `clippy::op_ref`).
+        assert_eq!(std::ops::Mul::mul(&a, &b).apply(p), (a * b).apply(p));
+        // Identity is the unit.
+        assert_eq!((a * AffineTransform::identity()).apply(p), a.apply(p));
+        assert_eq!((AffineTransform::identity() * a).apply(p), a.apply(p));
+        // MulAssign matches Mul.
+        let mut acc = a;
+        acc *= b;
+        assert_eq!(acc.apply(p), (a * b).apply(p));
+        // Inverse round-trips to the identity.
+        let inv = a.inverse().unwrap();
+        let round = (a * inv).apply(p);
+        assert!((round.x - p.x).abs() < EPS && (round.y - p.y).abs() < EPS);
+    }
+
+    #[test]
+    fn is_rigid_distinguishes_isometries() {
+        // A rotation is rigid (orthonormal columns).
+        assert!(AffineTransform::rotate(37.0, Coord::new(2.0, -1.0)).is_rigid());
+        // A pure translation is rigid.
+        assert!(AffineTransform::translate(5.0, -3.0).is_rigid());
+        // The identity is rigid.
+        assert!(AffineTransform::identity().is_rigid());
+        // A reflection (negative uniform scale) is rigid (|det| = 1).
+        assert!(AffineTransform::scale(-1.0, 1.0, Coord::new(0.0, 0.0)).is_rigid());
+        // A non-uniform scale (x by 2) is NOT rigid.
+        assert!(!AffineTransform::scale(2.0, 1.0, Coord::new(0.0, 0.0)).is_rigid());
+        // A uniform scale ≠ 1 is not rigid (columns not unit length).
+        assert!(!AffineTransform::scale(2.0, 2.0, Coord::new(0.0, 0.0)).is_rigid());
+        // A shear is not rigid (columns not orthogonal).
+        assert!(!AffineTransform::skew(30.0, 0.0, Coord::new(0.0, 0.0)).is_rigid());
+        // A rotation composed with a translation stays rigid.
+        let rt = AffineTransform::rotate(20.0, Coord::new(0.0, 0.0))
+            * AffineTransform::translate(7.0, 2.0);
+        assert!(rt.is_rigid());
     }
 
     #[test]

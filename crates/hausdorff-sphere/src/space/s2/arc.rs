@@ -78,7 +78,7 @@ pub fn along_track(p: S2Point, a: S2Point, b: S2Point) -> Angle {
     let n = arc_pole(a, b);
     // Project p onto the circle's plane; measure the signed angle from a.
     let vp = p.vector();
-    let foot = vp.sub(n.mul(vp.dot(n)));
+    let foot = vp.project_onto_tangent(n);
     if foot.norm2() == 0.0 {
         // p is the circle's pole: every foot is equidistant; call it 0.
         return Angle::from_radians(0.0);
@@ -130,8 +130,9 @@ pub fn latitude_extremes(a: S2Point, b: S2Point) -> (Angle, Angle) {
 
     let n = arc_pole(a, b);
     // The northernmost point of the full circle: the unit vector in the
-    // circle's plane with the largest z — normalize(ẑ − n·n_z).
-    let vertex = R3Vector::new(-n.x * n.z, -n.y * n.z, 1.0 - n.z * n.z);
+    // circle's plane with the largest z — normalize(ẑ − n·n_z), i.e. ẑ
+    // projected onto the circle's tangent plane.
+    let vertex = R3Vector::new(0.0, 0.0, 1.0).project_onto_tangent(n);
     if vertex.norm2() > 0.0 {
         let north = vertex.normalize();
         if on_segment(north, a, b, n) {

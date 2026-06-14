@@ -132,6 +132,22 @@ impl Vector {
         }
     }
 
+    /// The component of `self` **orthogonal to** `normal` — the projection onto
+    /// the plane through the origin perpendicular to `normal` (the tangent plane
+    /// to the unit sphere at `normal`): `self − normal·(self·normal)`.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/CrossTrack.foot_perp_normal` (the
+    /// result is ⟂ `normal`, when `normal` is unit) and
+    /// `Hausdorff/SphericalLawCosines.tangent_normSq` (its squared length is
+    /// `‖self‖² − (self·normal)²`). It is the `tangent` of the Lean development:
+    /// the foot of `self`'s perpendicular onto the great circle with pole
+    /// `normal`, and the arc-tangent whose length is the sine of the side.
+    #[inline]
+    #[must_use]
+    pub fn project_onto_tangent(self, normal: Self) -> Self {
+        self.sub(normal.mul(self.dot(normal)))
+    }
+
     /// A unit vector orthogonal to `self`, chosen deterministically (built from
     /// the smallest-magnitude axis for numerical stability), as `r3.Vector.Ortho`.
     #[must_use]
@@ -145,5 +161,38 @@ impl Vector {
             Self::new(0.0, 0.0, 1.0)
         };
         self.cross(other).normalize()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn project_onto_tangent_is_perpendicular_with_pythagorean_length() {
+        let v = Vector::new(2.0, -3.0, 5.0);
+        let n = Vector::new(1.0, 1.0, 1.0).normalize();
+        let proj = v.project_onto_tangent(n);
+        // The projection is orthogonal to the normal (foot_perp_normal).
+        assert!(proj.dot(n).abs() < 1e-12, "{}", proj.dot(n));
+        // Its squared length is ‖v‖² − (v·n)² (tangent_normSq).
+        let expected = v.dot(v) - v.dot(n).powi(2);
+        assert!((proj.norm2() - expected).abs() < 1e-12, "{}", proj.norm2());
+    }
+
+    #[test]
+    fn project_onto_tangent_matches_inline_subtraction() {
+        // The two duplicated inline copies in s2/arc.rs equal this primitive.
+        let vp = Vector::new(0.3, 0.7, -0.4);
+        let n = Vector::new(-0.2, 0.5, 0.84).normalize();
+        let inline = vp.sub(n.mul(vp.dot(n)));
+        assert_eq!(vp.project_onto_tangent(n), inline);
+        // The latitude-extreme vertex ẑ − n·n_z is ẑ.project_onto_tangent(n).
+        let z = Vector::new(0.0, 0.0, 1.0);
+        let vertex = Vector::new(-n.x * n.z, -n.y * n.z, 1.0 - n.z * n.z);
+        let proj = z.project_onto_tangent(n);
+        assert!((proj.x - vertex.x).abs() < 1e-15);
+        assert!((proj.y - vertex.y).abs() < 1e-15);
+        assert!((proj.z - vertex.z).abs() < 1e-15);
     }
 }
