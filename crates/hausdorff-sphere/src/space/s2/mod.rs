@@ -23,6 +23,7 @@ mod cellunion;
 mod coords;
 mod cover;
 pub mod edges;
+pub mod great_circle;
 mod loops;
 pub mod measures;
 mod point;
@@ -39,6 +40,7 @@ pub use cellid::S2CellId;
 pub use cellunion::CellUnion;
 pub use cover::{cover_r2_geometry, cover_r2_geometry_at_level};
 pub use edges::{Crossing, crossing_sign, intersection};
+pub use great_circle::GreatCircle;
 pub use loops::Loop;
 pub use measures::{
     angle, girard_area, point_area, polygon_signed_area_vos, signed_area, signed_area_vos,

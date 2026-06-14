@@ -148,6 +148,47 @@ impl Vector {
         self.sub(normal.mul(self.dot(normal)))
     }
 
+    /// The **cosine of the angle** between `self` and `other` —
+    /// `(self·other) / (‖self‖·‖other‖)`. By the Cauchy–Schwarz inequality the
+    /// result always lies in `[-1, 1]`, so callers may pass it straight to
+    /// `acos` **without clamping**. If either vector is the zero vector the angle
+    /// is undefined; `0.0` is returned.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/HaversineBounds.dot3_sq_le`
+    /// (Cauchy–Schwarz, `(p·q)² ≤ (p·p)(q·q)`, so the normalized cosine is in
+    /// `[-1, 1]`) and `unitVec_dot_le_one` (the unit-vector special case
+    /// `|p·q| ≤ 1`).
+    #[inline]
+    #[must_use]
+    pub fn cos_angle(self, other: Self) -> f64 {
+        let denom = self.norm() * other.norm();
+        if denom == 0.0 {
+            return 0.0;
+        }
+        // Cauchy–Schwarz guarantees the ratio is in [-1, 1]; the explicit clamp
+        // only guards against f64 rounding nudging it a hair outside.
+        (self.dot(other) / denom).clamp(-1.0, 1.0)
+    }
+
+    /// The **Gram determinant** of the three vectors — the determinant of their
+    /// `3×3` matrix of pairwise dot products `Gram(a, b, c)ᵢⱼ = vᵢ·vⱼ`. It equals
+    /// the squared volume of the parallelepiped they span, and so satisfies the
+    /// identity `triple_product(a, b, c)² == gram_det(a, b, c)`, where the triple
+    /// product is `a·(b×c)` (the ℝ³ `Orientation` / scalar triple product of
+    /// `(a, b, c)`). For unit vectors it reduces to the spherical form
+    /// `1 − cos²α_ab − cos²α_bc − cos²α_ca + 2·cos α_ab·cos α_bc·cos α_ca`.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/SphericalLawSines.gram_triple` (the
+    /// unconditional identity `(A·(B×C))² = det Gram(A, B, C)`) and its
+    /// unit-vector specialization `gram_triple_unit`.
+    #[must_use]
+    pub fn gram_det(a: Self, b: Self, c: Self) -> f64 {
+        let (aa, bb, cc) = (a.dot(a), b.dot(b), c.dot(c));
+        let (ab, bc, ca) = (a.dot(b), b.dot(c), c.dot(a));
+        // det of the symmetric Gram matrix [[aa, ab, ca], [ab, bb, bc], [ca, bc, cc]].
+        aa * (bb * cc - bc * bc) - ab * (ab * cc - bc * ca) + ca * (ab * bc - bb * ca)
+    }
+
     /// A unit vector orthogonal to `self`, chosen deterministically (built from
     /// the smallest-magnitude axis for numerical stability), as `r3.Vector.Ortho`.
     #[must_use]
@@ -194,5 +235,87 @@ mod tests {
         assert!((proj.x - vertex.x).abs() < 1e-15);
         assert!((proj.y - vertex.y).abs() < 1e-15);
         assert!((proj.z - vertex.z).abs() < 1e-15);
+    }
+
+    #[test]
+    fn cos_angle_known_configurations_and_range() {
+        let x = Vector::new(1.0, 0.0, 0.0);
+        let y = Vector::new(0.0, 1.0, 0.0);
+        // Orthogonal → 0.
+        assert!(x.cos_angle(y).abs() < 1e-15);
+        // Same direction (any positive scale) → 1.
+        assert!((x.cos_angle(x.mul(7.0)) - 1.0).abs() < 1e-15);
+        // Opposite → −1.
+        assert!((x.cos_angle(x.mul(-3.0)) + 1.0).abs() < 1e-15);
+        // 45° between (1,0,0) and (1,1,0) → 1/√2.
+        let d = Vector::new(1.0, 1.0, 0.0);
+        assert!((x.cos_angle(d) - std::f64::consts::FRAC_1_SQRT_2).abs() < 1e-15);
+        // Zero vector is graceful.
+        assert_eq!(x.cos_angle(Vector::new(0.0, 0.0, 0.0)), 0.0);
+        // Always in [-1, 1] (Cauchy–Schwarz), for assorted vectors.
+        let vecs = [
+            Vector::new(3.0, -1.0, 2.0),
+            Vector::new(-4.0, 5.0, 0.5),
+            Vector::new(0.1, 0.2, -9.0),
+            Vector::new(-2.0, -2.0, -2.0),
+        ];
+        for &u in &vecs {
+            for &v in &vecs {
+                let c = u.cos_angle(v);
+                assert!((-1.0..=1.0).contains(&c), "{c}");
+                // It is the cosine of the angle the robust `angle` method reports.
+                assert!((c - u.angle(v).radians().cos()).abs() < 1e-12);
+            }
+        }
+    }
+
+    #[test]
+    fn gram_det_equals_triple_product_squared() {
+        let triples = [
+            (
+                Vector::new(1.0, 0.0, 0.0),
+                Vector::new(0.0, 1.0, 0.0),
+                Vector::new(0.0, 0.0, 1.0),
+            ),
+            (
+                Vector::new(2.0, -1.0, 3.0),
+                Vector::new(0.5, 4.0, -2.0),
+                Vector::new(-3.0, 1.0, 1.0),
+            ),
+            (
+                Vector::new(1.0, 1.0, 0.0),
+                Vector::new(0.0, 1.0, 1.0),
+                Vector::new(1.0, 0.0, 1.0),
+            ),
+            // A coplanar (degenerate) triple → triple product 0 → gram_det 0.
+            (
+                Vector::new(1.0, 2.0, 3.0),
+                Vector::new(2.0, 4.0, 6.0),
+                Vector::new(-1.0, 0.0, 1.0),
+            ),
+        ];
+        for (a, b, c) in triples {
+            let triple = a.dot(b.cross(c));
+            let gram = Vector::gram_det(a, b, c);
+            assert!(
+                (triple * triple - gram).abs() < 1e-9,
+                "triple²={} vs gram={gram}",
+                triple * triple
+            );
+        }
+    }
+
+    #[test]
+    fn gram_det_unit_vectors_match_spherical_cosine_form() {
+        // For unit vectors: gram_det = 1 − Σcos² + 2∏cos.
+        let unit = [
+            Vector::new(0.3, -0.5, 0.8).normalize(),
+            Vector::new(-0.7, 0.2, 0.4).normalize(),
+            Vector::new(0.1, 0.9, -0.2).normalize(),
+        ];
+        let (a, b, c) = (unit[0], unit[1], unit[2]);
+        let (ab, bc, ca) = (a.dot(b), b.dot(c), c.dot(a));
+        let spherical = 1.0 - ab * ab - bc * bc - ca * ca + 2.0 * ab * bc * ca;
+        assert!((Vector::gram_det(a, b, c) - spherical).abs() < 1e-12);
     }
 }
