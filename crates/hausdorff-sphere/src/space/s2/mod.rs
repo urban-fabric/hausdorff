@@ -26,12 +26,14 @@ pub mod edges;
 pub mod great_circle;
 mod loops;
 pub mod measures;
+pub mod metric;
 mod point;
 mod polygon;
 mod polyline;
 pub mod predicates;
 mod rect;
 mod region;
+pub mod simplex;
 pub mod triangle;
 mod vector;
 
@@ -46,10 +48,12 @@ pub use measures::{
     angle, girard_area, point_area, polygon_signed_area_vos, signed_area, signed_area_vos,
     turn_angle,
 };
+pub use metric::SphereMetric;
 pub use point::S2Point;
 pub use polygon::Polygon;
 pub use polyline::Polyline;
 pub use predicates::{robust_sign, sign};
 pub use rect::Rect;
 pub use region::{Region, RegionCoverer};
+pub use simplex::SphereTriangle;
 pub use triangle::SphericalTriangle;

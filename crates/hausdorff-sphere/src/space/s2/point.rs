@@ -70,6 +70,23 @@ impl S2Point {
         self.0.dot(other.0)
     }
 
+    /// The **great-circle (central-angle) distance** to `other`, in **radians**
+    /// — the geodesic metric on the unit sphere, `acos(self · other)` computed
+    /// robustly as `atan2(|p×q|, p·q)`. In `[0, π]`, zero iff the points
+    /// coincide, `π` for antipodes; multiply by the radius for arc length.
+    ///
+    /// This is the distance that makes `S2Point` a genuine metric space (the
+    /// [`MetricSpace`](hausdorff_planar::algebra::MetricSpace) instance via
+    /// [`SphereMetric`](super::metric::SphereMetric)). Proof-backed by `riemann`
+    /// `Hausdorff/SphereMetric`: `sphereDist` is `angle`, with the metric axioms
+    /// `sphereDist_comm` (symmetry), `sphereDist_triangle` (triangle
+    /// inequality), `sphereDist_nonneg`, `sphereDist_self` (self-distance zero),
+    /// `sphereDist_le_pi`, and `cos_sphereDist_unit` (`cos dist = p·q`).
+    #[must_use]
+    pub fn distance(self, other: Self) -> f64 {
+        self.0.angle(other.0).radians()
+    }
+
     /// The point in the **direction of** `v` — its projection onto the sphere
     /// (`v.normalize()`). The boundary back onto S² after ℝ³ vector arithmetic
     /// (summing or averaging directions, stepping along a tangent). `v` must be
@@ -129,6 +146,23 @@ mod tests {
         assert!(p.dot(q).abs() < 1e-12); // 90° apart → 0
         let anti = S2Point::from_geo_point(GeoPoint::from_lat_lon(0.0, 180.0));
         assert!((p.dot(anti) + 1.0).abs() < 1e-12); // antipodal → −1
+    }
+
+    #[test]
+    fn distance_is_the_central_angle_metric() {
+        use std::f64::consts::PI;
+        let p = S2Point::from_geo_point(GeoPoint::from_lat_lon(0.0, 0.0));
+        let q = S2Point::from_geo_point(GeoPoint::from_lat_lon(0.0, 90.0));
+        let anti = S2Point::from_geo_point(GeoPoint::from_lat_lon(0.0, 180.0));
+        // Self-distance is zero (sphereDist_self).
+        assert!(p.distance(p).abs() < 1e-12);
+        // 90° apart → π/2; antipodal → π (sphereDist_le_pi).
+        assert!((p.distance(q) - PI / 2.0).abs() < 1e-12);
+        assert!((p.distance(anti) - PI).abs() < 1e-12);
+        // Symmetry (sphereDist_comm).
+        assert!((p.distance(q) - q.distance(p)).abs() < 1e-12);
+        // cos(dist) == p · q (cos_sphereDist_unit).
+        assert!((p.distance(q).cos() - p.dot(q)).abs() < 1e-12);
     }
 
     #[test]

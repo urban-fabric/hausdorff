@@ -95,6 +95,25 @@ impl SphericalTriangle {
             * (0.5 * (s - sc)).tan();
         4.0 * tan_prod.max(0.0).sqrt().atan()
     }
+
+    /// The **spherical excess** `E = (A + B + C) − π`, the amount by which the
+    /// triangle's interior angles overshoot a flat triangle's `π` — computed from
+    /// the [`interior_angles`](Self::interior_angles).
+    ///
+    /// By **Girard's theorem** the excess *is* the area in **steradians**, so
+    /// `spherical_excess() == area()` (to round-off): a spherical triangle's area
+    /// is literally how much its angle sum exceeds `π`. For the octant triangle
+    /// `E = 3·(π/2) − π = π/2`, matching its `π/2`-sr area.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/SphereAreaBounds` (the area is
+    /// non-negative and below `2π` — `pointArea_nonneg` / `pointArea_lt_two_pi`,
+    /// so `0 ≤ E < 2π`) and `Hausdorff/SphericalLawSines.gram_triple_unit` (the
+    /// Gram determinant fixing the side/angle relation behind the angle sum).
+    #[must_use]
+    pub fn spherical_excess(&self) -> f64 {
+        let (a, b, c) = self.interior_angles();
+        a.radians() + b.radians() + c.radians() - std::f64::consts::PI
+    }
 }
 
 #[cfg(test)]
@@ -132,6 +151,30 @@ mod tests {
         assert!(
             (tri.area() - 4.0 * std::f64::consts::PI / 8.0).abs() < 1e-12,
             "{}",
+            tri.area()
+        );
+
+        // Girard's theorem: the spherical excess E = 3·(π/2) − π = π/2 IS the
+        // area (steradians).
+        assert!(
+            (tri.spherical_excess() - half_pi).abs() < 1e-12,
+            "{}",
+            tri.spherical_excess()
+        );
+        assert!((tri.spherical_excess() - tri.area()).abs() < 1e-12);
+    }
+
+    #[test]
+    fn spherical_excess_equals_area_on_a_scalene_triangle() {
+        // Girard's theorem holds for an irregular triangle too: excess == area.
+        let a = pt(1.0, 0.0, 0.0);
+        let b = pt(0.0, 1.0, 0.0);
+        let c = pt(0.3, 0.2, 1.0);
+        let tri = SphericalTriangle::from_vertices(a, b, c);
+        assert!(
+            (tri.spherical_excess() - tri.area()).abs() < 1e-9,
+            "{} vs {}",
+            tri.spherical_excess(),
             tri.area()
         );
     }
