@@ -250,6 +250,24 @@ impl Ellipse {
         self.focal_distance() / self.a.max(self.b)
     }
 
+    /// The **semi-latus rectum** `ℓ = a_minor² / a_major` — half the focal chord
+    /// perpendicular to the major axis.
+    #[must_use]
+    pub fn semi_latus_rectum(self) -> f64 {
+        let (major, minor) = (self.a.max(self.b), self.a.min(self.b));
+        minor * minor / major
+    }
+
+    /// Distance from the centre to each **directrix** along the major axis,
+    /// `a_major / e = a_major² / c` (`+∞` for a circle). A boundary point's
+    /// focus-distance is `e ×` its directrix-distance — the focus–directrix
+    /// definition, `riemann` `Hausdorff/Ellipse.ellipse_directrix`.
+    #[must_use]
+    pub fn directrix_offset(self) -> f64 {
+        let major = self.a.max(self.b);
+        major * major / self.focal_distance()
+    }
+
     /// The two foci, on the major axis at `centre ± c` (coincident at the centre
     /// for a circle).
     #[must_use]
@@ -493,6 +511,26 @@ mod tests {
             let tan = e.tangent_at(t);
             assert!((n[0] * tan[0] + n[1] * tan[1]).abs() < 1e-12);
         }
+    }
+
+    #[test]
+    fn ellipse_focus_directrix_property() {
+        // Focus-distance / directrix-distance = eccentricity (major-x ellipse).
+        let e = Ellipse::new(Coord::new(0.0, 0.0), 3.0, 2.0);
+        let (_, f2) = e.foci(); // (c, 0)
+        let d = e.directrix_offset(); // matching directrix at x = d
+        let ecc = e.eccentricity();
+        for &t in &[0.2, 1.1, 2.0, 3.5, 5.0] {
+            let p = e.point_at_angle(t);
+            let focus_dist = (p.x - f2.x).hypot(p.y - f2.y);
+            let directrix_dist = (d - p.x).abs();
+            assert!(
+                (focus_dist - ecc * directrix_dist).abs() < 1e-12,
+                "t={t}: {focus_dist} vs {}",
+                ecc * directrix_dist
+            );
+        }
+        assert!((e.semi_latus_rectum() - 4.0 / 3.0).abs() < 1e-12);
     }
 
     #[test]
