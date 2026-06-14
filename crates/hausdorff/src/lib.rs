@@ -43,7 +43,7 @@ pub mod space {
     //! [`index`](crate::index) ([`index::h3`](crate::index::h3),
     //! [`index::geohash`](crate::index::geohash)).
 
-    pub use hausdorff_base::space::{r1, r3, s1};
+    pub use hausdorff_base::space::{r1, r3, s1, sphere};
     pub use hausdorff_planar::space::r2;
     pub use hausdorff_sphere::space::s2;
 }

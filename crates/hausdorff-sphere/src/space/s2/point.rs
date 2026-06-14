@@ -3,6 +3,7 @@
 //! together with its `LatLng` conversions.
 
 use hausdorff_base::earth::GeoPoint;
+use hausdorff_base::space::sphere::Sphere;
 
 use super::vector::R3Vector;
 
@@ -94,6 +95,25 @@ impl S2Point {
         let e1 = self.0.ortho();
         let e2 = self.0.cross(e1);
         [e1, e2]
+    }
+}
+
+/// The 2-sphere as the fixed `n = 3` instance of the general [`Sphere`] manifold, so a
+/// distribution written over `Sphere` runs on geographic `S2Point` data unchanged.
+impl Sphere for S2Point {
+    fn ambient_dim(&self) -> usize {
+        3
+    }
+    fn dot(&self, other: &Self) -> f64 {
+        S2Point::dot(*self, *other)
+    }
+    fn write_ambient(&self, out: &mut [f64]) {
+        out[0] = self.0.x;
+        out[1] = self.0.y;
+        out[2] = self.0.z;
+    }
+    fn from_ambient(coords: &[f64]) -> Self {
+        Self::from_direction(R3Vector::new(coords[0], coords[1], coords[2]))
     }
 }
 
