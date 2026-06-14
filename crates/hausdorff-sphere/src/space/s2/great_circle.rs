@@ -137,6 +137,30 @@ impl GreatCircle {
     pub fn northernmost_latitude(&self) -> f64 {
         (1.0 - self.normal.z * self.normal.z).max(0.0).sqrt().asin()
     }
+
+    /// The **antipodal pair of points** where this circle meets `other`. Two
+    /// distinct great circles intersect in exactly two antipodal points,
+    /// `±normalize(n₁ × n₂)`: the intersection lies on both planes, so it is
+    /// orthogonal to both poles, hence parallel to their cross product. Returns
+    /// `None` when the circles are **identical or opposite** (their poles are
+    /// parallel, `‖n₁ × n₂‖ ≈ 0`): then they share every point and the
+    /// intersection is not a discrete pair.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/Clairaut.arc_on_plane` (a point lies
+    /// on a great circle exactly when it is ⟂ that circle's normal; the
+    /// intersection is ⟂ *both* normals, so it is parallel to `n₁ × n₂`).
+    #[must_use]
+    pub fn intersection(&self, other: &GreatCircle) -> Option<(S2Point, S2Point)> {
+        let line = self.normal.cross(other.normal);
+        // ‖n₁ × n₂‖² = sin²(angle between poles); zero iff the poles are parallel
+        // (the circles coincide or are opposite). The tolerance absorbs the f64
+        // residue of crossing two only-approximately-unit poles.
+        if line.norm2() <= 1e-24 {
+            return None;
+        }
+        let a = line.normalize();
+        Some((S2Point::from_vector(a), S2Point::from_vector(a.mul(-1.0))))
+    }
 }
 
 #[cfg(test)]
@@ -250,5 +274,37 @@ mod tests {
         // Antipodal → no unique circle.
         let anti = S2Point::from_vector(a.as_vector().mul(-1.0));
         assert!(GreatCircle::from_points(a, anti).is_none());
+    }
+
+    #[test]
+    fn intersection_of_equator_and_meridian_is_antipodal_pair() {
+        // Equator (pole +ẑ) and the great circle with pole +ŷ (a meridian plane,
+        // x–z) meet where x is the only free axis: ±(1,0,0).
+        let eq = equator();
+        let meridian = GreatCircle::from_normal(R3Vector::new(0.0, 1.0, 0.0));
+        let (p, q) = eq.intersection(&meridian).unwrap();
+        // The pair is antipodal and lands on (±1, 0, 0).
+        assert!(
+            (p.dot(q) + 1.0).abs() < 1e-12,
+            "not antipodal: {}",
+            p.dot(q)
+        );
+        assert!((p.as_vector().x.abs() - 1.0).abs() < 1e-12);
+        assert!(p.as_vector().y.abs() < 1e-12 && p.as_vector().z.abs() < 1e-12);
+        // Both points lie on BOTH circles.
+        for pt in [p, q] {
+            assert!(eq.contains(pt, 1e-12));
+            assert!(meridian.contains(pt, 1e-12));
+        }
+    }
+
+    #[test]
+    fn intersection_of_coincident_or_opposite_circles_is_none() {
+        let eq = equator();
+        // Identical → None.
+        assert!(eq.intersection(&eq).is_none());
+        // Opposite orientation (pole −ẑ) is the same circle → None.
+        let opp = GreatCircle::from_normal(R3Vector::new(0.0, 0.0, -1.0));
+        assert!(eq.intersection(&opp).is_none());
     }
 }
