@@ -192,6 +192,26 @@ impl Ellipsoid {
         beta.cos() * bearing.radians().sin()
     }
 
+    /// The **vertex latitude** of the geodesic leaving `point` on `bearing` — the
+    /// maximum geodetic latitude `|φ|` it attains (its northernmost / southernmost
+    /// turning point), where the geodesic runs due east–west (`α = 90°`).
+    ///
+    /// A direct consequence of Clairaut's relation: the conserved
+    /// [`clairaut_sin_alpha0`](Self::clairaut_sin_alpha0) `= cos β · sin α` equals
+    /// `cos β_max` at the vertex (`sin α = 1`), so the *reduced* vertex latitude is
+    /// `β_max = acos|sin α₀|` and the geodetic one is
+    /// [`geodetic_from_reduced(β_max)`](Self::geodetic_from_reduced). The
+    /// ellipsoidal analog of the spherical
+    /// [`GreatCircle::northernmost_latitude`](https://docs.rs/hausdorff) (`riemann`
+    /// `Hausdorff/Clairaut.latitude_le_sqrt`); a meridian (`α₀ = 0`) reaches the
+    /// pole, the equator (`|α₀| = 90°`) stays at `0`.
+    #[must_use]
+    pub fn geodesic_vertex_latitude(self, point: GeoPoint, bearing: Bearing) -> f64 {
+        let sin_a0 = self.clairaut_sin_alpha0(point, bearing).abs().min(1.0);
+        let beta_max = sin_a0.acos().to_degrees(); // reduced latitude at the vertex
+        self.geodetic_from_reduced(beta_max)
+    }
+
     /// Geodesic perimeter (metres) and **signed** area (m²,
     /// counter-clockwise positive) of the polygon ring through `ring`'s
     /// vertices — Karney's ellipsoidal polygon area, exact to round-off where
@@ -350,5 +370,49 @@ mod clairaut_tests {
         assert!((e.clairaut_constant(eq, east) - e.a).abs() < 1e-6);
         let gd = e.line(eq, east).position_m(3_000_000.0);
         assert!((e.clairaut_constant(gd.point, gd.final_bearing) - e.a).abs() < 1e-3);
+    }
+
+    #[test]
+    fn vertex_latitude_matches_clairaut_and_sampling() {
+        let e = Ellipsoid::WGS84;
+        let start = GeoPoint::from_lat_lon(0.0, 0.0);
+        let az = Bearing::from_degrees(45.0);
+        let phi_max = e.geodesic_vertex_latitude(start, az);
+        // Geodetic exceeds reduced, so a 45° equatorial launch tops out just above 45°.
+        assert!(phi_max > 45.0 && phi_max < 45.3, "phi_max = {phi_max}");
+        // Exact Clairaut check: ρ·sin α at the vertex (φ_max, due east) equals the
+        // launch constant.
+        let c0 = e.clairaut_constant(start, az);
+        let c_vertex = e.clairaut_constant(
+            GeoPoint::from_lat_lon(phi_max, 0.0),
+            Bearing::from_degrees(90.0),
+        );
+        assert!((c_vertex - c0).abs() < 1e-6, "{c_vertex} vs {c0}");
+        // Sampling: the geodesic never exceeds the vertex, and a fine walk reaches it.
+        let line = e.line(start, az);
+        let mut sampled_max = f64::MIN;
+        for km in (0..=12_000).step_by(50) {
+            let lat = line.point_m(f64::from(km) * 1000.0).lat;
+            sampled_max = sampled_max.max(lat);
+            assert!(lat <= phi_max + 1e-6, "lat {lat} exceeds vertex {phi_max}");
+        }
+        assert!((phi_max - sampled_max).abs() < 0.02, "sampled {sampled_max} vs {phi_max}");
+    }
+
+    #[test]
+    fn meridian_reaches_the_pole_equator_stays() {
+        let e = Ellipsoid::WGS84;
+        // Due north → a meridian → reaches the pole (vertex latitude 90°).
+        let pole = e.geodesic_vertex_latitude(
+            GeoPoint::from_lat_lon(10.0, 20.0),
+            Bearing::from_degrees(0.0),
+        );
+        assert!((pole - 90.0).abs() < 1e-6, "{pole}");
+        // Due east at the equator → the equator → vertex latitude 0.
+        let eq = e.geodesic_vertex_latitude(
+            GeoPoint::from_lat_lon(0.0, 0.0),
+            Bearing::from_degrees(90.0),
+        );
+        assert!(eq.abs() < 1e-6, "{eq}");
     }
 }
