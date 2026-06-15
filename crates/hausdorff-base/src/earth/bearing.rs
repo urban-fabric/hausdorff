@@ -17,6 +17,12 @@ impl Bearing {
     }
 
     /// The initial great-circle bearing when travelling from `from` toward `to`.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/BearingAzimuth.initialBearing_is_azimuth`:
+    /// the reported `atan2(y, x)` is the *literal* compass azimuth — its cosine and
+    /// sine are the geodesic tangent's normalised North (`x`) and East (`y`)
+    /// components in the local ENU frame (building on `Hausdorff/Bearing`'s proof
+    /// that `(y, x)` are those tangent components).
     #[must_use]
     pub fn initial(from: GeoPoint, to: GeoPoint) -> Self {
         let lat1 = from.lat.to_radians();

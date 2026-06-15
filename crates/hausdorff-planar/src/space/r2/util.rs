@@ -41,6 +41,14 @@ pub(crate) fn orient(a: Coord, b: Coord, c: Coord) -> f64 {
 
 /// Even-odd ray-cast test: is `p` inside `ring`? Reports interior membership;
 /// results for points exactly on the boundary are not guaranteed either way.
+///
+/// Proof-backed by `riemann` `ExactArith/PointInPolygon`: each edge's crossing
+/// test is exactly a rightward-ray segment crossing (`crossesRay_iff_segment`,
+/// for `p` off the endpoint heights — hence the boundary caveat), the verdict is
+/// independent of edge direction (`crossesRay_symm`) and of the start vertex /
+/// ring rotation (`rayParity_perm`, since the `inside` toggle is a permutation-
+/// invariant `xor` fold). The remaining parity-equals-interior step is the
+/// Jordan-curve theorem (out of scope).
 pub(crate) fn point_in_ring(p: Coord, ring: &[Coord]) -> bool {
     let v = ring_vertices(ring);
     let n = v.len();

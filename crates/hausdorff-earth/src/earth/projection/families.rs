@@ -127,6 +127,12 @@ impl Projection for PolarStereographic {
 /// **Albers Equal-Area Conic** (ellipsoidal) — the equal-area conic of choropleth
 /// and statistical maps (Snyder pp. 101–102), pinned to two standard parallels.
 /// EPSG:5070 (Albers CONUS) is an instance.
+///
+/// **Equal-area is proof-backed** by `riemann` `Hausdorff/Authalic`: the cone
+/// `ρ² = (C − 2n·q)/n²` is affine in the authalic area `q` (`albersRhoSq_hasDerivAt`),
+/// so the plane area element `(n/2)·d(ρ²)` equals the spheroid's zonal density
+/// `q′(φ)` (`albers_area_scale`) — area scale ≡ 1, exact (not just the numeric
+/// graticule check).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AlbersEqualArea {
     pub ellipsoid: Ellipsoid,

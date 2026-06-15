@@ -10,6 +10,13 @@
 //! geodesy tools), so results conform to `geo`'s `Rhumb` metric: longitude
 //! deltas over 180° take the shorter rhumb across the antimeridian, and an
 //! east-west course (Δψ → 0) falls back to the `cos φ₁` stretch factor.
+//!
+//! **Proof-backed** by `riemann` `Hausdorff/Rhumb`: the loxodrome
+//! `λ(φ) = λ₀ + tan β·ψ(φ)` has *constant bearing* (`rhumb_bearing_const`:
+//! `cos φ·dλ/dφ = tan β` at every latitude) and *constant speed in latitude*
+//! (`rhumb_speed_sq`: `1 + (cos φ·dλ/dφ)² = sec²β`), so the distance is
+//! `R·sec β·Δφ` — both resting on the meridian-stretch derivative
+//! `dψ/dφ = sec φ` (`Rhumb.deriv_isoLat`).
 
 use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
