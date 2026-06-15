@@ -104,6 +104,12 @@ impl Cap {
 
     /// The complementary cap: the antipodal center and the complementary radius
     /// `π − radius`, covering exactly the points this cap excludes.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/SphereCap.inCap_complement_iff` (via
+    /// `sphereDist_antipode`, distance to `-c` is `π −` distance to `c`): the
+    /// `(-c, π − r)` cap contains exactly the points at great-circle distance
+    /// `≥ r` from `c` — the closed complement of this cap (they share the
+    /// boundary `dist = r`, as on S2).
     #[must_use]
     pub fn complement(self) -> Cap {
         let antipode = S2Point::from_vector(self.center.vector().mul(-1.0));
