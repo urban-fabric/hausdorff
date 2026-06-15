@@ -109,6 +109,7 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "euclid",
+ "hausdorff-geometry-traits",
  "serde",
 ]
 
@@ -133,6 +134,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "hausdorff-geometry-traits"
+version = "0.1.0"
+
+[[package]]
 name = "hausdorff-index"
 version = "0.1.0"
 dependencies = [
@@ -147,6 +152,7 @@ version = "0.1.0"
 dependencies = [
  "cavalieri",
  "hausdorff-base",
+ "hausdorff-geometry-traits",
  "huygens",
  "serde",
 ]
