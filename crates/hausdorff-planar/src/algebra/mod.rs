@@ -38,6 +38,7 @@ pub use hausdorff_geometry_traits::{
     is_collinear, left_of_all, sample,
 };
 pub use metric::{
-    FrechetWorkspace, MetricSpace, directed_hausdorff, frechet_distance, hausdorff_distance,
+    FrechetWorkspace, HausdorffWitness, MetricSpace, directed_hausdorff,
+    directed_hausdorff_witness, frechet_distance, hausdorff_distance,
 };
 pub use simplex::Tetrahedron;
