@@ -162,6 +162,13 @@ impl LngInterval {
         }
     }
 
+    /// The intersection of the two longitude intervals.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/S1Interval.intersection_complete`
+    /// (antimeridian-free case): for non-inverted intervals the result contains
+    /// every shared longitude — so the intersection never drops an overlap (no
+    /// false "disjoint"). The wrap-crossing/inverted case is a harder open piece;
+    /// full wrap-aware *containment* is covered by `subset_sound`.
     pub(super) fn intersection(self, o: Self) -> Self {
         if o.is_empty() {
             return Self::empty();
