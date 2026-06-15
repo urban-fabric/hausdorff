@@ -39,6 +39,12 @@ impl Vector {
     }
 
     /// Cross (vector) product.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/CrossProduct`: it is orthogonal to
+    /// both inputs (`cross3_dot_left`/`_right`), anticommutative
+    /// (`cross3_anticomm`), and satisfies the Lagrange identity
+    /// `‖a×b‖² = ‖a‖²‖b‖² − (a·b)²` (`cross3_normSq`) — the basis of
+    /// [`angle`](Self::angle).
     #[inline]
     #[must_use]
     pub fn cross(self, o: Self) -> Self {
@@ -113,6 +119,10 @@ impl Vector {
 
     /// The angle between `self` and `o`, robust for both near-parallel and
     /// near-antiparallel vectors (`atan2(|a×b|, a·b)`).
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/CrossProduct.cross3_normSq_unit`:
+    /// for unit vectors `‖a×b‖² = 1 − (a·b)² = sin²c`, so `|a×b|`/`a·b` are the
+    /// `sin`/`cos` of the angle and `atan2` recovers it exactly.
     #[must_use]
     pub fn angle(self, o: Self) -> Angle {
         Angle::from_radians(self.cross(o).norm().atan2(self.dot(o)))

@@ -288,6 +288,12 @@ fn indexed_min_sq(a_segs: &[(Coord, Coord)], b_segs: &[(Coord, Coord)]) -> f64 {
 
 /// Distance from point `p` to the bounded segment `a`–`b` (the projection is
 /// clamped to the segment).
+///
+/// Proof-backed by `riemann` `Hausdorff/SegmentDistance`: the foot of the
+/// perpendicular is the nearest point on the line (`foot_perp` — the residual
+/// `p − proj` is ⟂ the direction; `segPoint_min` — it minimizes the distance),
+/// and clamping the parameter `t` to `[0, 1]` extends that to the *bounded*
+/// segment.
 #[must_use]
 pub fn point_segment_distance(p: Coord, a: Coord, b: Coord) -> f64 {
     point_segment_distance_sq(p, a, b).sqrt()

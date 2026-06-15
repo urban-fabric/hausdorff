@@ -103,6 +103,12 @@ impl LngInterval {
         self.fast_contains(p)
     }
 
+    /// Whether this interval contains all of `o` (golang's `ContainsInterval`).
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/S1Interval.subset_sound`: across all
+    /// four inverted/normal combinations (and the full/empty edge cases) a
+    /// passing test implies every longitude of `o` is in `self` — the
+    /// antimeridian-correct soundness `Rect::contains_rect` rests on.
     pub(super) fn contains_interval(self, o: Self) -> bool {
         if self.is_inverted() {
             if o.is_inverted() {
@@ -156,6 +162,13 @@ impl LngInterval {
         }
     }
 
+    /// The intersection of the two longitude intervals.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/S1Interval.intersection_complete`
+    /// (antimeridian-free case): for non-inverted intervals the result contains
+    /// every shared longitude — so the intersection never drops an overlap (no
+    /// false "disjoint"). The wrap-crossing/inverted case is a harder open piece;
+    /// full wrap-aware *containment* is covered by `subset_sound`.
     pub(super) fn intersection(self, o: Self) -> Self {
         if o.is_empty() {
             return Self::empty();

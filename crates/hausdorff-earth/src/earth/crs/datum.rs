@@ -87,6 +87,11 @@ impl Helmert {
     /// The **exact** inverse of [`apply`](Self::apply): `p = R⁻¹·(p' − T)/scale`,
     /// using `R⁻¹ = (I − [θ]ₓ + θθᵀ)/(1 + |θ|²)` (the closed inverse of `I + [θ]ₓ`),
     /// so `inverse_apply(apply(p)) = p`.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/Helmert.helmert_round_trip`: this
+    /// closed-form `R⁻¹` (not the negated-parameter approximation) makes the
+    /// round-trip exact for any rotation/translation and nonzero scale — the
+    /// datum-shift reversibility the CRS round-trip tests assert.
     #[must_use]
     pub fn inverse_apply(self, p: EcefPoint) -> EcefPoint {
         if self.is_identity() {

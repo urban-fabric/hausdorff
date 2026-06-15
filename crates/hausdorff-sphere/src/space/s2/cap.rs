@@ -104,6 +104,12 @@ impl Cap {
 
     /// The complementary cap: the antipodal center and the complementary radius
     /// `π − radius`, covering exactly the points this cap excludes.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/SphereCap.inCap_complement_iff` (via
+    /// `sphereDist_antipode`, distance to `-c` is `π −` distance to `c`): the
+    /// `(-c, π − r)` cap contains exactly the points at great-circle distance
+    /// `≥ r` from `c` — the closed complement of this cap (they share the
+    /// boundary `dist = r`, as on S2).
     #[must_use]
     pub fn complement(self) -> Cap {
         let antipode = S2Point::from_vector(self.center.vector().mul(-1.0));
@@ -114,6 +120,12 @@ impl Cap {
     }
 
     /// True iff this cap fully contains `other`.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/SphereCap`: the radius test is sound
+    /// by `cap_contains_cap` (`sphereDist c₁ c₂ + r₂ ≤ r₁ ⟹ (c₂, r₂) ⊆ (c₁, r₁)`,
+    /// the great-circle triangle inequality — the complement of the
+    /// `caps_disjoint_of_far` pruning), and the `is_full` short-circuit by
+    /// `cap_full_contains` (a radius-`≥ π` cap is the whole sphere).
     #[must_use]
     pub fn contains_cap(self, other: Cap) -> bool {
         if self.is_full() || other.is_empty() {

@@ -82,7 +82,9 @@ pub use map_coords::MapCoords;
 pub use min_distance::{MinDistanceWorkspace, euclidean_distance, euclidean_within};
 pub use prepared::PreparedGeometry;
 pub use relate::SpatialPredicate;
-pub use set_distance::{directed_hausdorff_distance, frechet_distance, hausdorff_distance};
+pub use set_distance::{
+    directed_hausdorff_distance, directed_hausdorff_witness, frechet_distance, hausdorff_distance,
+};
 pub use simplify::Simplify;
 pub use winding::{Direction, Orient, Winding, WindingOrder};
 

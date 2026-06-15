@@ -283,12 +283,24 @@ impl S2CellId {
 
     /// Whether this cell contains `other` (i.e. `other` is this cell or a
     /// descendant).
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/S2CellOrder`: with the half-open
+    /// id-range `[range_min, range_max]`, `contains` is reflexive
+    /// (`contains_refl`) and implies [`intersects`](Self::intersects)
+    /// (`contains_imp_intersects`); true range-containment is a partial order
+    /// (`rangeSubset_{refl,trans,antisymm}`) of which this id-test is the sound
+    /// image (`contains_of_rangeSubset`).
     #[must_use]
     pub const fn contains(self, other: Self) -> bool {
         self.range_min().0 <= other.0 && other.0 <= self.range_max().0
     }
 
     /// Whether this cell's subtree intersects `other`'s subtree.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/S2CellOrder`: range-overlap is
+    /// reflexive and *symmetric* (`intersects_refl`, `intersects_comm`), and the
+    /// negative form `not_intersects_of_hi_lt_lo` certifies the pruning — disjoint
+    /// id-ranges share no cell, so the query can skip this subtree.
     #[must_use]
     pub const fn intersects(self, other: Self) -> bool {
         other.range_min().0 <= self.range_max().0 && other.range_max().0 >= self.range_min().0
