@@ -45,6 +45,24 @@ impl Line {
     pub fn length(&self) -> f64 {
         self.length_squared().sqrt()
     }
+
+    /// The **perpendicular bisector** of the segment, as `[A, B, C]` for the line
+    /// `A·x + B·y = C` — exactly the points equidistant from `start` and `end`.
+    ///
+    /// Equidistance is *linear*: `(end − start)·p = (|end|² − |start|²)/2` (the
+    /// `|p|²` terms cancel), so the bisector's normal `(A, B)` is the chord
+    /// `end − start` and it passes through the midpoint. Proof-backed by `riemann`
+    /// `ExactArith/Circle.equidistant_iff` (and the inner-product-generic
+    /// `Geometry/Metric.equidist_iff`); it is the linear condition the planar
+    /// [`Triangle::circumcenter`] solves.
+    #[must_use]
+    pub fn perpendicular_bisector(&self) -> [f64; 3] {
+        let (a, b) = (self.start, self.end);
+        let na = b.x - a.x;
+        let nb = b.y - a.y;
+        let cc = 0.5 * ((b.x * b.x + b.y * b.y) - (a.x * a.x + a.y * a.y));
+        [na, nb, cc]
+    }
 }
 
 /// A triangle defined by its three vertices.
@@ -69,6 +87,44 @@ impl Triangle {
     #[must_use]
     pub fn to_polygon(self) -> Polygon {
         Polygon::new(LineString::new(vec![self.0, self.1, self.2]), vec![])
+    }
+
+    /// The **circumcenter** — the point equidistant from all three vertices (the
+    /// centre of the circumscribed circle) — or `None` when the vertices are
+    /// collinear (zero signed area), so no circle passes through them.
+    ///
+    /// The three sides' perpendicular bisectors meet here; because equidistance
+    /// is the *linear* condition `(b−a)·p = (|b|²−|a|²)/2` (the `|p|²` term
+    /// cancels), the centre solves a 2×2 system, here in closed Cramer form with
+    /// denominator `2·(signed area)`. Proof-backed by `riemann`
+    /// `ExactArith/Circle.circumcenter_exists` (a non-degenerate triangle has an
+    /// equidistant centre) via `equidistant_iff` — the R2 companion of
+    /// `Tetrahedron::circumcenter`'s `circumsphere_exists`, one dimension down.
+    #[must_use]
+    pub fn circumcenter(self) -> Option<Coord> {
+        let Triangle(a, b, c) = self;
+        let den = 2.0 * ((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
+        if den == 0.0 {
+            return None; // collinear — no circumcircle
+        }
+        let (da, db, dc) = (
+            a.x * a.x + a.y * a.y,
+            b.x * b.x + b.y * b.y,
+            c.x * c.x + c.y * c.y,
+        );
+        let ux = ((db - da) * (c.y - a.y) - (dc - da) * (b.y - a.y)) / den;
+        let uy = ((b.x - a.x) * (dc - da) - (c.x - a.x) * (db - da)) / den;
+        Some(Coord::new(ux, uy))
+    }
+
+    /// The **circumcircle** as `(centre, radius)`, or `None` if the vertices are
+    /// collinear. The radius is the centre's distance to any vertex (equal to all
+    /// three by `circumcenter_exists`).
+    #[must_use]
+    pub fn circumcircle(self) -> Option<(Coord, f64)> {
+        let Triangle(a, _, _) = self;
+        self.circumcenter()
+            .map(|o| (o, (o.x - a.x).hypot(o.y - a.y)))
     }
 }
 
@@ -625,5 +681,49 @@ mod tests {
         assert!((area - exact).abs() / exact < 1e-5, "area {area} vs {exact}");
         // `n` is clamped to ≥ 3 — no panic, still a valid positive-area polygon.
         assert!(e.to_polygon(0).unsigned_area() > 0.0);
+    }
+
+    #[test]
+    fn triangle_circumcircle_is_equidistant() {
+        // Right triangle (0,0),(4,0),(0,3): the circumcentre is the hypotenuse
+        // midpoint (2, 1.5) and the radius half the hypotenuse, 2.5.
+        let t = Triangle(
+            Coord::new(0.0, 0.0),
+            Coord::new(4.0, 0.0),
+            Coord::new(0.0, 3.0),
+        );
+        let (c, r) = t.circumcircle().expect("non-degenerate");
+        assert!((c.x - 2.0).abs() < 1e-12 && (c.y - 1.5).abs() < 1e-12);
+        assert!((r - 2.5).abs() < 1e-12);
+        // Equidistant from every vertex (circumcenter_exists).
+        for v in t.to_array() {
+            assert!(((c.x - v.x).hypot(c.y - v.y) - r).abs() < 1e-12);
+        }
+        // Collinear vertices have no circumcircle.
+        let flat = Triangle(
+            Coord::new(0.0, 0.0),
+            Coord::new(1.0, 1.0),
+            Coord::new(2.0, 2.0),
+        );
+        assert!(flat.circumcenter().is_none());
+        assert!(flat.circumcircle().is_none());
+    }
+
+    #[test]
+    fn line_perpendicular_bisector_is_the_equidistant_locus() {
+        let l = Line::new(Coord::new(0.0, 0.0), Coord::new(4.0, 2.0));
+        let [a, b, c] = l.perpendicular_bisector();
+        // Its normal (A, B) is the chord end − start; the midpoint lies on it.
+        assert!((a - 4.0).abs() < 1e-12 && (b - 2.0).abs() < 1e-12);
+        let m = Coord::new(2.0, 1.0);
+        assert!((a * m.x + b * m.y - c).abs() < 1e-12);
+        // Every point on the line (stepping along its direction (−B, A)) is
+        // equidistant from the two endpoints — `equidistant_iff`.
+        for t in [-2.0, 0.5, 3.0] {
+            let p = Coord::new(m.x - b * t, m.y + a * t);
+            let da = (p.x - 0.0).hypot(p.y - 0.0);
+            let db = (p.x - 4.0).hypot(p.y - 2.0);
+            assert!((da - db).abs() < 1e-9, "t={t}: {da} vs {db}");
+        }
     }
 }

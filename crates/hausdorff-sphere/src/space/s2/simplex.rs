@@ -22,9 +22,10 @@
 //! verbatim; the convex-coordinate (sum-to-one) reading of the weights is
 //! planar-only — on the sphere the triple products do not partition into one.
 
+use hausdorff_base::space::s1::Angle;
 use hausdorff_planar::algebra::{Barycentric, Orientation, Simplex};
 
-use super::S2Point;
+use super::{Cap, S2Point};
 
 /// A **spherical triangle** held as its three vertices `(a, b, c)` on the unit
 /// sphere — the vertex-carrying companion to [`SphericalTriangle`], whose sides
@@ -44,6 +45,45 @@ impl SphereTriangle {
     #[must_use]
     pub fn vertices(&self) -> (S2Point, S2Point, S2Point) {
         (self.0, self.1, self.2)
+    }
+
+    /// The **circumcenter** — the pole of the small circle through all three
+    /// vertices, equidistant in central angle from each — or `None` when the
+    /// vertices are degenerate (a coincident pair, so the chords give no plane).
+    ///
+    /// Closed form: the cross product of two chords, `(a − b) × (b − c)`, is
+    /// orthogonal to each chord and so equidistant (equal dot ⇒ equal central
+    /// angle) from all three vertices. It is oriented to the triangle's own side
+    /// (`dot ≥ 0`, the near pole) so the circumscribed circle is the *minor* one
+    /// the vertices bound. Proof-backed by `riemann`
+    /// `Hausdorff/SphereCircle.sphere_circumcenter` — the spherical mirror of the
+    /// planar [`Triangle::circumcenter`](hausdorff_planar::space::r2::Triangle::circumcenter)
+    /// / `ExactArith/Circle.circumcenter_exists`, with an explicit cross-product
+    /// pole instead of a Cramer solve.
+    #[must_use]
+    pub fn circumcenter(&self) -> Option<S2Point> {
+        let SphereTriangle(a, b, c) = *self;
+        let (va, vb, vc) = (a.as_vector(), b.as_vector(), c.as_vector());
+        let pole = va.sub(vb).cross(vb.sub(vc)); // (a − b) × (b − c)
+        if pole.norm2() == 0.0 {
+            return None; // degenerate — chords are parallel (a coincident pair)
+        }
+        // Orient to the triangle's side so the circumscribed cap is the minor cap.
+        let pole = if pole.dot(va) >= 0.0 { pole } else { pole.mul(-1.0) };
+        Some(S2Point::from_direction(pole))
+    }
+
+    /// The **circumscribed cap** — the spherical cap whose boundary passes
+    /// through all three vertices: centred at the [`circumcenter`](Self::circumcenter)
+    /// with angular radius the central angle to any vertex. `None` if the
+    /// vertices are degenerate. The minor circumscribing cap, a ready bounding
+    /// volume for spatial indexing (the spherical analog of
+    /// [`Tetrahedron::circumsphere`](hausdorff_planar::algebra::Tetrahedron::circumsphere)).
+    #[must_use]
+    pub fn circumscribed_cap(&self) -> Option<Cap> {
+        let SphereTriangle(a, _, _) = *self;
+        self.circumcenter()
+            .map(|center| Cap::from_center_angle(center, Angle::from_radians(center.distance(a))))
     }
 }
 
@@ -112,5 +152,31 @@ mod tests {
         for q in [pt(80.0, 0.0), pt(-80.0, 0.0), pt(30.0, 60.0)] {
             assert_eq!(t.contains(q), in_triangle(a, b, c, q));
         }
+    }
+
+    #[test]
+    fn circumcircle_is_equidistant_and_bounds_the_triangle() {
+        use std::f64::consts::FRAC_PI_2;
+        // Three points at latitude 10° N, 120° apart: their circumcircle is that
+        // small circle, so the circumcentre is the north pole.
+        let (a, b, c) = (pt(10.0, 0.0), pt(10.0, 120.0), pt(10.0, 240.0));
+        let t = SphereTriangle::new(a, b, c);
+        let center = t.circumcenter().expect("non-degenerate");
+        assert!(center.distance(pt(90.0, 0.0)) < 1e-9); // the north pole
+        // Equidistant from all three vertices (sphere_circumcenter).
+        let r = center.distance(a);
+        assert!((center.distance(b) - r).abs() < 1e-12);
+        assert!((center.distance(c) - r).abs() < 1e-12);
+        // The circumscribed cap carries that radius and contains its centre.
+        let cap = t.circumscribed_cap().unwrap();
+        assert!((cap.radius().radians() - r).abs() < 1e-12);
+        assert!(cap.contains_point(center));
+        // Three points on one great circle (the equator) circumscribe to a
+        // radius-π/2 cap whose pole is the great circle's pole.
+        let gc = SphereTriangle::new(pt(0.0, 0.0), pt(0.0, 90.0), pt(0.0, 180.0));
+        assert!((gc.circumscribed_cap().unwrap().radius().radians() - FRAC_PI_2).abs() < 1e-9);
+        // Degenerate: a repeated vertex gives parallel chords → None.
+        assert!(SphereTriangle::new(a, a, c).circumcenter().is_none());
+        assert!(SphereTriangle::new(a, a, c).circumscribed_cap().is_none());
     }
 }
