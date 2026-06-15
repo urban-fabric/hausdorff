@@ -32,6 +32,24 @@
 //!   meridian_perp_parallel}`.
 
 use crate::earth::ellipsoid::Ellipsoid;
+use crate::space::surface::SurfaceOfRevolution;
+
+/// The oblate spheroid is a [`SurfaceOfRevolution`]: its meridian arc speed is the
+/// meridian radius of curvature `M = √E` and its parallel radius is `N cosφ = √G`
+/// (`riemann` `Hausdorff/Spheroid`). The sphere is `Ellipsoid::SPHERE`.
+impl SurfaceOfRevolution for Ellipsoid {
+    fn meridian_speed(&self, lat_deg: f64) -> f64 {
+        self.meridian_radius(lat_deg)
+    }
+
+    fn parallel_radius(&self, lat_deg: f64) -> f64 {
+        self.prime_vertical_radius(lat_deg) * lat_deg.to_radians().cos()
+    }
+
+    fn meridian_domain_deg(&self) -> (f64, f64) {
+        (-90.0, 90.0)
+    }
+}
 
 impl Ellipsoid {
     /// **Reduced (parametric) latitude** `β` of the geodetic latitude `lat_deg`:
@@ -202,6 +220,27 @@ mod tests {
         assert!(e.prime_vertical_radius(45.0) > e.a);
         assert!(e.meridian_radius(0.0) < e.a);
         assert!(e.meridian_radius(90.0) > e.a);
+    }
+
+    /// The generic [`SurfaceOfRevolution::total_area`] over the ellipsoid (the
+    /// trait's numeric integrator) reproduces the closed-form `total_area_m2`, and
+    /// the sphere instance reproduces `4πR²`.
+    #[test]
+    fn surface_of_revolution_total_area() {
+        use crate::space::surface::SurfaceOfRevolution;
+        let e = Ellipsoid::WGS84;
+        let rel = (e.total_area(200_000) - e.total_area_m2()).abs() / e.total_area_m2();
+        assert!(rel < 1e-7, "WGS84 SoR area rel_err = {rel}");
+        // F = 0 (orthogonal net); the trait's generic area element (√(EG)) agrees
+        // with the inherent closed form M·N·cosφ.
+        let (_, f, _) = e.first_fundamental_form(45.0);
+        assert_eq!(f, 0.0);
+        let generic = SurfaceOfRevolution::area_element(&e, 45.0);
+        assert!((generic - e.area_element(45.0)).abs() / generic < 1e-12);
+        // Sphere: total area 4πR².
+        let s = Ellipsoid::SPHERE;
+        let exact = 4.0 * core::f64::consts::PI * s.a * s.a;
+        assert!((s.total_area(200_000) - exact).abs() / exact < 1e-7);
     }
 
     /// The local area element `M·N·cosφ`, integrated over the whole spheroid,

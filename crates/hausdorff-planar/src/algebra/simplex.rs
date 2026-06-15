@@ -115,6 +115,43 @@ impl Simplex for Tetrahedron {
     }
 }
 
+impl Tetrahedron {
+    /// The **circumcenter** — the point equidistant from all four vertices —
+    /// or `None` when the vertices are coplanar (zero signed volume), so no
+    /// sphere passes through them.
+    ///
+    /// Built from the three perpendicular-bisector planes by Cramer's rule, in
+    /// the closed vector form `a + (‖u‖²(v×w) + ‖v‖²(w×u) + ‖w‖²(u×v)) / (2·u·(v×w))`
+    /// with edges `u = b−a`, `v = c−a`, `w = d−a` (the denominator is `2·orient4`).
+    /// Proof-backed by `riemann` `ExactArith/Circle.circumsphere_exists`: when
+    /// `orient4 ≠ 0` such an equidistant centre exists (the R3 analog of the
+    /// planar `circumcenter_exists`).
+    #[must_use]
+    pub fn circumcenter(self) -> Option<Vector> {
+        let Tetrahedron(a, b, c, d) = self;
+        let (u, v, w) = (b.sub(a), c.sub(a), d.sub(a));
+        let den = 2.0 * u.dot(v.cross(w)); // 2·orient4(a,b,c,d)
+        if den == 0.0 {
+            return None; // coplanar — no circumsphere
+        }
+        let num = v
+            .cross(w)
+            .mul(u.norm2())
+            .add(w.cross(u).mul(v.norm2()))
+            .add(u.cross(v).mul(w.norm2()));
+        Some(a.add(num.mul(1.0 / den)))
+    }
+
+    /// The **circumsphere** as `(centre, radius)`, or `None` if the vertices are
+    /// coplanar. The radius is the centre's distance to any vertex (equal to all
+    /// four by `circumsphere_exists`).
+    #[must_use]
+    pub fn circumsphere(self) -> Option<(Vector, f64)> {
+        let Tetrahedron(a, _, _, _) = self;
+        self.circumcenter().map(|o| (o, o.sub(a).norm()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -152,5 +189,45 @@ mod tests {
         let w = t.barycentric(Vector::new(0.1, 0.2, 0.3)).weights();
         assert!(w.iter().all(|&wi| wi > 0.0));
         assert!((w.iter().sum::<f64>() - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn tetrahedron_circumsphere_is_equidistant() {
+        let verts = [
+            Vector::new(0.0, 0.0, 0.0),
+            Vector::new(1.0, 0.0, 0.0),
+            Vector::new(0.0, 1.0, 0.0),
+            Vector::new(0.0, 0.0, 1.0),
+        ];
+        let t = Tetrahedron(verts[0], verts[1], verts[2], verts[3]);
+        let (center, radius) = t.circumsphere().expect("non-degenerate");
+        // The unit-corner tetra circumcentre is (0.5, 0.5, 0.5), radius √3/2.
+        assert!((center.sub(Vector::new(0.5, 0.5, 0.5))).norm() < 1e-12);
+        assert!((radius - 3.0_f64.sqrt() / 2.0).abs() < 1e-12);
+        // Equidistant from all four vertices (circumsphere_exists).
+        for v in verts {
+            assert!((center.sub(v).norm() - radius).abs() < 1e-12);
+        }
+
+        // A translated, scaled, irregular tetra is still equidistant.
+        let q = Tetrahedron(
+            Vector::new(2.0, -1.0, 3.0),
+            Vector::new(5.0, 0.0, 3.5),
+            Vector::new(2.5, 4.0, 2.0),
+            Vector::new(3.0, 1.0, 7.0),
+        );
+        let (qc, qr) = q.circumsphere().unwrap();
+        for v in [q.0, q.1, q.2, q.3] {
+            assert!((qc.sub(v).norm() - qr).abs() < 1e-9);
+        }
+
+        // Coplanar vertices have no circumsphere.
+        let flat = Tetrahedron(
+            Vector::new(0.0, 0.0, 0.0),
+            Vector::new(1.0, 0.0, 0.0),
+            Vector::new(0.0, 1.0, 0.0),
+            Vector::new(1.0, 1.0, 0.0), // all z = 0
+        );
+        assert!(flat.circumcenter().is_none());
     }
 }

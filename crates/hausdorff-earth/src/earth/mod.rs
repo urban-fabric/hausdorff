@@ -13,6 +13,10 @@ mod similarity;
 pub mod arc;
 /// Map projections anchored to the Earth (e.g. UTM).
 pub mod projection;
+/// Coordinate reference systems (EPSG-keyed) and transforms between them.
+pub mod crs;
+/// High-accuracy datum transforms via embedded NTv2 (`.gsb`) grid-shift files.
+pub mod gridshift;
 /// The planet-flexible metric layer: arc lengths and areas on a sphere of a
 /// chosen radius ([`sphere::Sphere`]), generalizing this layer's fixed radius.
 pub mod sphere;

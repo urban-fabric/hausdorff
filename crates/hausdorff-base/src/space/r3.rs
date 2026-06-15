@@ -205,6 +205,231 @@ impl Vector {
     }
 }
 
+/// An **axis-aligned 3-D bounding box**, stored by its `min` (lowest x, y, z) and
+/// `max` (highest) corners — the ℝ³ member of the Euclidean box ladder alongside
+/// [`r1::Interval`](crate::space::r1::Interval) (1-D) and `r2::Rect` (2-D, in
+/// `hausdorff-planar`), and the box an R-tree over `Vector` points prunes with.
+///
+/// Membership and the overlap / containment pruning tests are per-axis interval
+/// arithmetic, proof-backed by `riemann` `ExactArith/AABB` (`AABB3`):
+/// [`overlaps`](Self::overlaps) by `overlaps_of_mem3` (a shared point forces an
+/// overlap, so a non-overlapping pair is safe to prune — `prune_sound3`),
+/// [`contains_box`](Self::contains_box) by `contains_of_subset3` (containment is
+/// monotone) with `subset_trans3` carrying the leaf⊆…⊆root invariant.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Aabb {
+    min: Vector,
+    max: Vector,
+}
+
+impl Aabb {
+    /// The box spanning two opposite corners, given in any order (normalized to
+    /// per-axis `min`/`max`).
+    #[must_use]
+    pub fn new(c1: Vector, c2: Vector) -> Self {
+        Self {
+            min: Vector::new(c1.x.min(c2.x), c1.y.min(c2.y), c1.z.min(c2.z)),
+            max: Vector::new(c1.x.max(c2.x), c1.y.max(c2.y), c1.z.max(c2.z)),
+        }
+    }
+
+    /// The box from already-ordered corners (`min ≤ max` per axis assumed).
+    #[must_use]
+    pub fn from_min_max(min: Vector, max: Vector) -> Self {
+        Self { min, max }
+    }
+
+    /// The degenerate box containing only the point `p`.
+    #[must_use]
+    pub fn from_point(p: Vector) -> Self {
+        Self { min: p, max: p }
+    }
+
+    /// The lower corner (minimum x, y, z).
+    #[inline]
+    #[must_use]
+    pub fn min(self) -> Vector {
+        self.min
+    }
+
+    /// The upper corner (maximum x, y, z).
+    #[inline]
+    #[must_use]
+    pub fn max(self) -> Vector {
+        self.max
+    }
+
+    /// The centre point.
+    #[inline]
+    #[must_use]
+    pub fn center(self) -> Vector {
+        self.min.add(self.max).mul(0.5)
+    }
+
+    /// True iff `p` lies in the box (edges inclusive) — the per-axis range test
+    /// (`riemann` `AABB3.contains`).
+    #[inline]
+    #[must_use]
+    pub fn contains(self, p: Vector) -> bool {
+        self.min.x <= p.x
+            && p.x <= self.max.x
+            && self.min.y <= p.y
+            && p.y <= self.max.y
+            && self.min.z <= p.z
+            && p.z <= self.max.z
+    }
+
+    /// True iff this box and `other` overlap (share any point, faces inclusive) —
+    /// the per-axis interval-overlap test. A non-overlapping pair shares no point,
+    /// so a spatial index may prune it (`riemann` `AABB3.overlaps_of_mem3` /
+    /// `prune_sound3`).
+    #[inline]
+    #[must_use]
+    pub fn overlaps(self, other: Aabb) -> bool {
+        self.min.x <= other.max.x
+            && other.min.x <= self.max.x
+            && self.min.y <= other.max.y
+            && other.min.y <= self.max.y
+            && self.min.z <= other.max.z
+            && other.min.z <= self.max.z
+    }
+
+    /// True iff this box fully contains `other` (`riemann` `AABB3.subset`, with
+    /// `contains_of_subset3` ⟹ every point of `other` is in `self`).
+    #[inline]
+    #[must_use]
+    pub fn contains_box(self, other: Aabb) -> bool {
+        self.min.x <= other.min.x
+            && other.max.x <= self.max.x
+            && self.min.y <= other.min.y
+            && other.max.y <= self.max.y
+            && self.min.z <= other.min.z
+            && other.max.z <= self.max.z
+    }
+
+    /// The smallest box containing both `self` and `other`.
+    #[must_use]
+    pub fn union(self, other: Aabb) -> Aabb {
+        Aabb {
+            min: Vector::new(
+                self.min.x.min(other.min.x),
+                self.min.y.min(other.min.y),
+                self.min.z.min(other.min.z),
+            ),
+            max: Vector::new(
+                self.max.x.max(other.max.x),
+                self.max.y.max(other.max.y),
+                self.max.z.max(other.max.z),
+            ),
+        }
+    }
+
+    /// The box grown by `margin` on every side (a negative `margin` shrinks it).
+    #[must_use]
+    pub fn expanded(self, margin: f64) -> Aabb {
+        let d = Vector::new(margin, margin, margin);
+        Aabb {
+            min: self.min.sub(d),
+            max: self.max.add(d),
+        }
+    }
+}
+
+/// A **plane** in ℝ³, stored as a `normal` and an `offset` so the plane is the
+/// set `{ p : normal·p = offset }`. The 3-D analogue of an R2 line; the splitting
+/// surface behind half-space tests, clipping, and BSP/k-d partitioning.
+///
+/// The signed [`eval`](Self::eval) `normal·p − offset` is zero on the plane and
+/// its **sign is the side**. For a plane through three points `a, b, c`
+/// ([`from_points`](Self::from_points)), `eval(d)` equals the tetrahedron
+/// orientation `orient4(a,b,c,d) = ((b−a)×(c−a))·(d−a)` exactly, so the side-test
+/// is the proof-backed `riemann` `ExactArith/Tetrahedron.orient4`; and because
+/// `orient4` is affine along a segment in its last vertex
+/// (`orient4_lerp_last`), opposite signs at two points certify the segment
+/// crosses the plane (the 3-D straddle test).
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Plane {
+    normal: Vector,
+    offset: f64,
+}
+
+impl Plane {
+    /// The plane with the given `normal` passing through `point`
+    /// (`offset = normal·point`).
+    #[must_use]
+    pub fn from_point_normal(point: Vector, normal: Vector) -> Self {
+        Self {
+            normal,
+            offset: normal.dot(point),
+        }
+    }
+
+    /// The plane through three points, oriented by the right-hand normal
+    /// `(b − a) × (c − a)`. Degenerate (zero normal) iff the points are collinear.
+    #[must_use]
+    pub fn from_points(a: Vector, b: Vector, c: Vector) -> Self {
+        let normal = b.sub(a).cross(c.sub(a));
+        Self {
+            normal,
+            offset: normal.dot(a),
+        }
+    }
+
+    /// The (unnormalized) plane normal.
+    #[inline]
+    #[must_use]
+    pub fn normal(self) -> Vector {
+        self.normal
+    }
+
+    /// The plane offset `d` in `normal·p = d`.
+    #[inline]
+    #[must_use]
+    pub fn offset(self) -> f64 {
+        self.offset
+    }
+
+    /// The signed value `normal·p − offset`: zero on the plane, and its **sign is
+    /// the side** of `p`. For a [`from_points`](Self::from_points) plane this is
+    /// exactly `orient4(a,b,c,p)` (`riemann` `Tetrahedron.orient4`).
+    #[inline]
+    #[must_use]
+    pub fn eval(self, p: Vector) -> f64 {
+        self.normal.dot(p) - self.offset
+    }
+
+    /// The true **perpendicular signed distance** from `p` to the plane —
+    /// [`eval`](Self::eval) divided by `‖normal‖` (positive on the normal's side).
+    /// `NaN` for a degenerate (zero-normal) plane.
+    #[inline]
+    #[must_use]
+    pub fn signed_distance(self, p: Vector) -> f64 {
+        self.eval(p) / self.normal.norm()
+    }
+
+    /// Which side of the plane `p` lies on: `+1` on the normal's side, `-1` on the
+    /// far side, `0` exactly on the plane — the sign of [`eval`](Self::eval).
+    #[inline]
+    #[must_use]
+    pub fn side_of(self, p: Vector) -> i32 {
+        let e = self.eval(p);
+        if e > 0.0 {
+            1
+        } else if e < 0.0 {
+            -1
+        } else {
+            0
+        }
+    }
+
+    /// True iff `p` lies on the plane within an absolute `eval` tolerance `eps`.
+    #[inline]
+    #[must_use]
+    pub fn contains(self, p: Vector, eps: f64) -> bool {
+        self.eval(p).abs() <= eps
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -317,5 +542,79 @@ mod tests {
         let (ab, bc, ca) = (a.dot(b), b.dot(c), c.dot(a));
         let spherical = 1.0 - ab * ab - bc * bc - ca * ca + 2.0 * ab * bc * ca;
         assert!((Vector::gram_det(a, b, c) - spherical).abs() < 1e-12);
+    }
+
+    #[test]
+    fn aabb_contains_overlaps_and_nesting() {
+        // Corners accepted in any order and normalized.
+        let b = Aabb::new(Vector::new(4.0, 0.0, 6.0), Vector::new(0.0, 4.0, 2.0));
+        assert_eq!(b.min(), Vector::new(0.0, 0.0, 2.0));
+        assert_eq!(b.max(), Vector::new(4.0, 4.0, 6.0));
+        assert_eq!(b.center(), Vector::new(2.0, 2.0, 4.0));
+        // Membership (AABB3.contains): inside, on a face, and outside (per axis).
+        assert!(b.contains(Vector::new(2.0, 2.0, 4.0)));
+        assert!(b.contains(Vector::new(0.0, 4.0, 6.0))); // corner, inclusive
+        assert!(!b.contains(Vector::new(2.0, 2.0, 7.0))); // past max z
+        // Overlap (overlaps_of_mem3) vs. a disjoint box (prune_sound3).
+        let touching = Aabb::new(Vector::new(4.0, 4.0, 6.0), Vector::new(6.0, 6.0, 8.0));
+        let far = Aabb::new(Vector::new(10.0, 10.0, 10.0), Vector::new(12.0, 12.0, 12.0));
+        assert!(b.overlaps(touching)); // shares the corner
+        assert!(!b.overlaps(far));
+        // Nesting (contains_of_subset3) and its transitive union.
+        let inner = Aabb::new(Vector::new(1.0, 1.0, 3.0), Vector::new(3.0, 3.0, 5.0));
+        assert!(b.contains_box(inner));
+        assert!(!inner.contains_box(b));
+        assert!(b.union(far).contains_box(b));
+        assert!(b.union(far).contains_box(far));
+        // Expansion grows every face.
+        assert!(b.expanded(1.0).contains(Vector::new(-0.5, -0.5, 1.5)));
+    }
+
+    #[test]
+    fn plane_side_test_equals_orient4() {
+        // The z = 0 plane (normal +z) via three points.
+        let (a, b, c) = (
+            Vector::new(0.0, 0.0, 0.0),
+            Vector::new(1.0, 0.0, 0.0),
+            Vector::new(0.0, 1.0, 0.0),
+        );
+        let plane = Plane::from_points(a, b, c);
+        assert_eq!(plane.normal(), Vector::new(0.0, 0.0, 1.0));
+        // Sides: above (+z), below (−z), and on the plane.
+        assert_eq!(plane.side_of(Vector::new(0.5, 0.5, 2.0)), 1);
+        assert_eq!(plane.side_of(Vector::new(0.5, 0.5, -2.0)), -1);
+        assert_eq!(plane.side_of(Vector::new(0.5, 0.5, 0.0)), 0);
+        assert!(plane.contains(Vector::new(9.0, -3.0, 0.0), 1e-12));
+        // Perpendicular signed distance is the bare z (unit normal).
+        assert!((plane.signed_distance(Vector::new(0.0, 0.0, 3.0)) - 3.0).abs() < 1e-12);
+
+        // `eval(d)` equals orient4(a, b, c, d) = ((b−a)×(c−a))·(d−a) exactly.
+        let orient4 =
+            |a: Vector, b: Vector, c: Vector, d: Vector| b.sub(a).cross(c.sub(a)).dot(d.sub(a));
+        for d in [
+            Vector::new(0.3, 0.4, 1.7),
+            Vector::new(-2.0, 1.0, -0.5),
+            Vector::new(5.0, 5.0, 0.0),
+        ] {
+            assert!((plane.eval(d) - orient4(a, b, c, d)).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn plane_from_point_normal_and_straddle() {
+        let plane = Plane::from_point_normal(Vector::new(0.0, 0.0, 1.0), Vector::new(0.0, 0.0, 2.0));
+        // Offset = normal·point = 2; the plane is z = 1.
+        assert_eq!(plane.offset(), 2.0);
+        assert_eq!(plane.side_of(Vector::new(0.0, 0.0, 5.0)), 1);
+        assert_eq!(plane.side_of(Vector::new(0.0, 0.0, 0.0)), -1);
+        // Opposite sides ⟹ the segment crosses the plane (orient4_lerp_last):
+        // eval is affine along the segment, so it has a zero in (0, 1).
+        let p = Vector::new(0.0, 0.0, 0.0);
+        let q = Vector::new(0.0, 0.0, 4.0);
+        assert!(plane.side_of(p) * plane.side_of(q) < 0);
+        let t = -plane.eval(p) / (plane.eval(q) - plane.eval(p));
+        assert!((0.0..=1.0).contains(&t));
+        let crossing = p.add(q.sub(p).mul(t));
+        assert!(plane.contains(crossing, 1e-12));
     }
 }

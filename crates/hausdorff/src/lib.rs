@@ -43,7 +43,7 @@ pub mod space {
     //! [`index`](crate::index) ([`index::h3`](crate::index::h3),
     //! [`index::geohash`](crate::index::geohash)).
 
-    pub use hausdorff_base::space::{r1, r3, s1, sphere};
+    pub use hausdorff_base::space::{r1, r3, s1, sphere, surface};
     pub use hausdorff_planar::space::r2;
     pub use hausdorff_sphere::space::s2;
 }
@@ -65,7 +65,7 @@ pub use huygens;
 // keep using `hausdorff::coord! { … }`.
 pub use hausdorff_planar::{coord, line_string, point, polygon};
 
-pub use algebra::{InnerProduct, MetricSpace, Norm, VectorSpace};
+pub use algebra::{InnerProduct, MetricSpace, Norm, PointRegion, Prunable, VectorSpace};
 pub use earth::{FixedGeoPoint, GeoPoint};
 pub use space::r2::{
     Area, Bearing, BooleanOps, BoundingRect, Centroid, ChamberlainDuquetteArea, ConcaveHull,
