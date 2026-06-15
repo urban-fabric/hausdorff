@@ -152,6 +152,46 @@ impl Ellipsoid {
         GeodesicLine { kernel }
     }
 
+    /// **Clairaut's constant** of the geodesic leaving `point` on compass
+    /// `bearing` — the conserved quantity `ρ · sin α` (metres), where
+    /// `ρ = N(φ)·cos φ` is the radius of the parallel of latitude (`N` the
+    /// [prime-vertical radius](Self::prime_vertical_radius)) and `α` is the
+    /// azimuth. On a *surface of revolution* the first fundamental form is
+    /// independent of longitude (`G = ρ²`, no `λ`), so this quantity is invariant
+    /// along the entire geodesic — the structural law the Karney inverse/direct
+    /// solvers ride. (The geodesic length/area integrals themselves stay runtime
+    /// series; only the invariant is structural.)
+    ///
+    /// Equivalently `ρ = a·cos β` for the reduced latitude `β`
+    /// ([`reduced_latitude`](Self::reduced_latitude)), so the dimensionless
+    /// **auxiliary-sphere** form is `cos β · sin α = sin α₀`
+    /// ([`clairaut_sin_alpha0`](Self::clairaut_sin_alpha0)) — the sine of the
+    /// azimuth where the geodesic crosses the equator, the Karney/Vincenty
+    /// reduction variable.
+    ///
+    /// Backed by `riemann` `Hausdorff/Spheroid.parallel_normSq` (`G = ρ²`, the
+    /// λ-independence behind the conservation) and
+    /// `Hausdorff/Geodetic.reduced_tan_of_geodetic` (`a cos β = N cos φ`, the
+    /// auxiliary-sphere reduction). The conservation itself (`d/ds` of this is
+    /// zero along a geodesic) is the open riemann follow-up.
+    #[must_use]
+    pub fn clairaut_constant(self, point: GeoPoint, bearing: Bearing) -> f64 {
+        let rho = self.prime_vertical_radius(point.lat) * point.lat.to_radians().cos(); // ρ = N cos φ
+        rho * bearing.radians().sin()
+    }
+
+    /// The dimensionless **auxiliary-sphere Clairaut constant** `cos β · sin α` of
+    /// the geodesic leaving `point` on `bearing` — equal to
+    /// [`clairaut_constant`](Self::clairaut_constant)` / a`, and to `sin α₀`, the
+    /// sine of the geodesic's azimuth at its equator crossing. Invariant along the
+    /// whole geodesic (Karney's `sin α₀`); `reduced_latitude` (`β`) is proved by
+    /// `riemann` `Hausdorff/Geodetic.reduced_tan_of_geodetic`.
+    #[must_use]
+    pub fn clairaut_sin_alpha0(self, point: GeoPoint, bearing: Bearing) -> f64 {
+        let beta = self.reduced_latitude(point.lat).to_radians();
+        beta.cos() * bearing.radians().sin()
+    }
+
     /// Geodesic perimeter (metres) and **signed** area (m²,
     /// counter-clockwise positive) of the polygon ring through `ring`'s
     /// vertices — Karney's ellipsoidal polygon area, exact to round-off where
@@ -257,5 +297,58 @@ impl GeodesicLine {
     #[must_use]
     pub fn position(&self, distance: LengthMeters) -> GeodesicDirect {
         self.position_m(distance.as_meters())
+    }
+}
+
+#[cfg(test)]
+mod clairaut_tests {
+    use super::*;
+
+    #[test]
+    fn constant_is_invariant_along_a_geodesic() {
+        // Clairaut's relation: ρ·sin α is conserved along the whole geodesic.
+        // Verify it numerically against the Karney solver — the runtime invariant.
+        let e = Ellipsoid::WGS84;
+        let start = GeoPoint::from_lat_lon(40.0, -75.0);
+        let az = Bearing::from_degrees(63.0);
+        let line = e.line(start, az);
+        let c0 = e.clairaut_constant(start, az);
+        for km in (500..=9000).step_by(500) {
+            let gd = line.position_m(f64::from(km) * 1000.0);
+            let c = e.clairaut_constant(gd.point, gd.final_bearing);
+            // ρ ~ 6.4e6 m; the constant holds to well under a millimetre.
+            assert!((c - c0).abs() < 1e-3, "at {km} km: clairaut {c} vs {c0}");
+        }
+    }
+
+    #[test]
+    fn auxiliary_sphere_form_matches() {
+        // cos β · sin α == (ρ sin α) / a — the auxiliary-sphere reduction.
+        let e = Ellipsoid::WGS84;
+        let p = GeoPoint::from_lat_lon(35.0, 12.0);
+        let az = Bearing::from_degrees(48.0);
+        assert!((e.clairaut_sin_alpha0(p, az) - e.clairaut_constant(p, az) / e.a).abs() < 1e-12);
+        // On a sphere β = φ, so the two reductions coincide there.
+        let s = Ellipsoid::SPHERE;
+        assert!(
+            (s.clairaut_sin_alpha0(p, az) - p.lat.to_radians().cos() * az.radians().sin()).abs()
+                < 1e-12
+        );
+    }
+
+    #[test]
+    fn meridian_and_equator_are_degenerate_geodesics() {
+        let e = Ellipsoid::WGS84;
+        // Due north (α = 0): the meridian is a geodesic with Clairaut constant 0.
+        let north =
+            e.clairaut_constant(GeoPoint::from_lat_lon(20.0, 5.0), Bearing::from_degrees(0.0));
+        assert!(north.abs() < 1e-9);
+        // Due east at the equator (α = 90°, φ = 0): the equator is a geodesic,
+        // Clairaut constant = a (ρ = N = a there), and it stays a downrange.
+        let eq = GeoPoint::from_lat_lon(0.0, 0.0);
+        let east = Bearing::from_degrees(90.0);
+        assert!((e.clairaut_constant(eq, east) - e.a).abs() < 1e-6);
+        let gd = e.line(eq, east).position_m(3_000_000.0);
+        assert!((e.clairaut_constant(gd.point, gd.final_bearing) - e.a).abs() < 1e-3);
     }
 }
