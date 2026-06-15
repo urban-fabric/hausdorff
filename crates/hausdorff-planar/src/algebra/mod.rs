@@ -34,8 +34,8 @@ mod vector;
 
 pub use hausdorff_geometry_traits::{
     Barycentric, InnerProduct, Interpolate, Norm, Orientation, PointRegion, Prunable, Simplex,
-    VectorSpace, any_contained, count_contained, disjoint, filter_contained, in_triangle,
-    is_collinear, left_of_all, sample,
+    VectorSpace, any_contained, contains_convex, convex_winding, count_contained, disjoint,
+    filter_contained, in_triangle, is_collinear, is_convex_ring, left_of_all, sample,
 };
 pub use metric::{
     FrechetWorkspace, HausdorffWitness, MetricSpace, directed_hausdorff,

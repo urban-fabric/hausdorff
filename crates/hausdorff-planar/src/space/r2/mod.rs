@@ -12,6 +12,7 @@
 #[macro_use]
 mod macros;
 
+mod convex_polygon;
 mod coord;
 mod geometry;
 mod geometry_algorithms;
@@ -53,6 +54,7 @@ pub mod line_locate_interpolate;
 pub mod remove_repeated_points;
 pub mod validation;
 
+pub use convex_polygon::ConvexPolygon;
 pub use coord::{Coord, Point};
 pub use geometry::Geometry;
 pub use line_string::{LineString, MultiLineString};

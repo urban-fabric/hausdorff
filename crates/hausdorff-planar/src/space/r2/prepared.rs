@@ -10,7 +10,7 @@
 //! can't capture).
 
 use super::min_distance::{seg_box, segment_gap_sq, segments};
-use super::{Coord, Geometry, Intersects, PointBatch, Rect, StrTree};
+use super::{ConvexPolygon, Coord, Geometry, Intersects, PointBatch, Rect, StrTree};
 
 /// A geometry indexed for repeated spatial predicates against many others.
 pub struct PreparedGeometry<'a> {
@@ -18,6 +18,11 @@ pub struct PreparedGeometry<'a> {
     segments: Vec<(Coord, Coord)>,
     index: StrTree<usize>,
     bbox: Option<(Coord, Coord)>,
+    /// Set when `geom` is a convex areal shape: point-in-polygon then takes the
+    /// O(log n) fan binary search instead of indexed ray casting. Many OSM
+    /// polygons (rectangular building footprints) are convex, so a containment
+    /// join over them runs on the proof-backed convex fast path.
+    convex: Option<ConvexPolygon>,
 }
 
 impl<'a> PreparedGeometry<'a> {
@@ -40,6 +45,7 @@ impl<'a> PreparedGeometry<'a> {
             segments: segs,
             index,
             bbox,
+            convex: convex_of(geom),
         }
     }
 
@@ -129,6 +135,12 @@ impl<'a> PreparedGeometry<'a> {
         if point.x < lo.x || point.x > hi.x || point.y < lo.y || point.y > hi.y {
             return false;
         }
+        // Convex fast path: O(log n) fan binary search (proof-backed by riemann
+        // WindingNumber — the left-of-every-edge test is the winding number), no
+        // segment-index traversal. Agrees with the ray cast off the boundary.
+        if let Some(cvx) = &self.convex {
+            return cvx.contains(point);
+        }
         let ray = Rect::new(point, Coord::new(f64::INFINITY, point.y));
         let mut crossings = 0u32;
         self.index.query_each(ray, |_, &j| {
@@ -181,6 +193,26 @@ impl<'a> PreparedGeometry<'a> {
     }
 }
 
+/// The convex fast-path shape for an areal geometry, or `None` if it is not a
+/// single convex polygon (holed/concave polygons, multipolygons, lines, points →
+/// the indexed ray cast). `Rect` and `Triangle` are convex by construction.
+fn convex_of(geom: &Geometry) -> Option<ConvexPolygon> {
+    match geom {
+        Geometry::Polygon(p) => ConvexPolygon::from_polygon(p),
+        Geometry::Rect(r) => {
+            let (lo, hi) = (r.min(), r.max());
+            ConvexPolygon::from_vertices(vec![
+                lo,
+                Coord::new(hi.x, lo.y),
+                hi,
+                Coord::new(lo.x, hi.y),
+            ])
+        }
+        Geometry::Triangle(t) => ConvexPolygon::from_vertices(vec![t.0, t.1, t.2]),
+        _ => None,
+    }
+}
+
 /// Does a rightward horizontal ray from `p` cross segment `a`–`b`? Half-open in
 /// `y` (`[min_y, max_y)`) so a vertex on the ray is counted once.
 fn ray_crosses(p: Coord, a: Coord, b: Coord) -> bool {
@@ -211,4 +243,111 @@ fn box_gap_sq(a: (Coord, Coord), b: (Coord, Coord)) -> f64 {
     let dx = (b.0.x - a.1.x).max(a.0.x - b.1.x).max(0.0);
     let dy = (b.0.y - a.1.y).max(a.0.y - b.1.y).max(0.0);
     dx * dx + dy * dy
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::space::r2::{Contains, LineString, Polygon, Triangle};
+
+    fn poly_geom(coords: &[(f64, f64)]) -> Geometry {
+        Geometry::Polygon(Polygon::new(
+            LineString::new(coords.iter().map(|&(x, y)| Coord::new(x, y)).collect()),
+            vec![],
+        ))
+    }
+
+    #[test]
+    fn convex_fast_path_fires_and_matches_raycast() {
+        // A convex hexagon ⟹ the cached fast path is taken.
+        let hex = poly_geom(&[
+            (0.0, -2.0),
+            (2.0, -1.0),
+            (2.0, 1.0),
+            (0.0, 2.0),
+            (-2.0, 1.0),
+            (-2.0, -1.0),
+        ]);
+        let prep = PreparedGeometry::new(&hex);
+        assert!(prep.convex.is_some(), "convex hexagon should take the fast path");
+        let Geometry::Polygon(p) = &hex else { unreachable!() };
+        // Clearly-interior points: fast path and the one-shot even-odd agree (true).
+        for c in [
+            Coord::new(0.0, 0.0),
+            Coord::new(1.0, 0.5),
+            Coord::new(-1.0, -0.5),
+            Coord::new(1.5, 0.0),
+        ] {
+            assert!(prep.contains_point(c), "interior {c:?}");
+            assert!(p.contains(&c), "one-shot interior {c:?}");
+        }
+        // Clearly-exterior points: both false.
+        for c in [
+            Coord::new(3.0, 0.0),
+            Coord::new(0.0, 3.0),
+            Coord::new(-3.0, -3.0),
+            Coord::new(2.5, 2.5),
+        ] {
+            assert!(!prep.contains_point(c), "exterior {c:?}");
+            assert!(!p.contains(&c), "one-shot exterior {c:?}");
+        }
+    }
+
+    #[test]
+    fn rect_and_triangle_take_fast_path() {
+        let rect = Geometry::Rect(Rect::new(Coord::new(0.0, 0.0), Coord::new(4.0, 4.0)));
+        let prep = PreparedGeometry::new(&rect);
+        assert!(prep.convex.is_some());
+        assert!(prep.contains_point(Coord::new(2.0, 2.0)));
+        assert!(!prep.contains_point(Coord::new(5.0, 2.0)));
+
+        let tri = Geometry::Triangle(Triangle(
+            Coord::new(0.0, 0.0),
+            Coord::new(4.0, 0.0),
+            Coord::new(0.0, 4.0),
+        ));
+        let prep = PreparedGeometry::new(&tri);
+        assert!(prep.convex.is_some());
+        assert!(prep.contains_point(Coord::new(1.0, 1.0)));
+        assert!(!prep.contains_point(Coord::new(3.0, 3.0)));
+    }
+
+    #[test]
+    fn concave_and_holed_use_raycast() {
+        // L-shape (concave) → no fast path; ray cast still correct.
+        let l = poly_geom(&[
+            (0.0, 0.0),
+            (6.0, 0.0),
+            (6.0, 6.0),
+            (3.0, 6.0),
+            (3.0, 3.0),
+            (0.0, 3.0),
+        ]);
+        let prep = PreparedGeometry::new(&l);
+        assert!(prep.convex.is_none(), "L-shape is concave");
+        let Geometry::Polygon(p) = &l else { unreachable!() };
+        for c in [Coord::new(1.0, 5.0), Coord::new(5.0, 5.0), Coord::new(1.0, 1.0)] {
+            assert_eq!(prep.contains_point(c), p.contains(&c), "mismatch at {c:?}");
+        }
+
+        // A holed polygon is never convex.
+        let holed = Geometry::Polygon(Polygon::new(
+            LineString::new(vec![
+                Coord::new(0.0, 0.0),
+                Coord::new(6.0, 0.0),
+                Coord::new(6.0, 6.0),
+                Coord::new(0.0, 6.0),
+            ]),
+            vec![LineString::new(vec![
+                Coord::new(2.0, 2.0),
+                Coord::new(4.0, 2.0),
+                Coord::new(4.0, 4.0),
+                Coord::new(2.0, 4.0),
+            ])],
+        ));
+        let prep = PreparedGeometry::new(&holed);
+        assert!(prep.convex.is_none(), "holed polygon is not convex");
+        // A point in the hole is outside.
+        assert!(!prep.contains_point(Coord::new(3.0, 3.0)));
+    }
 }

@@ -3,7 +3,8 @@
 //! Minkowski difference, found by the 2-simplex GJK distance algorithm — no
 //! `O(n·m)` segment scan. Falls back (returns `None`) if GJK doesn't converge.
 
-use super::super::util::orient;
+use hausdorff_geometry_traits::is_convex_ring;
+
 use super::super::{Coord, Geometry, Intersects};
 use super::boxes_overlap;
 
@@ -69,35 +70,11 @@ fn convex_shape(g: &Geometry) -> Option<Convex<'_>> {
         }
         _ => return None,
     };
-    is_convex(shape.verts()).then_some(shape)
-}
-
-/// Whether `verts` (an open polygon loop) is a non-degenerate convex polygon:
-/// every consecutive turn has the same sign — allowing collinear (zero) turns —
-/// with at least one strict turn (so a collinear, zero-area loop is rejected).
-/// For a simple polygon this guarantees the vertex set's hull equals the shape,
-/// which is what the GJK fast path needs.
-fn is_convex(verts: &[Coord]) -> bool {
-    let n = verts.len();
-    if n < 3 {
-        return false;
-    }
-    let mut sign = 0i8;
-    for i in 0..n {
-        let turn = orient(verts[i], verts[(i + 1) % n], verts[(i + 2) % n]);
-        if turn > 0.0 {
-            if sign < 0 {
-                return false;
-            }
-            sign = 1;
-        } else if turn < 0.0 {
-            if sign > 0 {
-                return false;
-            }
-            sign = -1;
-        }
-    }
-    sign != 0
+    // A non-degenerate convex polygon's vertex hull equals the shape — exactly
+    // what GJK on the Minkowski difference needs. The consistent-turn-sign test
+    // is the generic `Orientation` convexity classifier (shared with `s2::Loop`
+    // and `r2::ConvexPolygon`).
+    is_convex_ring(shape.verts()).then_some(shape)
 }
 
 /// Minimum distance between two **disjoint** convex vertex loops via the
