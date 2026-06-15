@@ -114,6 +114,12 @@ impl Cap {
     }
 
     /// True iff this cap fully contains `other`.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/SphereCap`: the radius test is sound
+    /// by `cap_contains_cap` (`sphereDist c₁ c₂ + r₂ ≤ r₁ ⟹ (c₂, r₂) ⊆ (c₁, r₁)`,
+    /// the great-circle triangle inequality — the complement of the
+    /// `caps_disjoint_of_far` pruning), and the `is_full` short-circuit by
+    /// `cap_full_contains` (a radius-`≥ π` cap is the whole sphere).
     #[must_use]
     pub fn contains_cap(self, other: Cap) -> bool {
         if self.is_full() || other.is_empty() {
