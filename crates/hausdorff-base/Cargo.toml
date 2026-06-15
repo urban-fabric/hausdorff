@@ -9,6 +9,7 @@ rust-version.workspace = true
 description = "Geospatial foundations: GeoPoint/BBox, haversine and Karney WGS84 geodesy, ECEF, spheres, plus the unit-less s1 angles and r3 vectors."
 
 [dependencies]
+hausdorff-geometry-traits = { workspace = true }
 bytemuck = { workspace = true }
 euclid = { workspace = true }
 serde = { workspace = true }

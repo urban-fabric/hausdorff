@@ -56,6 +56,24 @@ impl GreatCircle {
         }
     }
 
+    /// The **perpendicular bisector** of two points — the great circle every
+    /// point of which is equidistant (in central angle) from `a` and `b`. Its
+    /// plane is normal to the chord `a − b`, so it is
+    /// [`from_normal(a − b)`](Self::from_normal); `None` when `a` and `b` coincide
+    /// (the chord vanishes). Proof-backed by `riemann`
+    /// `Hausdorff/SphereCircle.sphere_equidist_iff` (equidistant ⇔ orthogonal to
+    /// the chord `a − b`) — the spherical mirror of the planar
+    /// [`Line::perpendicular_bisector`](hausdorff_planar::space::r2::Line::perpendicular_bisector)
+    /// and its `ExactArith/Circle.equidistant_iff`.
+    #[must_use]
+    pub fn perpendicular_bisector(a: S2Point, b: S2Point) -> Option<Self> {
+        let chord = a.vector().sub(b.vector());
+        if chord.norm2() == 0.0 {
+            return None; // coincident points — no bisector
+        }
+        Some(Self::from_normal(chord))
+    }
+
     /// The circle's **pole** — the unit normal to its plane.
     #[must_use]
     pub fn pole(&self) -> R3Vector {
@@ -306,5 +324,23 @@ mod tests {
         // Opposite orientation (pole −ẑ) is the same circle → None.
         let opp = GreatCircle::from_normal(R3Vector::new(0.0, 0.0, -1.0));
         assert!(eq.intersection(&opp).is_none());
+    }
+
+    #[test]
+    fn perpendicular_bisector_is_the_equidistant_locus() {
+        let a = sp(0.0, 0.0);
+        let b = sp(0.0, 90.0);
+        let bis = GreatCircle::perpendicular_bisector(a, b).expect("distinct points");
+        // The mid-longitude equatorial point and both poles lie on the bisector,
+        // and each is equidistant from a and b (sphere_equidist_iff).
+        for p in [sp(0.0, 45.0), sp(90.0, 0.0), sp(-90.0, 0.0)] {
+            assert!(bis.contains(p, 1e-12), "{:?} not on bisector", p);
+            assert!((p.distance(a) - p.distance(b)).abs() < 1e-12);
+        }
+        // A point off the bisector is strictly nearer one endpoint.
+        let off = sp(0.0, 10.0);
+        assert!(off.distance(a) < off.distance(b));
+        // Coincident points have no bisector.
+        assert!(GreatCircle::perpendicular_bisector(a, a).is_none());
     }
 }

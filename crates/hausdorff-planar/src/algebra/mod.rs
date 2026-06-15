@@ -1,39 +1,43 @@
 //! Cross-cutting algebraic abstractions shared across the geometry spaces,
 //! organized after `spire`'s `algebra` package.
 //!
-//! - [`metric`] — [`MetricSpace`]s and the set/curve distances (Hausdorff,
-//!   Fréchet) defined generically over them.
-//! - [`vector`] — the [`VectorSpace`] / [`InnerProduct`] / [`Norm`] hierarchy
-//!   that the coordinate types implement.
-//! - [`orientation`] — the signed [`Orientation`] predicate (planar signed area
-//!   / ℝ³ triple product) and generic orientation-based containment.
-//! - [`simplex`] — the [`Simplex`] containment trait (point-in-triangle R2 /
-//!   point-in-tetrahedron R3) via a barycentric orientation partition.
-//! - [`interpolate`] — the [`Interpolate`] trait (`lerp` with endpoint laws):
-//!   straight-line in R2/R3, great-circle SLERP on S2.
-//! - [`region`] — the [`PointRegion`] / [`Prunable`] bounding-volume traits
-//!   (point containment + index pruning) over every space's `O(1)` region
-//!   primitive (interval, sector, rect, ellipse, cap), with generic spatial
-//!   filters written once.
+//! The abstract trait surface and the generic algorithms over it live upstream
+//! in [`hausdorff_geometry_traits`] — [`Orientation`] (+ [`in_triangle`],
+//! [`left_of_all`], [`is_collinear`]), the [`VectorSpace`] / [`InnerProduct`] /
+//! [`Norm`] hierarchy, [`Simplex`] / [`Barycentric`], [`Interpolate`] (+
+//! [`sample`]), and [`PointRegion`] / [`Prunable`] (+ [`filter_contained`],
+//! [`count_contained`], [`any_contained`], [`disjoint`]) — so the `r1` / `s1` /
+//! `r3` substrates in `hausdorff-base` implement them too. They are re-exported
+//! here unchanged, so the canonical `hausdorff_planar::algebra::*` paths every
+//! consumer uses are stable.
 //!
-//! The concrete spaces in [`crate::space::r2`]/[`hausdorff_base::space::r3`]/`hausdorff-sphere`'s `space::s2` and the
-//! Earth layer build on these so generic algorithms are written once. The trait
-//! laws are machine-checked in the `riemann` Lean development (`Geometry.*`).
+//! This module holds the parts that belong to `hausdorff-planar`:
+//! - the **planar instances** of those traits — [`crate::space::r2::Coord`] /
+//!   `Point` (orientation, vector space, interpolation), `Rect` / `Ellipse` /
+//!   `ConfidenceEllipse` (regions), `Triangle` (simplex) — plus the R3
+//!   [`Tetrahedron`] simplex;
+//! - [`metric`] — the [`MetricSpace`]s and the set/curve distances (Hausdorff,
+//!   Fréchet) defined generically over them. It stays here because it is tied to
+//!   this crate's [`Distance`](crate::space::r2::Distance) trait.
+//!
+//! The concrete spaces in [`crate::space::r2`] / `hausdorff_base::space::{r1,s1,r3}`
+//! / `hausdorff-sphere`'s `space::s2` and the Earth layer build on these so
+//! generic algorithms are written once. The trait laws are machine-checked in the
+//! `riemann` Lean development (`Geometry.*` / `Hausdorff.*`).
 
-pub mod interpolate;
+mod interpolate;
 pub mod metric;
-pub mod orientation;
-pub mod region;
-pub mod simplex;
-pub mod vector;
+mod orientation;
+mod region;
+mod simplex;
+mod vector;
 
-pub use interpolate::{Interpolate, sample};
+pub use hausdorff_geometry_traits::{
+    Barycentric, InnerProduct, Interpolate, Norm, Orientation, PointRegion, Prunable, Simplex,
+    VectorSpace, any_contained, count_contained, disjoint, filter_contained, in_triangle,
+    is_collinear, left_of_all, sample,
+};
 pub use metric::{
     FrechetWorkspace, MetricSpace, directed_hausdorff, frechet_distance, hausdorff_distance,
 };
-pub use orientation::{Orientation, in_triangle, is_collinear, left_of_all};
-pub use region::{
-    PointRegion, Prunable, any_contained, count_contained, disjoint, filter_contained,
-};
-pub use simplex::{Barycentric, Simplex, Tetrahedron};
-pub use vector::{InnerProduct, Norm, VectorSpace};
+pub use simplex::Tetrahedron;
