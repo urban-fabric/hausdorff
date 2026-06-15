@@ -17,6 +17,7 @@
 
 use crate::earth::sphere::AuthalicSphere;
 use crate::earth::{EcefPoint, Ellipsoid, GeoPoint};
+use hausdorff_sphere::space::s2::edges::{Crossing, crossing_sign};
 use hausdorff_sphere::space::s2::{Loop, Polygon as S2Polygon, S2Point, polygon_signed_area_vos};
 
 /// A polygon on the WGS84 ellipsoid (or any [`Ellipsoid`]): an **exterior** ring
@@ -107,10 +108,28 @@ impl GeoPolygon {
 
     /// True iff this polygon and `other` overlap — their exterior boundaries cross
     /// or one exterior contains the other (holes are not subtracted from the
-    /// overlap test).
+    /// overlap test). The great-circle edge-crossing test is proof-backed by
+    /// `riemann` Hausdorff/SphereSegmentCross (`crossing_sign` soundness).
     #[must_use]
     pub fn intersects(&self, other: &GeoPolygon) -> bool {
         ccw_loop(&self.exterior).intersects(&ccw_loop(&other.exterior))
+    }
+
+    /// True iff `other` lies **entirely within** this polygon: every vertex of
+    /// `other`'s exterior is inside, and no boundary edges cross (so all of
+    /// `other` is inside, not just its vertices). With holes it also requires
+    /// `other` not to cross any hole boundary. Sound for simple (non-self-crossing)
+    /// polygons; the edge-crossing test is proof-backed by `riemann`
+    /// Hausdorff/SphereSegmentCross.
+    #[must_use]
+    pub fn contains_polygon(&self, other: &GeoPolygon) -> bool {
+        let target = ccw_loop(&other.exterior);
+        other.exterior.iter().all(|&v| self.contains(v))
+            && !loops_cross(&ccw_loop(&self.exterior), &target)
+            && self
+                .interiors
+                .iter()
+                .all(|h| !loops_cross(&ccw_loop(h), &target))
     }
 
     /// The spherical [`Polygon`](S2Polygon) of this shape — exterior + holes as
@@ -186,6 +205,21 @@ fn ccw_loop(ring: &[GeoPoint]) -> Loop {
         pts.reverse();
     }
     Loop::new(pts)
+}
+
+/// True iff any edge of loop `a` properly crosses any edge of loop `b` — an
+/// interior great-circle crossing (`s2::edges::crossing_sign == Cross`, the test
+/// proven sound in `riemann` Hausdorff/SphereSegmentCross). `O(n·m)`.
+fn loops_cross(a: &Loop, b: &Loop) -> bool {
+    let (va, vb) = (a.vertices(), b.vertices());
+    let (na, nb) = (va.len(), vb.len());
+    if na < 2 || nb < 2 {
+        return false;
+    }
+    (0..na).any(|i| {
+        let (pa, qa) = (va[i], va[(i + 1) % na]);
+        (0..nb).any(|j| crossing_sign(pa, qa, vb[j], vb[(j + 1) % nb]) == Crossing::Cross)
+    })
 }
 
 /// Closed geodesic length of `ring` (metres) — Karney edge lengths around the

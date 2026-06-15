@@ -103,6 +103,22 @@ fn intersects_overlapping_but_not_disjoint() {
 }
 
 #[test]
+fn contains_polygon_nested_crossing_and_holes() {
+    let outer = GeoPolygon::from_exterior(box_ring(0.0, 0.0, 10.0, 10.0));
+    let inner = GeoPolygon::from_exterior(box_ring(2.0, 2.0, 4.0, 4.0)); // strictly inside
+    let crossing = GeoPolygon::from_exterior(box_ring(5.0, 5.0, 15.0, 15.0)); // straddles edge
+    let outside = GeoPolygon::from_exterior(box_ring(20.0, 20.0, 30.0, 30.0)); // disjoint
+    assert!(outer.contains_polygon(&inner));
+    assert!(!outer.contains_polygon(&crossing));
+    assert!(!outer.contains_polygon(&outside));
+    assert!(!inner.contains_polygon(&outer)); // not the other way round
+    // A polygon with a hole does not contain a shape sitting in the hole.
+    let holed = GeoPolygon::new(box_ring(0.0, 0.0, 10.0, 10.0), vec![box_ring(3.0, 3.0, 7.0, 7.0)]);
+    let in_hole = GeoPolygon::from_exterior(box_ring(4.0, 4.0, 6.0, 6.0));
+    assert!(!holed.contains_polygon(&in_hole));
+}
+
+#[test]
 fn conversion_helpers_round_trip() {
     let ring = box_ring(30.0, 0.0, 40.0, 10.0);
     // To unit sphere: every point is a unit vector and recovers its lat/lon.
