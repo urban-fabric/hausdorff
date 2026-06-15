@@ -6,6 +6,7 @@
 use std::f64::consts::PI;
 
 use hausdorff_base::space::s1::Angle;
+use hausdorff_planar::algebra::{PointRegion, Prunable};
 
 use super::S2Point;
 
@@ -141,5 +142,61 @@ impl Cap {
 
     fn center_distance(self, other: Cap) -> f64 {
         self.center.vector().angle(other.center.vector()).radians()
+    }
+}
+
+/// The spherical cap as a cross-space [`PointRegion`] — the S2 instance of the
+/// bounding-volume abstraction (alongside `Interval`/`Sector`/`Rect`/`Ellipse`).
+/// Membership is the `acos`-free dot test, proof-backed by `riemann`
+/// `Hausdorff/SphereCap.inCap_iff_dot`.
+impl PointRegion for Cap {
+    type Point = S2Point;
+
+    #[inline]
+    fn contains(&self, p: S2Point) -> bool {
+        Cap::contains_point(*self, p)
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        Cap::is_empty(*self)
+    }
+}
+
+/// Cap–cap pruning: far-apart centres share no point, so the pair prunes —
+/// proof-backed by `riemann` `Hausdorff/SphereCap.caps_disjoint_of_far`.
+impl Prunable for Cap {
+    #[inline]
+    fn intersects(&self, other: &Self) -> bool {
+        Cap::intersects(*self, *other)
+    }
+}
+
+#[cfg(test)]
+mod region_tests {
+    use super::*;
+    use hausdorff_planar::algebra::{PointRegion, disjoint, filter_contained};
+
+    fn pt(x: f64, y: f64, z: f64) -> S2Point {
+        S2Point::from_vector(hausdorff_base::space::r3::Vector::new(x, y, z).normalize())
+    }
+
+    #[test]
+    fn cap_is_a_point_region_with_pruning() {
+        let north = pt(0.0, 0.0, 1.0);
+        let cap = Cap::from_center_angle(north, Angle::from_degrees(30.0));
+        // Membership (inCap_iff_dot): the pole is in, the equator is out.
+        assert!(PointRegion::contains(&cap, north));
+        assert!(!PointRegion::contains(&cap, pt(1.0, 0.0, 0.0)));
+        assert!(!PointRegion::is_empty(&cap));
+        assert!(PointRegion::is_empty(&Cap::empty(north)));
+        // Pruning (caps_disjoint_of_far): a far cap is provably disjoint.
+        let near = Cap::from_center_angle(pt(0.2, 0.0, 1.0), Angle::from_degrees(30.0));
+        let far = Cap::from_center_angle(pt(1.0, 0.0, 0.0), Angle::from_degrees(30.0));
+        assert!(!disjoint(&cap, &near));
+        assert!(disjoint(&cap, &far));
+        // The generic filter works on the sphere too.
+        let pts = [north, pt(0.1, 0.1, 1.0), pt(1.0, 0.0, 0.0)];
+        assert_eq!(filter_contained(&cap, &pts).len(), 2);
     }
 }

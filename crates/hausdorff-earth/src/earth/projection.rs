@@ -25,9 +25,16 @@
 use std::f64::consts::PI;
 
 use crate::earth::GeoPoint;
+use hausdorff_base::earth::{Enu, EnuFrame};
 use hausdorff_planar::space::r2::{Coord, MapCoords};
 
 pub use crate::earth::ellipsoid::Ellipsoid;
+
+mod families;
+pub use families::{AlbersEqualArea, LambertConformalConic, LocalTangentPlane, PolarStereographic};
+
+#[cfg(test)]
+mod tests;
 
 /// A map projection: geographic ↔ projected planar metres.
 pub trait Projection {
@@ -94,15 +101,18 @@ impl WebMercator {
 
 impl Projection for WebMercator {
     fn project(&self, p: GeoPoint) -> Coord {
-        Coord::new(
-            self.radius * p.lon.to_radians(),
-            self.radius * (PI / 4.0 + p.lat.to_radians() / 2.0).tan().ln(),
-        )
+        // y = R·ψ(φ), ψ the isometric latitude `log((1 + sinφ)/cosφ)` — the
+        // exact spherical-Mercator form, `riemann` `Hausdorff/Rhumb.isoLat`.
+        let (s, c) = p.lat.to_radians().sin_cos();
+        Coord::new(self.radius * p.lon.to_radians(), self.radius * ((1.0 + s) / c).ln())
     }
 
     fn inverse(&self, c: Coord) -> GeoPoint {
+        // φ = arcsin(tanh(y/R)) — the **provably exact** inverse (`riemann`
+        // `Hausdorff/Mercator.mercator_inverse`: forward∘inverse = id), since
+        // `tanh(ψ(φ)) = sinφ` (`Rhumb.tanh_isoLat`).
         GeoPoint::from_lat_lon(
-            (2.0 * (c.y / self.radius).exp().atan() - PI / 2.0).to_degrees(),
+            (c.y / self.radius).tanh().asin().to_degrees(),
             (c.x / self.radius).to_degrees(),
         )
     }
@@ -117,6 +127,10 @@ pub struct TransverseMercator {
     pub ellipsoid: Ellipsoid,
     /// Central meridian, degrees.
     pub central_meridian: f64,
+    /// Latitude of natural origin, degrees — the parallel northings are measured
+    /// from. UTM uses the equator (`0.0`); national grids (e.g. the British
+    /// National Grid at 49°N) use a non-zero origin.
+    pub lat_origin: f64,
     /// Scale factor on the central meridian.
     pub k0: f64,
     pub false_easting: f64,
@@ -140,6 +154,7 @@ impl TransverseMercator {
         Self {
             ellipsoid: Ellipsoid::WGS84,
             central_meridian: f64::from(i32::from(zone) * 6 - 183),
+            lat_origin: 0.0,
             k0: 0.9996,
             false_easting: 500_000.0,
             false_northing: if north { 0.0 } else { 10_000_000.0 },
@@ -168,7 +183,7 @@ impl Projection for TransverseMercator {
         let t = tphi * tphi;
         let c = ep2 * cphi * cphi;
         let aa = (p.lon - self.central_meridian).to_radians() * cphi;
-        let m = meridian_arc(phi, a, e2);
+        let m = meridian_arc(phi, a, e2) - meridian_arc(self.lat_origin.to_radians(), a, e2);
 
         let easting = self.false_easting
             + self.k0
@@ -195,7 +210,7 @@ impl Projection for TransverseMercator {
         let x = coord.x - self.false_easting;
         let y = coord.y - self.false_northing;
 
-        let m = y / self.k0;
+        let m = meridian_arc(self.lat_origin.to_radians(), a, e2) + y / self.k0;
         let mu = m / (a * (1.0 - e2 / 4.0 - 3.0 * e2 * e2 / 64.0 - 5.0 * e2.powi(3) / 256.0));
         let e1 = (1.0 - (1.0 - e2).sqrt()) / (1.0 + (1.0 - e2).sqrt());
         let phi1 = mu
@@ -274,6 +289,81 @@ impl Utm {
     }
 }
 
+// ---- Shared ellipsoidal-projection helpers (Snyder PP1395) ----
+
+/// The conformal-latitude function `t = tan(π/4 − φ/2) / [(1 − e sinφ)/(1 + e
+/// sinφ)]^{e/2}` (Snyder 15-9) — the isometric-latitude building block of the
+/// conformal conic / stereographic projections.
+fn conformal_t(phi: f64, e: f64) -> f64 {
+    let es = e * phi.sin();
+    (PI / 4.0 - phi / 2.0).tan() / ((1.0 - es) / (1.0 + es)).powf(e / 2.0)
+}
+
+/// `m = cosφ / √(1 − e² sin²φ)` (Snyder 14-15) — the radius of the parallel
+/// scaled to the unit sphere; the prime-vertical-radius factor.
+fn m_factor(phi: f64, e: f64) -> f64 {
+    let s = phi.sin();
+    phi.cos() / (1.0 - e * e * s * s).sqrt()
+}
+
+/// Invert the conformal latitude `t` back to geodetic latitude by Snyder's
+/// fixed-point iteration (7-9); converges in a few rounds for any terrestrial
+/// latitude. Its `e → 0` (spherical) limit is the **exact** closed form
+/// `φ = π/2 − 2·arctan(t)`, proof-backed by `riemann`
+/// `Hausdorff/Stereographic.conformalLat_inverse`.
+fn lat_from_conformal_t(t: f64, e: f64) -> f64 {
+    let mut phi = std::f64::consts::FRAC_PI_2 - 2.0 * t.atan();
+    for _ in 0..15 {
+        let es = e * phi.sin();
+        let next =
+            std::f64::consts::FRAC_PI_2 - 2.0 * (t * ((1.0 - es) / (1.0 + es)).powf(e / 2.0)).atan();
+        if (next - phi).abs() < 1e-14 {
+            return next;
+        }
+        phi = next;
+    }
+    phi
+}
+
+
+/// A **conformal** (angle-preserving) projection — a property defined through the
+/// trait: at every point the scale factor is the *same in all directions*
+/// (isotropic), so local shapes and angles are preserved (at the cost of area).
+/// [`point_scale`](Self::point_scale) is that single factor. Mercator, the
+/// conformal conics, and the stereographic projections are conformal; equal-area
+/// projections (Albers) are not.
+pub trait ConformalProjection: Projection {
+    /// The **isotropic point scale factor** at geodetic latitude `lat_deg`: the
+    /// local ratio of projected distance to true distance, equal along the
+    /// meridian and the parallel (that equality *is* conformality).
+    fn point_scale(&self, lat_deg: f64) -> f64;
+}
+
+impl ConformalProjection for WebMercator {
+    /// `sec φ = 1/cos φ` — **proof-backed** by `riemann`
+    /// `Hausdorff/Mercator.mercator_point_scale` (`cosh ψ = 1/cos φ`, identical
+    /// along meridians and parallels).
+    fn point_scale(&self, lat_deg: f64) -> f64 {
+        1.0 / lat_deg.to_radians().cos()
+    }
+}
+
+
+/// An **equal-area** (area-preserving) projection — the property, defined through
+/// the trait, that every region maps to a region of *proportional* area (a
+/// constant area scale). It is the conjugate of conformality: an equal-area map
+/// preserves areas at the cost of angles. Albers Equal-Area is the instance here;
+/// the authalic latitude `q` is exactly what makes its Jacobian area-preserving.
+pub trait EqualAreaProjection: Projection {
+    /// The constant **area scale factor** (projected area ÷ true area) the
+    /// projection holds fixed — `1` for a true-scale equal-area map.
+    fn area_scale(&self) -> f64 {
+        1.0
+    }
+}
+
+impl EqualAreaProjection for AlbersEqualArea {}
+
 /// Meridian arc length from the equator to latitude `phi` on the ellipsoid.
 fn meridian_arc(phi: f64, a: f64, e2: f64) -> f64 {
     a * ((1.0 - e2 / 4.0 - 3.0 * e2 * e2 / 64.0 - 5.0 * e2.powi(3) / 256.0) * phi
@@ -281,3 +371,4 @@ fn meridian_arc(phi: f64, a: f64, e2: f64) -> f64 {
         + (15.0 * e2 * e2 / 256.0 + 45.0 * e2.powi(3) / 1024.0) * (4.0 * phi).sin()
         - (35.0 * e2.powi(3) / 3072.0) * (6.0 * phi).sin())
 }
+

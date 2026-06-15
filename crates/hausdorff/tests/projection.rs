@@ -156,6 +156,7 @@ fn projection_is_ellipsoid_flexible() {
     let wgs84 = TransverseMercator {
         ellipsoid: Ellipsoid::WGS84,
         central_meridian: 0.0,
+        lat_origin: 0.0,
         k0: 0.9996,
         false_easting: 500_000.0,
         false_northing: 0.0,

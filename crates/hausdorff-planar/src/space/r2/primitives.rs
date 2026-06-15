@@ -140,6 +140,20 @@ impl Rect {
             && coord.y <= self.max.y
     }
 
+    /// True iff this rectangle and `other` overlap — share any point, edges
+    /// inclusive — by the per-axis interval-overlap test. A non-overlapping pair
+    /// shares no point, so a spatial index may prune it: proof-backed by `riemann`
+    /// `ExactArith/AABB.overlaps_of_mem` (a shared point forces an overlap) and
+    /// `prune_sound` (the R-tree pruning soundness it underwrites).
+    #[inline]
+    #[must_use]
+    pub fn overlaps(self, other: Rect) -> bool {
+        self.min.x <= other.max.x
+            && other.min.x <= self.max.x
+            && self.min.y <= other.max.y
+            && other.min.y <= self.max.y
+    }
+
     /// This rectangle as a closed, counter-clockwise [`Polygon`].
     #[must_use]
     pub fn to_polygon(self) -> Polygon {
