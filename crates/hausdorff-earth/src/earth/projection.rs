@@ -316,6 +316,14 @@ pub trait ConformalProjection: Projection {
     /// The **isotropic point scale factor** at geodetic latitude `lat_deg`: the
     /// local ratio of projected distance to true distance, equal along the
     /// meridian and the parallel (that equality *is* conformality).
+    ///
+    /// The meridian = parallel scale equality is **proof-backed at the Jacobian
+    /// level** (not just the scale value) by `riemann`: the keystone
+    /// `Hausdorff/Rhumb.hasDerivAt_isoLat` (`dψ/dφ = sec φ`) gives
+    /// `Hausdorff/Mercator.mercator_conformal` (Web Mercator's two principal scale
+    /// factors, from the actual partial derivatives, are equal) and its mirror
+    /// `Hausdorff/Stereographic.{hasDerivAt_log_conformalT, stereographic_conformal}`
+    /// for the stereographic / conformal-conic family.
     fn point_scale(&self, lat_deg: f64) -> f64;
 }
 

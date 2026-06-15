@@ -1,5 +1,13 @@
 //! Planar [`ConvexHull`] via Andrew's monotone chain, mirroring `geo`'s
 //! `ConvexHull` trait. Returns a closed, counter-clockwise [`Polygon`].
+//!
+//! **Minimality is proof-backed** by `riemann` `ExactArith/ConvexHull`: the hull
+//! is the *smallest* convex set containing the input vertices
+//! (`inHull_minimal` — any convex region containing the points contains the whole
+//! hull; `inHull_subset_leftOfAll` at the half-plane region). That universal
+//! property is the correct statement: the naïve "all left turns ⟹ convex" is
+//! false without simplicity (a pentagram turns left at every vertex yet is not
+//! convex), which is why the chain algorithm discards reflex/collinear vertices.
 
 use super::{Coord, LineString, MultiPoint, MultiPolygon, Polygon};
 
