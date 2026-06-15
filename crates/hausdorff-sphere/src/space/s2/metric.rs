@@ -17,8 +17,10 @@
 //! great-circle distance is a *genuine* metric: `sphereDist` is Mathlib's
 //! `angle`, with `sphereDist_comm` (symmetry), `sphereDist_triangle` (the
 //! triangle inequality — the geometric heart), `sphereDist_nonneg`,
-//! `sphereDist_self` (self-distance zero), `sphereDist_le_pi`, and
-//! `cos_sphereDist_unit` (`cos dist = p·q`).
+//! `sphereDist_self` (self-distance zero), `sphereDist_eq_zero_iff` (identity of
+//! indiscernibles — `dist = 0` *iff* the points coincide, the separation axiom,
+//! with `sphereDist_pos_of_ne` its positive-definite form), `sphereDist_le_pi`,
+//! and `cos_sphereDist_unit` (`cos dist = p·q`).
 
 use hausdorff_planar::space::r2::Distance;
 
