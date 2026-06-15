@@ -81,3 +81,108 @@ pub fn left_of_all<O: Orientation>(vertices: &[O], p: O) -> bool {
     let n = vertices.len();
     n >= 3 && (0..n).all(|i| O::orient(vertices[i], vertices[(i + 1) % n], p) > 0.0)
 }
+
+/// **Convexity classification** of a closed vertex ring, generic over any
+/// [`Orientation`] space: `Some(+1.0)` if every vertex turns left
+/// (counter-clockwise), `Some(−1.0)` if every vertex turns right (clockwise),
+/// and `None` if the turns disagree (a reflex vertex — non-convex) or the ring is
+/// degenerate (`< 3` vertices, or every triple collinear). Collinear (zero) turns
+/// are tolerated as long as the nonzero turns all share a sign.
+///
+/// The "inner side of every edge" region of a consistently-wound ring is convex —
+/// proved once generically in `riemann` (`OrientGeom.leftOfAll_convex`; planar
+/// `leftOfAllStrict_convex`, spherical `sphereInPolygon_convex`). So this
+/// classifies exactly the rings on which [`left_of_all`] / [`contains_convex`] are
+/// valid, and the sign is the winding direction those tests must be read with.
+///
+/// **Precondition — simplicity.** For a *simple* (non-self-intersecting) ring,
+/// consistent turn signs is equivalent to convexity. A self-intersecting ring can
+/// have consistent turns yet not be convex — a pentagram turns the same way at
+/// every vertex but winds *twice* (`riemann` notes this for the convex hull, and
+/// it is why `Hausdorff/WindingNumber`'s per-edge argument is sound only for
+/// `n ≤ 4` without a monotone-turning hypothesis). Callers must ensure the ring is
+/// simple; OSM/GeoJSON rings are.
+#[must_use]
+pub fn convex_winding<O: Orientation>(vertices: &[O]) -> Option<f64> {
+    let n = vertices.len();
+    if n < 3 {
+        return None;
+    }
+    let mut pos = false;
+    let mut neg = false;
+    for i in 0..n {
+        let turn = O::orient(vertices[i], vertices[(i + 1) % n], vertices[(i + 2) % n]);
+        if turn > 0.0 {
+            pos = true;
+        } else if turn < 0.0 {
+            neg = true;
+        }
+        if pos && neg {
+            return None;
+        }
+    }
+    if pos {
+        Some(1.0)
+    } else if neg {
+        Some(-1.0)
+    } else {
+        None
+    }
+}
+
+/// True iff the closed vertex ring is a non-degenerate **convex** polygon — every
+/// vertex turns the same way. The convenience wrapper over [`convex_winding`].
+#[must_use]
+pub fn is_convex_ring<O: Orientation>(vertices: &[O]) -> bool {
+    convex_winding(vertices).is_some()
+}
+
+/// **O(log n) point-in-convex-polygon**, generic over any [`Orientation`] space —
+/// the logarithmic companion to the O(n) [`left_of_all`].
+///
+/// `ccw` must be a **counter-clockwise convex** ring with `≥ 3` vertices and no
+/// repeated closing vertex (e.g. validated via [`convex_winding`] `== Some(1.0)`).
+/// Because its vertices are sorted by angle about the apex `ccw[0]`, a binary
+/// search locates the fan triangle whose angular wedge holds `p`
+/// (`orient(ccw[0], ccw[mid], p)` is monotone in `mid`), after which one
+/// orientation test against that triangle's far edge decides membership. It
+/// computes the *same* predicate as `left_of_all` (strictly inside ⇔ left of every
+/// edge — `riemann` `sphereInPolygon_hemispheres` / planar `leftOfAllStrict`) in
+/// `O(log n)` rather than `O(n)`. Points exactly on the boundary are not
+/// guaranteed either way. A non-CCW or non-convex ring gives meaningless results.
+///
+/// That left-of-every-edge predicate is proved to **coincide with the topological
+/// winding number** on small convex polygons: `riemann`
+/// `Hausdorff/WindingNumber.{windingNumber_triangle_interior,
+/// windingNumber_quadrilateral_interior}` show a point left of every edge of a CCW
+/// triangle / quadrilateral has winding number `1`. So containment here is
+/// machine-checked (not only differential-tested) on the dominant small-polygon
+/// cases — including the OSM rectangle / building-footprint quads. The general-`n`
+/// monotone-turning lemma `windingNumber_eq_one_of_total_lt_three_pi` lifts this
+/// to all convex polygons (winding `1` whenever total turning `< 3π`, which a
+/// convex interior point's `2π` satisfies — ruling out the pentagram's double
+/// wind, the reason per-edge `leftOfAll` alone is insufficient for `n ≥ 5`).
+#[must_use]
+pub fn contains_convex<O: Orientation>(ccw: &[O], p: O) -> bool {
+    let n = ccw.len();
+    if n < 3 {
+        return false;
+    }
+    // Quick reject outside the apex wedge: p must be left of the first edge
+    // ccw[0]→ccw[1] and right of the apex ray ccw[0]→ccw[n−1].
+    if O::orient(ccw[0], ccw[1], p) <= 0.0 || O::orient(ccw[0], ccw[n - 1], p) >= 0.0 {
+        return false;
+    }
+    let mut lo = 1;
+    let mut hi = n - 1;
+    while hi - lo > 1 {
+        let mid = lo.midpoint(hi);
+        if O::orient(ccw[0], ccw[mid], p) > 0.0 {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    // Inside iff strictly left of the wedge's far edge ccw[lo]→ccw[hi].
+    O::orient(ccw[lo], ccw[hi], p) > 0.0
+}

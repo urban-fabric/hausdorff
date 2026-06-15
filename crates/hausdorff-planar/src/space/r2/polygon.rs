@@ -3,6 +3,9 @@
 
 use serde::{Deserialize, Serialize};
 
+use hausdorff_geometry_traits::is_convex_ring;
+
+use super::util::ring_vertices;
 use super::{LineString, Point};
 
 /// A polygon: one exterior ring plus zero or more interior rings (holes). Rings
@@ -51,6 +54,25 @@ impl Polygon {
     #[must_use]
     pub fn into_inner(self) -> (LineString, Vec<LineString>) {
         (self.exterior, self.interiors)
+    }
+
+    /// True iff this polygon is **convex** — it has no holes and its exterior ring
+    /// is a convex polygon (every vertex turns the same way). A convex polygon
+    /// that *happens* to be one (e.g. a triangle or box read from data) is
+    /// detected here so the convex fast paths apply; for a compile-time guarantee
+    /// and the convex-only algorithms (O(log n) containment), upgrade with
+    /// [`ConvexPolygon::from_polygon`](super::ConvexPolygon::from_polygon).
+    ///
+    /// The consistent-turn-sign test is the generic [`Orientation`] convexity
+    /// classifier, proof-backed by `riemann`
+    /// `Geometry/Orientation.OrientGeom.leftOfAll_convex` (planar
+    /// `leftOfAllStrict_convex`): a consistently-wound ring's left-of-every-edge
+    /// region is convex.
+    ///
+    /// [`Orientation`]: crate::algebra::Orientation
+    #[must_use]
+    pub fn is_convex(&self) -> bool {
+        self.interiors.is_empty() && is_convex_ring(ring_vertices(&self.exterior.0))
     }
 }
 

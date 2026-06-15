@@ -31,7 +31,10 @@ pub mod simplex;
 pub mod vector;
 
 pub use interpolate::{Interpolate, sample};
-pub use orientation::{Orientation, in_triangle, is_collinear, left_of_all};
+pub use orientation::{
+    Orientation, contains_convex, convex_winding, in_triangle, is_collinear, is_convex_ring,
+    left_of_all,
+};
 pub use region::{
     PointRegion, Prunable, any_contained, count_contained, disjoint, filter_contained,
 };
