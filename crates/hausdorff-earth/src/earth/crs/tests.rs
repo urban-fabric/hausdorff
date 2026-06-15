@@ -234,3 +234,92 @@ fn helmert_apply_inverse_round_trips() {
     // The identity is a no-op.
     assert_eq!(Helmert::IDENTITY.apply(p), p);
 }
+
+#[test]
+fn broadened_registry_recognises_the_new_codes() {
+    // Geographic bases on GRS80 (NAD83 / ETRS89).
+    for code in [4269_u32, 4258] {
+        assert!(matches!(Crs::from_epsg(code), Some(Crs::Geographic { .. })));
+        assert_eq!(Crs::from_epsg(code).unwrap().epsg(), Some(code));
+        assert_eq!(Crs::from_epsg(code).unwrap().datum().ellipsoid, Ellipsoid::GRS80);
+    }
+    // A projected representative from every new family, by EPSG code.
+    for code in [
+        25_828_u32, 25_838, 26_901, 26_923, 28_348, 28_358, 2193, 2180, 3978, 3577, 3413, 3976,
+    ] {
+        let crs = Crs::from_epsg(code).unwrap_or_else(|| panic!("EPSG:{code} unrecognised"));
+        assert!(matches!(crs, Crs::Projected { .. }), "EPSG:{code} should be projected");
+        assert_eq!(crs.epsg(), Some(code));
+    }
+    // Zone ranges are bounded — one past each end is not recognised.
+    assert_eq!(Crs::from_epsg(25_827), None);
+    assert_eq!(Crs::from_epsg(25_839), None);
+    assert_eq!(Crs::from_epsg(28_347), None);
+    assert_eq!(Crs::from_epsg(28_359), None);
+}
+
+#[test]
+fn new_projected_crses_round_trip_through_the_registry() {
+    let wgs84 = Crs::wgs84();
+    // (code, an in-area lat/lon): WGS84 geographic → CRS → back is the identity.
+    for (code, lat, lon) in [
+        (25_828_u32, 28.1, -15.4),  // ETRS89 / UTM 28N (Canaries)
+        (26_923, 45.0, -45.0),      // NAD83 / UTM 23N
+        (28_356, -33.87, 151.21),   // GDA94 / MGA 56 (Sydney)
+        (2193, -41.29, 174.78),     // NZTM2000 (Wellington)
+        (2180, 52.23, 21.01),       // ETRS89 / Poland CS92 (Warsaw)
+        (3978, 60.0, -95.0),        // Canada Atlas Lambert
+        (3577, -25.0, 133.0),       // Australian Albers
+        (3413, 75.0, -40.0),        // NSIDC Polar Stereographic North
+        (3976, -75.0, 0.0),         // NSIDC Polar Stereographic South
+    ] {
+        let crs = Crs::from_epsg(code).unwrap();
+        let p = GeoPoint::from_lat_lon(lat, lon);
+        let proj = transform(wgs84, crs, CrsCoord::Geographic(p));
+        assert!(matches!(proj, CrsCoord::Projected(_)), "EPSG:{code} is projected");
+        let back = transform(crs, wgs84, proj).geographic();
+        assert!(
+            approx(back.lat, lat, 1e-6) && approx(back.lon, lon, 1e-6),
+            "EPSG:{code} round-trip: back=({}, {}) dlat={:e} dlon={:e}",
+            back.lat,
+            back.lon,
+            back.lat - lat,
+            back.lon - lon
+        );
+    }
+}
+
+#[test]
+fn area_of_use_bounds_and_containment() {
+    // A UTM zone's area of use is its 6° band (zone 30N: lon −6..0, lat 0..84).
+    let utm30n = Crs::from_epsg(32_630).unwrap();
+    let band = utm30n.area_of_use().unwrap();
+    assert_eq!((band.min_lon, band.max_lon, band.min_lat, band.max_lat), (-6.0, 0.0, 0.0, 84.0));
+    assert!(utm30n.contains(GeoPoint::from_lat_lon(51.5, -0.1))); // London, in band
+    assert!(!utm30n.contains(GeoPoint::from_lat_lon(51.5, 50.0))); // far east, out
+    assert!(!utm30n.contains(GeoPoint::from_lat_lon(-5.0, -3.0))); // south of equator, out
+
+    // A southern MGA zone bands into the southern hemisphere (lat −80..0).
+    let mga56 = Crs::from_epsg(28_356).unwrap().area_of_use().unwrap();
+    assert_eq!((mga56.min_lat, mga56.max_lat), (-80.0, 0.0));
+
+    // An antimeridian-wrapping geographic extent (NAD83: lon 167.65 → −40.73).
+    let nad83 = Crs::from_epsg(4269).unwrap();
+    let aou = nad83.area_of_use().unwrap();
+    assert!(aou.min_lon > aou.max_lon, "NAD83 area of use wraps the antimeridian");
+    assert!(nad83.contains(GeoPoint::from_lat_lon(45.0, -100.0))); // CONUS (west side)
+    assert!(nad83.contains(GeoPoint::from_lat_lon(52.0, 175.0))); // Aleutians (east side)
+    assert!(!nad83.contains(GeoPoint::from_lat_lon(50.0, 10.0))); // Europe, outside the wrap
+
+    // Polar CRSes guard on latitude.
+    let nsidc_north = Crs::from_epsg(3413).unwrap();
+    assert!(nsidc_north.contains(GeoPoint::from_lat_lon(75.0, -40.0)));
+    assert!(!nsidc_north.contains(GeoPoint::from_lat_lon(40.0, -40.0)));
+
+    // A codeless CRS has no declared area of use: it contains every finite point
+    // but rejects non-finite ones.
+    let local = Crs::local_tangent_plane(GeoPoint::from_lat_lon(52.0, 10.0));
+    assert_eq!(local.area_of_use(), None);
+    assert!(local.contains(GeoPoint::from_lat_lon(0.0, 0.0)));
+    assert!(!local.contains(GeoPoint::from_lat_lon(f64::NAN, 0.0)));
+}
