@@ -1,4 +1,5 @@
 use super::*;
+use std::f64::consts::PI;
 
 /// Clarke 1866, the ellipsoid of Snyder's worked numerical examples.
 fn clarke1866() -> Ellipsoid {
