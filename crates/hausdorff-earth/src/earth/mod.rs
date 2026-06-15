@@ -20,10 +20,14 @@ pub mod gridshift;
 /// The planet-flexible metric layer: arc lengths and areas on a sphere of a
 /// chosen radius ([`sphere::Sphere`]), generalizing this layer's fixed radius.
 pub mod sphere;
+/// WGS84 polygons measured natively on the curved Earth ([`polygon::GeoPolygon`] /
+/// [`polygon::GeoMultiPolygon`]) — exact area / perimeter, no projection.
+pub mod polygon;
 
 pub use hausdorff_base::earth::*;
 
 pub use batch::LonLatBatch;
+pub use polygon::{GeoMultiPolygon, GeoPolygon};
 pub use similarity::{
     directed_hausdorff_m, frechet_distance, frechet_distance_m, hausdorff_distance,
     hausdorff_distance_m,
