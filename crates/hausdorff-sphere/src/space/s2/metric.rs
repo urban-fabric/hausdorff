@@ -19,7 +19,9 @@
 //! triangle inequality — the geometric heart), `sphereDist_nonneg`,
 //! `sphereDist_self` (self-distance zero), `sphereDist_eq_zero_iff` (identity of
 //! indiscernibles — `dist = 0` *iff* the points coincide, the separation axiom,
-//! with `sphereDist_pos_of_ne` its positive-definite form), `sphereDist_le_pi`,
+//! with `sphereDist_pos_of_ne` its positive-definite form), `sphereDist_le_pi`
+//! (with `sphereDist_eq_pi_iff` pinning the maximum: `dist = π` *iff* the points
+//! are antipodal — so both extremes are characterized, `0`↔equal and `π`↔antipodal),
 //! and `cos_sphereDist_unit` (`cos dist = p·q`).
 
 use hausdorff_planar::space::r2::Distance;
