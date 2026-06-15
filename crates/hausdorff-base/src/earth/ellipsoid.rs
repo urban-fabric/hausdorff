@@ -152,6 +152,67 @@ impl Ellipsoid {
         GeodesicLine { kernel }
     }
 
+    /// **Clairaut's constant** of the geodesic leaving `point` on compass
+    /// `bearing` — the conserved quantity `ρ · sin α` (metres), where
+    /// `ρ = N(φ)·cos φ` is the radius of the parallel of latitude (`N` the
+    /// [prime-vertical radius](Self::prime_vertical_radius)) and `α` is the
+    /// azimuth. On a *surface of revolution* the first fundamental form is
+    /// independent of longitude (`G = ρ²`, no `λ`), so this quantity is invariant
+    /// along the entire geodesic — the structural law the Karney inverse/direct
+    /// solvers ride. (The geodesic length/area integrals themselves stay runtime
+    /// series; only the invariant is structural.)
+    ///
+    /// Equivalently `ρ = a·cos β` for the reduced latitude `β`
+    /// ([`reduced_latitude`](Self::reduced_latitude)), so the dimensionless
+    /// **auxiliary-sphere** form is `cos β · sin α = sin α₀`
+    /// ([`clairaut_sin_alpha0`](Self::clairaut_sin_alpha0)) — the sine of the
+    /// azimuth where the geodesic crosses the equator, the Karney/Vincenty
+    /// reduction variable.
+    ///
+    /// Backed by `riemann` `Hausdorff/Spheroid.parallel_normSq` (`G = ρ²`, the
+    /// λ-independence behind the conservation) and
+    /// `Hausdorff/Geodetic.parallel_radius_reduced` (`a cos β = N cos φ` — the
+    /// auxiliary-sphere reduction, *derived* from the latitude relations). The
+    /// conservation itself (`d/ds` of this is zero along a geodesic) is the open
+    /// riemann follow-up.
+    #[must_use]
+    pub fn clairaut_constant(self, point: GeoPoint, bearing: Bearing) -> f64 {
+        let rho = self.prime_vertical_radius(point.lat) * point.lat.to_radians().cos(); // ρ = N cos φ
+        rho * bearing.radians().sin()
+    }
+
+    /// The dimensionless **auxiliary-sphere Clairaut constant** `cos β · sin α` of
+    /// the geodesic leaving `point` on `bearing` — equal to
+    /// [`clairaut_constant`](Self::clairaut_constant)` / a`, and to `sin α₀`, the
+    /// sine of the geodesic's azimuth at its equator crossing. Invariant along the
+    /// whole geodesic (Karney's `sin α₀`); `reduced_latitude` (`β`) is proved by
+    /// `riemann` `Hausdorff/Geodetic.reduced_tan_of_geodetic`.
+    #[must_use]
+    pub fn clairaut_sin_alpha0(self, point: GeoPoint, bearing: Bearing) -> f64 {
+        let beta = self.reduced_latitude(point.lat).to_radians();
+        beta.cos() * bearing.radians().sin()
+    }
+
+    /// The **vertex latitude** of the geodesic leaving `point` on `bearing` — the
+    /// maximum geodetic latitude `|φ|` it attains (its northernmost / southernmost
+    /// turning point), where the geodesic runs due east–west (`α = 90°`).
+    ///
+    /// A direct consequence of Clairaut's relation: the conserved
+    /// [`clairaut_sin_alpha0`](Self::clairaut_sin_alpha0) `= cos β · sin α` equals
+    /// `cos β_max` at the vertex (`sin α = 1`), so the *reduced* vertex latitude is
+    /// `β_max = acos|sin α₀|` and the geodetic one is
+    /// [`geodetic_from_reduced(β_max)`](Self::geodetic_from_reduced). The
+    /// ellipsoidal analog of the spherical
+    /// [`GreatCircle::northernmost_latitude`](https://docs.rs/hausdorff) (`riemann`
+    /// `Hausdorff/Clairaut.latitude_le_sqrt`); a meridian (`α₀ = 0`) reaches the
+    /// pole, the equator (`|α₀| = 90°`) stays at `0`.
+    #[must_use]
+    pub fn geodesic_vertex_latitude(self, point: GeoPoint, bearing: Bearing) -> f64 {
+        let sin_a0 = self.clairaut_sin_alpha0(point, bearing).abs().min(1.0);
+        let beta_max = sin_a0.acos().to_degrees(); // reduced latitude at the vertex
+        self.geodetic_from_reduced(beta_max)
+    }
+
     /// Geodesic perimeter (metres) and **signed** area (m²,
     /// counter-clockwise positive) of the polygon ring through `ring`'s
     /// vertices — Karney's ellipsoidal polygon area, exact to round-off where
@@ -257,5 +318,102 @@ impl GeodesicLine {
     #[must_use]
     pub fn position(&self, distance: LengthMeters) -> GeodesicDirect {
         self.position_m(distance.as_meters())
+    }
+}
+
+#[cfg(test)]
+mod clairaut_tests {
+    use super::*;
+
+    #[test]
+    fn constant_is_invariant_along_a_geodesic() {
+        // Clairaut's relation: ρ·sin α is conserved along the whole geodesic.
+        // Verify it numerically against the Karney solver — the runtime invariant.
+        let e = Ellipsoid::WGS84;
+        let start = GeoPoint::from_lat_lon(40.0, -75.0);
+        let az = Bearing::from_degrees(63.0);
+        let line = e.line(start, az);
+        let c0 = e.clairaut_constant(start, az);
+        for km in (500..=9000).step_by(500) {
+            let gd = line.position_m(f64::from(km) * 1000.0);
+            let c = e.clairaut_constant(gd.point, gd.final_bearing);
+            // ρ ~ 6.4e6 m; the constant holds to well under a millimetre.
+            assert!((c - c0).abs() < 1e-3, "at {km} km: clairaut {c} vs {c0}");
+        }
+    }
+
+    #[test]
+    fn auxiliary_sphere_form_matches() {
+        // cos β · sin α == (ρ sin α) / a — the auxiliary-sphere reduction.
+        let e = Ellipsoid::WGS84;
+        let p = GeoPoint::from_lat_lon(35.0, 12.0);
+        let az = Bearing::from_degrees(48.0);
+        assert!((e.clairaut_sin_alpha0(p, az) - e.clairaut_constant(p, az) / e.a).abs() < 1e-12);
+        // On a sphere β = φ, so the two reductions coincide there.
+        let s = Ellipsoid::SPHERE;
+        assert!(
+            (s.clairaut_sin_alpha0(p, az) - p.lat.to_radians().cos() * az.radians().sin()).abs()
+                < 1e-12
+        );
+    }
+
+    #[test]
+    fn meridian_and_equator_are_degenerate_geodesics() {
+        let e = Ellipsoid::WGS84;
+        // Due north (α = 0): the meridian is a geodesic with Clairaut constant 0.
+        let north =
+            e.clairaut_constant(GeoPoint::from_lat_lon(20.0, 5.0), Bearing::from_degrees(0.0));
+        assert!(north.abs() < 1e-9);
+        // Due east at the equator (α = 90°, φ = 0): the equator is a geodesic,
+        // Clairaut constant = a (ρ = N = a there), and it stays a downrange.
+        let eq = GeoPoint::from_lat_lon(0.0, 0.0);
+        let east = Bearing::from_degrees(90.0);
+        assert!((e.clairaut_constant(eq, east) - e.a).abs() < 1e-6);
+        let gd = e.line(eq, east).position_m(3_000_000.0);
+        assert!((e.clairaut_constant(gd.point, gd.final_bearing) - e.a).abs() < 1e-3);
+    }
+
+    #[test]
+    fn vertex_latitude_matches_clairaut_and_sampling() {
+        let e = Ellipsoid::WGS84;
+        let start = GeoPoint::from_lat_lon(0.0, 0.0);
+        let az = Bearing::from_degrees(45.0);
+        let phi_max = e.geodesic_vertex_latitude(start, az);
+        // Geodetic exceeds reduced, so a 45° equatorial launch tops out just above 45°.
+        assert!(phi_max > 45.0 && phi_max < 45.3, "phi_max = {phi_max}");
+        // Exact Clairaut check: ρ·sin α at the vertex (φ_max, due east) equals the
+        // launch constant.
+        let c0 = e.clairaut_constant(start, az);
+        let c_vertex = e.clairaut_constant(
+            GeoPoint::from_lat_lon(phi_max, 0.0),
+            Bearing::from_degrees(90.0),
+        );
+        assert!((c_vertex - c0).abs() < 1e-6, "{c_vertex} vs {c0}");
+        // Sampling: the geodesic never exceeds the vertex, and a fine walk reaches it.
+        let line = e.line(start, az);
+        let mut sampled_max = f64::MIN;
+        for km in (0..=12_000).step_by(50) {
+            let lat = line.point_m(f64::from(km) * 1000.0).lat;
+            sampled_max = sampled_max.max(lat);
+            assert!(lat <= phi_max + 1e-6, "lat {lat} exceeds vertex {phi_max}");
+        }
+        assert!((phi_max - sampled_max).abs() < 0.02, "sampled {sampled_max} vs {phi_max}");
+    }
+
+    #[test]
+    fn meridian_reaches_the_pole_equator_stays() {
+        let e = Ellipsoid::WGS84;
+        // Due north → a meridian → reaches the pole (vertex latitude 90°).
+        let pole = e.geodesic_vertex_latitude(
+            GeoPoint::from_lat_lon(10.0, 20.0),
+            Bearing::from_degrees(0.0),
+        );
+        assert!((pole - 90.0).abs() < 1e-6, "{pole}");
+        // Due east at the equator → the equator → vertex latitude 0.
+        let eq = e.geodesic_vertex_latitude(
+            GeoPoint::from_lat_lon(0.0, 0.0),
+            Bearing::from_degrees(90.0),
+        );
+        assert!(eq.abs() < 1e-6, "{eq}");
     }
 }
