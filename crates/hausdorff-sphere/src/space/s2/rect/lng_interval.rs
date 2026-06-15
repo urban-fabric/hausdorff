@@ -103,6 +103,12 @@ impl LngInterval {
         self.fast_contains(p)
     }
 
+    /// Whether this interval contains all of `o` (golang's `ContainsInterval`).
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/S1Interval.subset_sound`: across all
+    /// four inverted/normal combinations (and the full/empty edge cases) a
+    /// passing test implies every longitude of `o` is in `self` — the
+    /// antimeridian-correct soundness `Rect::contains_rect` rests on.
     pub(super) fn contains_interval(self, o: Self) -> bool {
         if self.is_inverted() {
             if o.is_inverted() {
