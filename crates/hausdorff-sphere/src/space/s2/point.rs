@@ -34,6 +34,14 @@ impl S2Point {
     }
 
     /// This point's (latitude, longitude) in **radians**.
+    ///
+    /// The latitude `atan2(z, √(x²+y²)) = asin(z)` (for a unit vector) is
+    /// proof-backed by `riemann` `Hausdorff/SphereLatitude.latitude_eq_arcsin_inner`:
+    /// it is `arcsin ⟪p, ẑ⟫`, i.e. `π/2` minus the great-circle distance to the
+    /// north pole. `latitude_lipschitz` proves it is 1-Lipschitz in that distance,
+    /// so a latitude interval soundly bounds a region (`cap_latitude_mem_Icc`: a
+    /// cap's points lie in `[lat c − r, lat c + r]`) — the latitude half of the
+    /// lat/lng bounding boxes the coverer seeds from.
     fn to_lat_lng_radians(self) -> (f64, f64) {
         let v = self.0;
         let lat = v.z.atan2((v.x * v.x + v.y * v.y).sqrt());
