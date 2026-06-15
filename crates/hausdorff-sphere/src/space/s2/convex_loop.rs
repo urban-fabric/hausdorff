@@ -14,6 +14,7 @@
 //! it lies within an open hemisphere. A `ConvexLoop` is always stored
 //! counter-clockwise (interior = the convex, "small" side).
 
+use hausdorff_base::space::r3::Vector;
 use hausdorff_base::space::s1::Angle;
 use hausdorff_planar::algebra::{Orientation, contains_convex};
 
@@ -148,6 +149,82 @@ impl ConvexLoop {
     #[must_use]
     pub fn intersects(&self, other: &ConvexLoop) -> bool {
         !self.disjoint(other)
+    }
+
+    /// The **intersection** of two convex spherical loops — itself a convex loop —
+    /// by **great-circle Sutherland–Hodgman**: clip `self`'s vertex ring
+    /// successively against each edge great circle of `other` (keep the inner
+    /// hemisphere `(vᵢ × vᵢ₊₁)·x ≥ 0`). `None` if the overlap is empty or degenerate
+    /// (a point/arc). The spherical mirror of `r2::ConvexPolygon::intersection`.
+    ///
+    /// Convex-only and proof-backed: a convex loop is the intersection of its
+    /// edge-plane hemispheres (`riemann`
+    /// `Hausdorff/SpherePolygon.sphereInPolygon_hemispheres`), each hemisphere is
+    /// geodesically convex (`sphereInPolygon_convex`), and the intersection of
+    /// convex regions is convex — so clipping by every edge of `other` yields the
+    /// convex region `self ∩ other`. Valid because a convex loop lies within a
+    /// hemisphere (Gauss–Bonnet). `O(n·m)`.
+    #[must_use]
+    pub fn intersection(&self, other: &ConvexLoop) -> Option<ConvexLoop> {
+        let mut output = self.vertices().to_vec();
+        let ov = other.vertices();
+        let m = ov.len();
+        for j in 0..m {
+            if output.is_empty() {
+                return None;
+            }
+            output = clip_by_great_circle(&output, ov[j], ov[(j + 1) % m]);
+        }
+        dedup_s2(&mut output);
+        ConvexLoop::from_vertices(output)
+    }
+}
+
+/// The crossing point of the great-circle arc `p → q` with the great circle of
+/// normal `n` (an edge plane), assuming `p`, `q` lie on strictly opposite sides
+/// (`n·p`, `n·q` opposite signs). The two great circles meet at `±(n × (p × q))`;
+/// pick the one on the minor arc `p → q` (positive dot with `p + q`).
+fn great_circle_crossing(p: S2Point, q: S2Point, n: Vector) -> S2Point {
+    let (pv, qv) = (p.vector(), q.vector());
+    let line = n.cross(pv.cross(qv));
+    let dir = if line.dot(pv.add(qv)) >= 0.0 {
+        line
+    } else {
+        line.mul(-1.0)
+    };
+    S2Point::from_vector(dir.normalize())
+}
+
+/// Great-circle Sutherland–Hodgman clip of the closed `subject` ring to the inner
+/// hemisphere of the directed edge `a → b` (`(a × b)·x ≥ 0`), inserting crossing
+/// points where the ring enters/leaves.
+fn clip_by_great_circle(subject: &[S2Point], a: S2Point, b: S2Point) -> Vec<S2Point> {
+    let n = a.vector().cross(b.vector());
+    let inside = |x: S2Point| n.dot(x.vector()) >= 0.0;
+    let m = subject.len();
+    let mut out = Vec::with_capacity(m + 1);
+    for i in 0..m {
+        let cur = subject[i];
+        let nxt = subject[(i + 1) % m];
+        let (ci, ni) = (inside(cur), inside(nxt));
+        if ci {
+            out.push(cur);
+            if !ni {
+                out.push(great_circle_crossing(cur, nxt, n));
+            }
+        } else if ni {
+            out.push(great_circle_crossing(cur, nxt, n));
+        }
+    }
+    out
+}
+
+/// Drop consecutive near-duplicate vertices (dot ≈ 1), including the wrap seam — a
+/// crossing point can coincide with a kept vertex.
+fn dedup_s2(ring: &mut Vec<S2Point>) {
+    ring.dedup_by(|x, y| x.dot(*y) > 1.0 - 1e-12);
+    while ring.len() >= 2 && ring[0].dot(*ring.last().unwrap()) > 1.0 - 1e-12 {
+        ring.pop();
     }
 }
 
@@ -293,5 +370,52 @@ mod tests {
         let inner = ConvexLoop::from_vertices(square(1.0)).unwrap();
         assert!(a.contains(&inner));
         assert!(a.intersects(&inner));
+    }
+
+    /// True iff `v` is in `cp` or within tolerance of its boundary (clip outputs
+    /// land on parent boundaries, where strict `contains_point` is false).
+    fn in_or_on(cp: &ConvexLoop, v: S2Point) -> bool {
+        if cp.contains_point(v) {
+            return true;
+        }
+        let r = cp.vertices();
+        let m = r.len();
+        (0..m).any(|i| S2Point::orient(r[i], r[(i + 1) % m], v).abs() < 1e-9)
+    }
+
+    #[test]
+    fn intersection_overlap_containment_disjoint() {
+        let a = ConvexLoop::from_vertices(square(3.0)).unwrap();
+
+        // Overlap: a box straddling a's NE corner ([0,6]² ∩ [-3,3]² = [0,3]²).
+        let b =
+            ConvexLoop::from_vertices(vec![sp(0.0, 0.0), sp(0.0, 6.0), sp(6.0, 6.0), sp(6.0, 0.0)])
+                .unwrap();
+        let inter = a.intersection(&b).expect("non-empty overlap");
+        // Every intersection vertex lies in (or on the boundary of) both parents.
+        for &v in inter.vertices() {
+            assert!(in_or_on(&a, v), "vertex escapes a");
+            assert!(in_or_on(&b, v), "vertex escapes b");
+        }
+        // The shared interior point (1.5,1.5) is inside the intersection.
+        assert!(inter.contains_point(sp(1.5, 1.5)));
+        // Area is positive and no bigger than either parent.
+        assert!(inter.area() > 0.0);
+        assert!(inter.area() <= a.area() + 1e-9 && inter.area() <= b.area() + 1e-9);
+
+        // Containment: inner ⊂ a ⟹ intersection ≈ inner (same area).
+        let inner = ConvexLoop::from_vertices(square(1.0)).unwrap();
+        let clipped = a.intersection(&inner).expect("non-empty");
+        assert!((clipped.area() - inner.area()).abs() < 1e-6);
+
+        // Disjoint ⟹ None.
+        let far = ConvexLoop::from_vertices(vec![
+            sp(-3.0, 40.0),
+            sp(-3.0, 46.0),
+            sp(3.0, 46.0),
+            sp(3.0, 40.0),
+        ])
+        .unwrap();
+        assert!(a.intersection(&far).is_none());
     }
 }
