@@ -171,9 +171,10 @@ impl Ellipsoid {
     ///
     /// Backed by `riemann` `Hausdorff/Spheroid.parallel_normSq` (`G = ρ²`, the
     /// λ-independence behind the conservation) and
-    /// `Hausdorff/Geodetic.reduced_tan_of_geodetic` (`a cos β = N cos φ`, the
-    /// auxiliary-sphere reduction). The conservation itself (`d/ds` of this is
-    /// zero along a geodesic) is the open riemann follow-up.
+    /// `Hausdorff/Geodetic.parallel_radius_reduced` (`a cos β = N cos φ` — the
+    /// auxiliary-sphere reduction, *derived* from the latitude relations). The
+    /// conservation itself (`d/ds` of this is zero along a geodesic) is the open
+    /// riemann follow-up.
     #[must_use]
     pub fn clairaut_constant(self, point: GeoPoint, bearing: Bearing) -> f64 {
         let rho = self.prime_vertical_radius(point.lat) * point.lat.to_radians().cos(); // ρ = N cos φ
