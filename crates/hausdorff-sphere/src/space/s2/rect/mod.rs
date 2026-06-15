@@ -109,6 +109,12 @@ impl Rect {
     }
 
     /// True iff this rectangle fully contains `other`.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/SphereRect.contains_rect_sound`: a
+    /// passing test implies every point of `other` is in `self` — the latitude
+    /// half by closed-interval reasoning (`LatInterval.subset_sound`), the
+    /// longitude half by the antimeridian-correct `S1Interval.subset_sound`. So
+    /// rectangle containment on the sphere is sound in both coordinates.
     #[must_use]
     pub fn contains_rect(&self, other: &Rect) -> bool {
         if other.is_empty() {
