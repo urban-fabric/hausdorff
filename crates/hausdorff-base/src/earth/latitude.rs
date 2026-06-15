@@ -13,7 +13,20 @@
 //!   sphere* (Karney/Vincenty) and the variable Bowring's ECEF inverse iterates,
 //!   `tan β = (b/a) tan φ = (1−f) tan φ`.
 //!
-//! These were previously re-derived inline — the `N` in [`Ellipsoid::geodetic_to_ecef`],
+//! The **map projections** add three more *auxiliary latitudes* — transcendental
+//! functions of `φ` (logs / a meridian-arc integral, outside the algebraic proof
+//! boundary, like the Karney series) that each linearize one projection property:
+//!
+//! - **conformal** `χ` — the sphere latitude on which a conformal map (Mercator,
+//!   Transverse Mercator, the conformal conics) is angle-preserving;
+//! - **authalic** `ξ` — the equal-area latitude: a graticule cell on the authalic
+//!   sphere has the spheroid's true area (Albers, ellipsoidal polygon area);
+//! - **rectifying** `μ` — the equidistant latitude, *proportional to meridian-arc
+//!   distance* (`μ = (π/2)·s(φ)/s_quarter`), the basis of the Transverse Mercator
+//!   northing and equidistant projections.
+//!
+//! All six collapse to `φ` on a sphere (`f = 0`). The geodetic / geocentric /
+//! reduced relations were previously re-derived inline — the `N` in [`Ellipsoid::geodetic_to_ecef`],
 //! Bowring's `(1−f)·tanφ` in [`Ellipsoid::ecef_to_geodetic`], the `up` normal in
 //! [`Ellipsoid::enu_frame`]. This module makes them first-class and reusable, and
 //! adds the meridian radius of curvature `M` (previously absent).
@@ -30,6 +43,8 @@
 //!   diagonal (meridians ⟂ parallels), with `G = (N cosφ)²` and `E = M²` — the
 //!   prime-vertical and meridian radii — `Spheroid.{parallel_normSq, meridian_normSq,
 //!   meridian_perp_parallel}`.
+
+use std::f64::consts::{FRAC_PI_2, FRAC_PI_4};
 
 use crate::earth::ellipsoid::Ellipsoid;
 use crate::space::surface::SurfaceOfRevolution;
@@ -137,6 +152,176 @@ impl Ellipsoid {
         self.meridian_radius(lat_deg) * self.prime_vertical_radius(lat_deg)
             * lat_deg.to_radians().cos()
     }
+
+    /// **Conformal latitude** `χ` of the geodetic latitude `lat_deg`: the latitude
+    /// on the conformal sphere whose Mercator / Transverse-Mercator / conformal-conic
+    /// image is angle-preserving. `χ = π/2 − 2·arctan(t)` for the isometric building
+    /// block `t` (Snyder 3-1 / 15-9); `|χ| ≤ |φ|` and `χ = φ` on a sphere.
+    ///
+    /// Transcendental (a log term in `e`), so outside the algebraic proof boundary;
+    /// its `e → 0` limit `χ = φ` and the conformality condition are the provable
+    /// parts (cf. `riemann` `Hausdorff/{Mercator, Stereographic}`).
+    #[must_use]
+    pub fn conformal_latitude(self, lat_deg: f64) -> f64 {
+        if self.f == 0.0 {
+            return lat_deg;
+        }
+        let e = self.e2().sqrt();
+        (FRAC_PI_2 - 2.0 * conformal_t(lat_deg.to_radians(), e).atan()).to_degrees()
+    }
+
+    /// Geodetic latitude `φ` from the conformal latitude `χ` — the inverse of
+    /// [`conformal_latitude`](Self::conformal_latitude), by Snyder's fixed-point
+    /// iteration (a few rounds for any terrestrial latitude).
+    #[must_use]
+    pub fn geodetic_from_conformal(self, chi_deg: f64) -> f64 {
+        if self.f == 0.0 {
+            return chi_deg;
+        }
+        let e = self.e2().sqrt();
+        let t = (FRAC_PI_4 - chi_deg.to_radians() / 2.0).tan();
+        lat_from_conformal_t(t, e).to_degrees()
+    }
+
+    /// **Authalic latitude** `ξ` of the geodetic latitude `lat_deg`: the latitude
+    /// on the equal-area (authalic) sphere of radius `Rq` for which a graticule
+    /// cell has the spheroid's true area — `sin ξ = q(φ) / q(π/2)` (Snyder 3-11).
+    /// The basis of equal-area maps (Albers) and exact ellipsoidal polygon area.
+    /// `|ξ| ≤ |φ|`; `ξ = φ` on a sphere.
+    ///
+    /// Transcendental (`q` carries a log term); the area-preservation property and
+    /// the `e → 0` limit `ξ = φ` are the provable parts.
+    #[must_use]
+    pub fn authalic_latitude(self, lat_deg: f64) -> f64 {
+        if self.f == 0.0 {
+            return lat_deg;
+        }
+        let e = self.e2().sqrt();
+        (authalic_q(lat_deg.to_radians(), e) / authalic_q(FRAC_PI_2, e))
+            .asin()
+            .to_degrees()
+    }
+
+    /// Geodetic latitude `φ` from the authalic latitude `ξ` — the inverse of
+    /// [`authalic_latitude`](Self::authalic_latitude), by Snyder's iteration (3-18).
+    #[must_use]
+    pub fn geodetic_from_authalic(self, xi_deg: f64) -> f64 {
+        if self.f == 0.0 {
+            return xi_deg;
+        }
+        let e = self.e2().sqrt();
+        let q = xi_deg.to_radians().sin() * authalic_q(FRAC_PI_2, e);
+        lat_from_authalic_q(q, e).to_degrees()
+    }
+
+    /// **Meridian arc length** from the equator to `lat_deg`, metres — the
+    /// north–south distance along the ellipsoid surface (Snyder 3-21, a series in
+    /// `e²`). Signed (negative south of the equator). The quarter-meridian
+    /// `meridian_arc_m(90°)` is the pole distance.
+    #[must_use]
+    pub fn meridian_arc_m(self, lat_deg: f64) -> f64 {
+        meridian_arc(lat_deg.to_radians(), self.a, self.e2())
+    }
+
+    /// **Rectifying latitude** `μ` of the geodetic latitude `lat_deg`: the
+    /// equidistant latitude *proportional to meridian-arc distance*,
+    /// `μ = (π/2)·s(φ)/s(90°)` where `s` is [`meridian_arc_m`](Self::meridian_arc_m).
+    /// Equal meridian-arc steps are equal `μ` steps — the basis of the Transverse
+    /// Mercator northing and equidistant projections. `μ = φ` on a sphere.
+    #[must_use]
+    pub fn rectifying_latitude(self, lat_deg: f64) -> f64 {
+        let quarter = self.meridian_arc_m(90.0);
+        if quarter == 0.0 {
+            return lat_deg;
+        }
+        90.0 * self.meridian_arc_m(lat_deg) / quarter
+    }
+
+    /// Geodetic latitude `φ` from the rectifying latitude `μ` — the inverse of
+    /// [`rectifying_latitude`](Self::rectifying_latitude), by Snyder's *footpoint
+    /// latitude* series (3-26) in the third flattening `e₁`.
+    #[must_use]
+    pub fn geodetic_from_rectifying(self, mu_deg: f64) -> f64 {
+        let s = (1.0 - self.e2()).sqrt();
+        let e1 = (1.0 - s) / (1.0 + s);
+        let mu = mu_deg.to_radians();
+        (mu + (1.5 * e1 - 27.0 * e1.powi(3) / 32.0) * (2.0 * mu).sin()
+            + (21.0 * e1 * e1 / 16.0 - 55.0 * e1.powi(4) / 32.0) * (4.0 * mu).sin()
+            + (151.0 * e1.powi(3) / 96.0) * (6.0 * mu).sin()
+            + (1097.0 * e1.powi(4) / 512.0) * (8.0 * mu).sin())
+        .to_degrees()
+    }
+}
+
+// ---- Auxiliary-latitude kernels (Snyder PP1395), shared with the map
+// projections in `hausdorff-earth`. Radians in/out; `e` is the first
+// eccentricity. The `Ellipsoid` methods above wrap these in the degrees +
+// normalized-latitude conventions. ----
+
+/// The conformal isometric building block `t = tan(π/4 − φ/2) / [(1 − e sinφ)/(1 +
+/// e sinφ)]^{e/2}` (Snyder 15-9) — `t = tan(π/4 − χ/2)`, so `χ = π/2 − 2·arctan t`.
+#[must_use]
+pub fn conformal_t(phi: f64, e: f64) -> f64 {
+    let es = e * phi.sin();
+    (FRAC_PI_4 - phi / 2.0).tan() / ((1.0 - es) / (1.0 + es)).powf(e / 2.0)
+}
+
+/// Invert the conformal `t` back to geodetic latitude `φ` (radians) by Snyder's
+/// fixed-point iteration (7-9). Its `e → 0` limit is the exact closed form
+/// `φ = π/2 − 2·arctan t` (proof-backed by `riemann`
+/// `Hausdorff/Stereographic.conformalLat_inverse`).
+#[must_use]
+pub fn lat_from_conformal_t(t: f64, e: f64) -> f64 {
+    let mut phi = FRAC_PI_2 - 2.0 * t.atan();
+    for _ in 0..15 {
+        let es = e * phi.sin();
+        let next = FRAC_PI_2 - 2.0 * (t * ((1.0 - es) / (1.0 + es)).powf(e / 2.0)).atan();
+        if (next - phi).abs() < 1e-14 {
+            return next;
+        }
+        phi = next;
+    }
+    phi
+}
+
+/// The authalic-area function `q` (Snyder 3-12) — the integral `∫cosφ/(1−e²sin²φ)²`
+/// in closed form; the equal-area analogue of the conformal `t`. `sin ξ = q/q(π/2)`.
+#[must_use]
+pub fn authalic_q(phi: f64, e: f64) -> f64 {
+    let es = e * phi.sin();
+    (1.0 - e * e) * (phi.sin() / (1.0 - es * es) - (1.0 / (2.0 * e)) * ((1.0 - es) / (1.0 + es)).ln())
+}
+
+/// Invert the authalic `q` back to geodetic latitude `φ` (radians) by Snyder's
+/// iteration (3-16).
+#[must_use]
+pub fn lat_from_authalic_q(q: f64, e: f64) -> f64 {
+    let q_pole = authalic_q(FRAC_PI_2, e);
+    if q.abs() >= q_pole - 1e-12 {
+        return FRAC_PI_2.copysign(q);
+    }
+    let mut phi = (q / 2.0).asin();
+    for _ in 0..15 {
+        let es = e * phi.sin();
+        let delta = (1.0 - es * es).powi(2) / (2.0 * phi.cos())
+            * (q / (1.0 - e * e) - phi.sin() / (1.0 - es * es)
+                + (1.0 / (2.0 * e)) * ((1.0 - es) / (1.0 + es)).ln());
+        phi += delta;
+        if delta.abs() < 1e-14 {
+            break;
+        }
+    }
+    phi
+}
+
+/// Meridian arc length from the equator to latitude `phi` (radians) on the
+/// ellipsoid `(a, e²)`, metres — Snyder 3-21, the series behind
+/// [`Ellipsoid::meridian_arc_m`].
+fn meridian_arc(phi: f64, a: f64, e2: f64) -> f64 {
+    a * ((1.0 - e2 / 4.0 - 3.0 * e2 * e2 / 64.0 - 5.0 * e2.powi(3) / 256.0) * phi
+        - (3.0 * e2 / 8.0 + 3.0 * e2 * e2 / 32.0 + 45.0 * e2.powi(3) / 1024.0) * (2.0 * phi).sin()
+        + (15.0 * e2 * e2 / 256.0 + 45.0 * e2.powi(3) / 1024.0) * (4.0 * phi).sin()
+        - (35.0 * e2.powi(3) / 3072.0) * (6.0 * phi).sin())
 }
 
 /// The outward **unit surface normal** ("geodetic up") at `(lat_deg, lon_deg)`:
@@ -261,5 +446,56 @@ mod tests {
         let area = 2.0 * PI * sum; // ∫ dλ = 2π
         let rel_err = (area - e.total_area_m2()).abs() / e.total_area_m2();
         assert!(rel_err < 1e-7, "rel_err = {rel_err}");
+    }
+
+    /// On a sphere (`f = 0`) the conformal / authalic / rectifying latitudes also
+    /// collapse to `φ` (the `e → 0` limit).
+    #[test]
+    fn sphere_collapses_auxiliary_latitudes() {
+        let s = Ellipsoid::SPHERE;
+        for &lat in &[0.0, 12.3, 45.0, -60.0, 89.9] {
+            assert!(close(s.conformal_latitude(lat), lat, 1e-12));
+            assert!(close(s.authalic_latitude(lat), lat, 1e-12));
+            assert!(close(s.rectifying_latitude(lat), lat, 1e-12));
+        }
+    }
+
+    /// Each auxiliary latitude inverts cleanly (WGS84), both hemispheres. The
+    /// conformal/authalic inverses iterate to convergence (≤ 1e-9°); the
+    /// rectifying inverse is Snyder's footpoint *series* (the TM's), exact only to
+    /// the series order (~sub-mm, ≤ 1e-7°).
+    #[test]
+    fn auxiliary_latitudes_round_trip() {
+        let e = Ellipsoid::WGS84;
+        for &lat in &[0.0, 12.3, 45.0, -60.0, 80.0, -88.0] {
+            assert!(close(e.geodetic_from_conformal(e.conformal_latitude(lat)), lat, 1e-9));
+            assert!(close(e.geodetic_from_authalic(e.authalic_latitude(lat)), lat, 1e-9));
+            assert!(close(e.geodetic_from_rectifying(e.rectifying_latitude(lat)), lat, 1e-7));
+        }
+    }
+
+    /// WGS84 auxiliary latitudes vs an **independent numerical integration** of the
+    /// area / meridian-arc elements (2e6-step midpoint — not the Snyder series the
+    /// methods use). At 45° the conformal squashes most, the authalic least, so
+    /// `χ < μ < ξ < φ`.
+    #[test]
+    fn auxiliary_latitudes_match_independent_integration() {
+        let e = Ellipsoid::WGS84;
+        for &(lat, chi, xi, mu) in &[
+            (30.0, 29.833_682, 29.888_997, 29.875_148),
+            (45.0, 44.807_684, 44.871_703, 44.855_682),
+            (60.0, 59.833_216, 59.888_786, 59.874_886),
+        ] {
+            assert!(close(e.conformal_latitude(lat), chi, 1e-4), "χ({lat})");
+            assert!(close(e.authalic_latitude(lat), xi, 1e-4), "ξ({lat})");
+            assert!(close(e.rectifying_latitude(lat), mu, 1e-4), "μ({lat})");
+        }
+        // The squash ordering at 45°: χ < μ < ξ < φ.
+        assert!(e.conformal_latitude(45.0) < e.rectifying_latitude(45.0));
+        assert!(e.rectifying_latitude(45.0) < e.authalic_latitude(45.0));
+        assert!(e.authalic_latitude(45.0) < 45.0);
+        // Quarter-meridian (equator → pole), WGS84 ≈ 10 001 965.73 m.
+        assert!(close(e.meridian_arc_m(90.0), 10_001_965.73, 0.1));
+        assert!(close(e.meridian_arc_m(-90.0), -10_001_965.73, 0.1));
     }
 }

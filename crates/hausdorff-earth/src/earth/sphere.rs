@@ -10,7 +10,8 @@
 
 use euclid::{AreaSquareMeters, Factor, LengthMeters};
 
-use crate::earth::{Bearing, GeoPoint};
+use crate::earth::{Bearing, Ellipsoid, GeoPoint};
+use hausdorff_base::earth::latitude::authalic_q;
 use hausdorff_base::space::s1::Angle;
 use hausdorff_sphere::space::s2::{S2Point, polygon_signed_area_vos};
 
@@ -138,6 +139,70 @@ impl Sphere {
     }
 }
 
+/// The **authalic (equal-area) sphere** of an [`Ellipsoid`] — the sphere of radius
+/// `Rq` with the *same total surface area* as the ellipsoid. The authalic latitude
+/// ξ ([`Ellipsoid::authalic_latitude`]) is the area-preserving map onto it, so a
+/// polygon warped `φ → ξ` and measured here has its **true ellipsoidal area**.
+///
+/// This is the proof-clean route to datum polygon area: it goes through the
+/// **proven** spherical-excess kernel (`riemann` Hausdorff/SphereArea,
+/// [`Sphere::polygon_area_m2`]'s van Oosterom fan sum) rather than the
+/// numerically-validated-but-unproven Karney series
+/// ([`Ellipsoid::ring_perimeter_area_m`]), which it reproduces to ≈ 1e-4 %.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AuthalicSphere {
+    ellipsoid: Ellipsoid,
+    radius_m: f64,
+}
+
+impl AuthalicSphere {
+    /// The authalic sphere of `ellipsoid`: radius `Rq = a·√(q_p/2)`, where
+    /// `q_p = q(π/2)` is the authalic function at the pole, so `4π Rq²` is exactly
+    /// the ellipsoid's total surface area. (For a sphere, `Rq = a`.)
+    #[must_use]
+    pub fn of(ellipsoid: Ellipsoid) -> Self {
+        let radius_m = if ellipsoid.f == 0.0 {
+            ellipsoid.a
+        } else {
+            let e = ellipsoid.e2().sqrt();
+            ellipsoid.a * (authalic_q(std::f64::consts::FRAC_PI_2, e) / 2.0).sqrt()
+        };
+        Self {
+            ellipsoid,
+            radius_m,
+        }
+    }
+
+    /// The authalic radius `Rq`.
+    #[must_use]
+    pub fn radius(self) -> LengthMeters {
+        LengthMeters::new(self.radius_m)
+    }
+
+    /// **True ellipsoidal area (m²) of a WGS84 polygon `ring`**, via the authalic
+    /// sphere. Each vertex's geodetic latitude is warped to its authalic latitude
+    /// ξ (longitude unchanged), the van Oosterom spherical excesses are summed,
+    /// and the result is scaled by `Rq²`. Because `φ → ξ` is area-preserving, this
+    /// reproduces the datum polygon area through the **proven** spherical-excess
+    /// path — agreeing with the Karney geodesic area
+    /// ([`Ellipsoid::ring_perimeter_area_m`]) to ≈ 1e-4 % while staying inside the
+    /// closed-form proof boundary.
+    ///
+    /// Returns the **unsigned** area; a ring of fewer than three vertices is `0`.
+    /// The ring closes itself (the edge from the last vertex back to the first).
+    #[must_use]
+    pub fn polygon_area_m2(self, ring: &[GeoPoint]) -> f64 {
+        let pts: Vec<S2Point> = ring
+            .iter()
+            .map(|&p| {
+                let xi = self.ellipsoid.authalic_latitude(p.lat);
+                S2Point::from_geo_point(GeoPoint::from_lat_lon(xi, p.lon))
+            })
+            .collect();
+        Sphere::from_meters(self.radius_m).area_m2(polygon_signed_area_vos(&pts).abs())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::f64::consts::FRAC_PI_2;
@@ -187,5 +252,62 @@ mod tests {
         assert!((sph - ell).abs() / ell < 0.02, "spherical {sph} vs ellipsoidal {ell}");
         // A degenerate ring is zero.
         assert_eq!(Sphere::EARTH.polygon_area_m2(&bx[..2]), 0.0);
+    }
+
+    #[test]
+    fn authalic_radius_and_total_area() {
+        // WGS84 authalic radius ≈ 6 371 007.18 m; 4π Rq² is the total surface area.
+        let au = AuthalicSphere::of(Ellipsoid::WGS84);
+        let rq = au.radius().as_meters();
+        assert!((rq - 6_371_007.181).abs() < 1e-2, "Rq = {rq}");
+        let total = Ellipsoid::WGS84.total_area_m2();
+        let rel = (4.0 * std::f64::consts::PI * rq * rq - total).abs() / total;
+        assert!(rel < 1e-7, "4πRq² vs total area rel = {rel}");
+        // A sphere is its own authalic sphere (Rq = a).
+        assert_eq!(
+            AuthalicSphere::of(Ellipsoid::SPHERE).radius().as_meters(),
+            Ellipsoid::SPHERE.a
+        );
+    }
+
+    #[test]
+    fn authalic_area_matches_karney_and_beats_the_plain_sphere() {
+        let g = GeoPoint::from_lat_lon;
+        let au = AuthalicSphere::of(Ellipsoid::WGS84);
+        // A graticule cell, a mid-latitude box, and a continent-scale quad.
+        for ring in [
+            vec![g(45.0, 10.0), g(45.0, 11.0), g(46.0, 11.0), g(46.0, 10.0)],
+            vec![g(30.0, 0.0), g(30.0, 10.0), g(40.0, 10.0), g(40.0, 0.0)],
+            vec![g(0.0, 0.0), g(0.0, 40.0), g(50.0, 40.0), g(50.0, 0.0)],
+        ] {
+            let (_, karney) = Ellipsoid::WGS84.ring_perimeter_area_unsigned_m(&ring);
+            let authalic = au.polygon_area_m2(&ring);
+            let plain = Sphere::EARTH.polygon_area_m2(&ring);
+            // Authalic reproduces the geodesic (Karney) area to < 0.01 % …
+            assert!(
+                (authalic - karney).abs() / karney < 1e-4,
+                "authalic {authalic} vs karney {karney}"
+            );
+            // … and is strictly closer to it than the un-warped spherical area.
+            assert!(
+                (authalic - karney).abs() < (plain - karney).abs(),
+                "authalic {authalic} should beat plain {plain} (karney {karney})"
+            );
+        }
+        // A degenerate ring is zero.
+        assert_eq!(au.polygon_area_m2(&[g(0.0, 0.0), g(1.0, 1.0)]), 0.0);
+    }
+
+    #[test]
+    fn authalic_sphere_of_a_sphere_is_the_plain_sphere() {
+        // For a true sphere ξ = φ and Rq = a, so the authalic area equals the
+        // native spherical area at that radius (the construction degenerates).
+        let g = GeoPoint::from_lat_lon;
+        let ring = [g(10.0, 0.0), g(10.0, 20.0), g(30.0, 20.0), g(30.0, 0.0)];
+        let e = Ellipsoid::SPHERE;
+        let authalic = AuthalicSphere::of(e).polygon_area_m2(&ring);
+        let sphere = Sphere::from_meters(e.a).polygon_area_m2(&ring);
+        let rel = (authalic - sphere).abs() / sphere;
+        assert!(rel < 1e-12, "authalic {authalic} vs sphere {sphere}");
     }
 }

@@ -22,8 +22,6 @@
 //! (via [`MapCoords`](hausdorff_planar::space::r2::MapCoords)), so lon/lat `r2` geometry
 //! can be carried into projected metres, computed on, and carried back.
 
-use std::f64::consts::PI;
-
 use crate::earth::GeoPoint;
 use hausdorff_base::earth::{Enu, EnuFrame};
 use hausdorff_planar::space::r2::{Coord, MapCoords};
@@ -31,7 +29,9 @@ use hausdorff_planar::space::r2::{Coord, MapCoords};
 pub use crate::earth::ellipsoid::Ellipsoid;
 
 mod families;
+mod tissot;
 pub use families::{AlbersEqualArea, LambertConformalConic, LocalTangentPlane, PolarStereographic};
+pub use tissot::Tissot;
 
 #[cfg(test)]
 mod tests;
@@ -183,7 +183,10 @@ impl Projection for TransverseMercator {
         let t = tphi * tphi;
         let c = ep2 * cphi * cphi;
         let aa = (p.lon - self.central_meridian).to_radians() * cphi;
-        let m = meridian_arc(phi, a, e2) - meridian_arc(self.lat_origin.to_radians(), a, e2);
+        // Meridian arc from the natural origin to the point (the rectifying-latitude
+        // length, `Ellipsoid::meridian_arc_m`).
+        let m = self.ellipsoid.meridian_arc_m(p.lat)
+            - self.ellipsoid.meridian_arc_m(self.lat_origin);
 
         let easting = self.false_easting
             + self.k0
@@ -210,14 +213,13 @@ impl Projection for TransverseMercator {
         let x = coord.x - self.false_easting;
         let y = coord.y - self.false_northing;
 
-        let m = meridian_arc(self.lat_origin.to_radians(), a, e2) + y / self.k0;
-        let mu = m / (a * (1.0 - e2 / 4.0 - 3.0 * e2 * e2 / 64.0 - 5.0 * e2.powi(3) / 256.0));
-        let e1 = (1.0 - (1.0 - e2).sqrt()) / (1.0 + (1.0 - e2).sqrt());
-        let phi1 = mu
-            + (3.0 * e1 / 2.0 - 27.0 * e1.powi(3) / 32.0) * (2.0 * mu).sin()
-            + (21.0 * e1 * e1 / 16.0 - 55.0 * e1.powi(4) / 32.0) * (4.0 * mu).sin()
-            + (151.0 * e1.powi(3) / 96.0) * (6.0 * mu).sin()
-            + (1097.0 * e1.powi(4) / 512.0) * (8.0 * mu).sin();
+        // Footpoint latitude φ1: the geodetic latitude whose meridian arc from the
+        // equator is `m` (origin arc + northing/k0). `m / quarter · 90°` is its
+        // rectifying latitude μ; `geodetic_from_rectifying` is Snyder's footpoint
+        // series.
+        let m = self.ellipsoid.meridian_arc_m(self.lat_origin) + y / self.k0;
+        let mu_deg = 90.0 * m / self.ellipsoid.meridian_arc_m(90.0);
+        let phi1 = self.ellipsoid.geodetic_from_rectifying(mu_deg).to_radians();
 
         let (sphi1, cphi1, tphi1) = (phi1.sin(), phi1.cos(), phi1.tan());
         let t1 = tphi1 * tphi1;
@@ -290,14 +292,12 @@ impl Utm {
 }
 
 // ---- Shared ellipsoidal-projection helpers (Snyder PP1395) ----
-
-/// The conformal-latitude function `t = tan(π/4 − φ/2) / [(1 − e sinφ)/(1 + e
-/// sinφ)]^{e/2}` (Snyder 15-9) — the isometric-latitude building block of the
-/// conformal conic / stereographic projections.
-fn conformal_t(phi: f64, e: f64) -> f64 {
-    let es = e * phi.sin();
-    (PI / 4.0 - phi / 2.0).tan() / ((1.0 - es) / (1.0 + es)).powf(e / 2.0)
-}
+//
+// The auxiliary-latitude kernels (`conformal_t`/`lat_from_conformal_t`,
+// `authalic_q`/`lat_from_authalic_q`, the meridian arc) live in
+// `hausdorff-base`'s `earth::latitude` — the canonical home beside the
+// `Ellipsoid::{conformal,authalic,rectifying}_latitude` methods they back — and
+// are imported by [`families`] / used through the `Ellipsoid` methods here.
 
 /// `m = cosφ / √(1 − e² sin²φ)` (Snyder 14-15) — the radius of the parallel
 /// scaled to the unit sphere; the prime-vertical-radius factor.
@@ -305,26 +305,6 @@ fn m_factor(phi: f64, e: f64) -> f64 {
     let s = phi.sin();
     phi.cos() / (1.0 - e * e * s * s).sqrt()
 }
-
-/// Invert the conformal latitude `t` back to geodetic latitude by Snyder's
-/// fixed-point iteration (7-9); converges in a few rounds for any terrestrial
-/// latitude. Its `e → 0` (spherical) limit is the **exact** closed form
-/// `φ = π/2 − 2·arctan(t)`, proof-backed by `riemann`
-/// `Hausdorff/Stereographic.conformalLat_inverse`.
-fn lat_from_conformal_t(t: f64, e: f64) -> f64 {
-    let mut phi = std::f64::consts::FRAC_PI_2 - 2.0 * t.atan();
-    for _ in 0..15 {
-        let es = e * phi.sin();
-        let next =
-            std::f64::consts::FRAC_PI_2 - 2.0 * (t * ((1.0 - es) / (1.0 + es)).powf(e / 2.0)).atan();
-        if (next - phi).abs() < 1e-14 {
-            return next;
-        }
-        phi = next;
-    }
-    phi
-}
-
 
 /// A **conformal** (angle-preserving) projection — a property defined through the
 /// trait: at every point the scale factor is the *same in all directions*
@@ -363,12 +343,4 @@ pub trait EqualAreaProjection: Projection {
 }
 
 impl EqualAreaProjection for AlbersEqualArea {}
-
-/// Meridian arc length from the equator to latitude `phi` on the ellipsoid.
-fn meridian_arc(phi: f64, a: f64, e2: f64) -> f64 {
-    a * ((1.0 - e2 / 4.0 - 3.0 * e2 * e2 / 64.0 - 5.0 * e2.powi(3) / 256.0) * phi
-        - (3.0 * e2 / 8.0 + 3.0 * e2 * e2 / 32.0 + 45.0 * e2.powi(3) / 1024.0) * (2.0 * phi).sin()
-        + (15.0 * e2 * e2 / 256.0 + 45.0 * e2.powi(3) / 1024.0) * (4.0 * phi).sin()
-        - (35.0 * e2.powi(3) / 3072.0) * (6.0 * phi).sin())
-}
 

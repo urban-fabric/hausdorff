@@ -1,9 +1,14 @@
 //! The conic, azimuthal, and local projection families — Lambert Conformal
 //! Conic, Polar Stereographic, Albers Equal-Area, and the local tangent plane —
-//! split out of the parent [`super`] projection module. They share the parent's
-//! conformal/authalic helpers (`conformal_t`, `m_factor`, …) via `use super::*`.
+//! split out of the parent [`super`] projection module. The conformal/authalic
+//! kernels come from `hausdorff-base`'s `earth::latitude` (beside the
+//! `Ellipsoid::{conformal,authalic}_latitude` methods); `m_factor` comes from the
+//! parent via `use super::*`.
 
 use super::*;
+use hausdorff_base::earth::latitude::{
+    authalic_q, conformal_t, lat_from_authalic_q, lat_from_conformal_t,
+};
 
 /// **Lambert Conformal Conic (2SP)** — the conformal conic of national/regional
 /// grids (Snyder pp. 107–109), pinned to two standard parallels where scale is
@@ -117,33 +122,6 @@ impl Projection for PolarStereographic {
         let lon = self.lon0 + x.atan2(-s * y).to_degrees();
         GeoPoint::from_lat_lon(lat, lon)
     }
-}
-
-/// The authalic-area function `q` (Snyder 3-12) — the equal-area analogue of the
-/// conformal `t`; the integrand behind the Albers / cylindrical-equal-area maps.
-fn authalic_q(phi: f64, e: f64) -> f64 {
-    let es = e * phi.sin();
-    (1.0 - e * e) * (phi.sin() / (1.0 - es * es) - (1.0 / (2.0 * e)) * ((1.0 - es) / (1.0 + es)).ln())
-}
-
-/// Invert the authalic `q` back to geodetic latitude by Snyder's iteration (3-16).
-fn lat_from_authalic_q(q: f64, e: f64) -> f64 {
-    let q_pole = authalic_q(std::f64::consts::FRAC_PI_2, e);
-    if q.abs() >= q_pole - 1e-12 {
-        return std::f64::consts::FRAC_PI_2.copysign(q);
-    }
-    let mut phi = (q / 2.0).asin();
-    for _ in 0..15 {
-        let es = e * phi.sin();
-        let delta = (1.0 - es * es).powi(2) / (2.0 * phi.cos())
-            * (q / (1.0 - e * e) - phi.sin() / (1.0 - es * es)
-                + (1.0 / (2.0 * e)) * ((1.0 - es) / (1.0 + es)).ln());
-        phi += delta;
-        if delta.abs() < 1e-14 {
-            break;
-        }
-    }
-    phi
 }
 
 /// **Albers Equal-Area Conic** (ellipsoidal) — the equal-area conic of choropleth
