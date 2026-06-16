@@ -15,7 +15,7 @@
 //! (2154,4171),(3995/3031,4326),(27700,4277)}.
 
 use hausdorff::earth::GeoPoint;
-use hausdorff::earth::crs::{Crs, CrsCoord, transform};
+use hausdorff::earth::crs::{Crs, CrsCoord, GeoDim, transform};
 use hausdorff::earth::projection::{
     AlbersEqualArea, Ellipsoid, LambertConformalConic, PolarStereographic, Projection,
     TransverseMercator, WebMercator,
@@ -76,19 +76,46 @@ fn utm_matches_proj() {
         (60.0, -1.0, 611_544.0420, 6_653_097.4353),
         (40.0, -6.0, 243_900.3520, 4_432_069.0569),
     ];
-    check("UTM30N", &TransverseMercator::utm(30, true), utm30n, 5e-3);
+    check("UTM30N", &TransverseMercator::utm(30, true), utm30n, 1e-3);
     let utm33n: &[Ref] = &[
         (48.2, 16.37, 601_799.1458, 5_339_437.1538),
         (52.52, 13.405, 391_779.2593, 5_820_072.1592),
         (45.0, 15.0, 500_000.0, 4_982_950.4002),
     ];
-    check("UTM33N", &TransverseMercator::utm(33, true), utm33n, 5e-3);
+    check("UTM33N", &TransverseMercator::utm(33, true), utm33n, 1e-3);
     let utm1s: &[Ref] = &[
         (-40.0, -177.0, 500_000.0, 5_572_242.7813),
         (-10.0, -179.5, 225_928.9466, 8_893_548.7217),
         (-60.0, -176.0, 555_776.2668, 3_348_167.2646),
     ];
-    check("UTM1S", &TransverseMercator::utm(1, false), utm1s, 5e-3);
+    check("UTM1S", &TransverseMercator::utm(1, false), utm1s, 1e-3);
+}
+
+/// Transverse Mercator **far from the central meridian** — out to ±20° (≈2000 km
+/// easting), where the low-order Snyder series degrades to centimetres. The
+/// Karney–Krüger order-n⁶ series stays sub-millimetre against PROJ's accurate
+/// `tmerc` across the whole span. CM = 3°E, k0 = 0.9996 (UTM-like).
+#[test]
+fn transverse_mercator_far_from_central_meridian_matches_proj() {
+    let tm = TransverseMercator {
+        ellipsoid: Ellipsoid::WGS84,
+        central_meridian: 3.0,
+        lat_origin: 0.0,
+        k0: 0.9996,
+        false_easting: 500_000.0,
+        false_northing: 0.0,
+    };
+    // (lat, lon, easting, northing) — PROJ 9.4.0 accurate tmerc, CM = 3°E.
+    let far: &[Ref] = &[
+        (45.0, 3.0, 500_000.000000, 4_982_950.400227),
+        (45.0, 13.0, 1_288_141.060230, 5_031_833.622250), // +10°
+        (45.0, 23.0, 2_075_750.235110, 5_181_473.169330), // +20°
+        (45.0, -7.0, -288_141.060230, 5_031_833.622250),  // −10°
+        (60.0, 18.0, 1_331_808.333412, 6_746_522.323960), // +15°, high lat
+        (20.0, -12.0, -1_083_030.922104, 2_283_512.921526), // −15°
+        (-35.0, 25.0, 2_523_906.171801, -4_102_603.370651), // +22°, southern
+    ];
+    check("TM far-CM", &tm, far, 1e-4);
 }
 
 #[test]
@@ -208,8 +235,8 @@ fn datum_shift_pipeline_matches_proj() {
     let osgb = Crs::from_epsg(4277).unwrap();
     let mut max_deg = 0.0_f64;
     for &(lat, lon, rlat, rlon) in to_osgb36 {
-        let out = transform(Crs::wgs84(), osgb, CrsCoord::Geographic(GeoPoint::from_lat_lon(lat, lon)));
-        let CrsCoord::Geographic(g) = out else { panic!("expected geographic") };
+        let out = transform(Crs::wgs84(), osgb, CrsCoord::geographic(GeoPoint::from_lat_lon(lat, lon)));
+        let CrsCoord::Geographic { point: g, .. } = out else { panic!("expected geographic") };
         max_deg = max_deg.max((g.lat - rlat).abs()).max((g.lon - rlon).abs());
     }
     eprintln!("WGS84→OSGB36 (4277) max Δ = {max_deg:.3e}° vs PROJ Helmert");
@@ -227,7 +254,7 @@ fn datum_shift_pipeline_matches_proj() {
     let bng = Crs::from_epsg(27_700).unwrap();
     let mut max_m = 0.0_f64;
     for &(lat, lon, re, rn) in to_bng {
-        let out = transform(Crs::wgs84(), bng, CrsCoord::Geographic(GeoPoint::from_lat_lon(lat, lon)));
+        let out = transform(Crs::wgs84(), bng, CrsCoord::geographic(GeoPoint::from_lat_lon(lat, lon)));
         let CrsCoord::Projected(c) = out else { panic!("expected projected") };
         max_m = max_m.max((c.x - re).abs()).max((c.y - rn).abs());
     }
@@ -244,17 +271,18 @@ fn check_registry(code: u32, refs: &[Ref], fwd_tol_m: f64) {
     let geo = Crs::Geographic {
         datum: proj.datum(),
         epsg: None,
+        dim: GeoDim::D2,
     };
     let (mut max_e, mut max_n, mut max_inv) = (0.0_f64, 0.0_f64, 0.0_f64);
     for &(lat, lon, e, n) in refs {
         let CrsCoord::Projected(got) =
-            transform(geo, proj, CrsCoord::Geographic(GeoPoint::from_lat_lon(lat, lon)))
+            transform(geo, proj, CrsCoord::geographic(GeoPoint::from_lat_lon(lat, lon)))
         else {
             panic!("EPSG:{code} should project")
         };
         max_e = max_e.max((got.x - e).abs());
         max_n = max_n.max((got.y - n).abs());
-        let CrsCoord::Geographic(back) =
+        let CrsCoord::Geographic { point: back, .. } =
             transform(proj, geo, CrsCoord::Projected(Coord::new(e, n)))
         else {
             panic!("EPSG:{code} inverse should be geographic")
