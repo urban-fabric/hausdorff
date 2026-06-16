@@ -34,6 +34,7 @@ mod datum;
 pub use datum::{Datum, DatumShift, Helmert};
 
 mod proj_string;
+mod wkt;
 
 /// A concrete map projection — the projected-CRS member of the enum, so a [`Crs`]
 /// stays `Copy` and match-able (no `dyn Projection`). Phase 2 adds the conic /
