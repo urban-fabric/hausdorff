@@ -16,10 +16,8 @@
 //! Transverse Mercator, Lambert Conic Conformal (1SP/2SP), Albers Equal Area,
 //! Polar Stereographic (variant B), and the pseudo-Mercator.
 
+use super::method::{self, ParamUnit};
 use super::{Crs, Datum, DatumShift, GeoDim, Helmert, ProjectionKind, datum};
-use crate::earth::projection::{
-    AlbersEqualArea, LambertConformalConic, PolarStereographic, TransverseMercator, WebMercator,
-};
 use hausdorff_base::earth::Ellipsoid;
 
 impl Crs {
@@ -156,80 +154,25 @@ fn id_node(code: Option<u32>) -> String {
 /// carry their EPSG units (angle / length / scale) so the WKT2 is valid for any
 /// reader, not just this crate's parser.
 fn conversion_node(projection: ProjectionKind) -> String {
-    // Angle / length / scale parameters, each with its EPSG unit.
-    let pa = |name: &str, v: f64| format!(r#"PARAMETER["{name}",{v},{DEG}]"#);
-    let pl = |name: &str, v: f64| format!(r#"PARAMETER["{name}",{v},{METRE}]"#);
-    let ps = |name: &str, v: f64| format!(r#"PARAMETER["{name}",{v},SCALEUNIT["unity",1]]"#);
-    let (method, mid, params): (&str, u32, String) = match projection {
-        ProjectionKind::TransverseMercator(m) => (
-            "Transverse Mercator",
-            9807,
-            format!(
-                "{},{},{},{},{}",
-                pa("Latitude of natural origin", m.lat_origin),
-                pa("Longitude of natural origin", m.central_meridian),
-                ps("Scale factor at natural origin", m.k0),
-                pl("False easting", m.false_easting),
-                pl("False northing", m.false_northing),
-            ),
-        ),
-        ProjectionKind::LambertConformalConic(m) => (
-            "Lambert Conic Conformal (2SP)",
-            9802,
-            format!(
-                "{},{},{},{},{},{}",
-                pa("Latitude of false origin", m.lat0),
-                pa("Longitude of false origin", m.lon0),
-                pa("Latitude of 1st standard parallel", m.lat1),
-                pa("Latitude of 2nd standard parallel", m.lat2),
-                pl("Easting at false origin", m.false_easting),
-                pl("Northing at false origin", m.false_northing),
-            ),
-        ),
-        ProjectionKind::AlbersEqualArea(m) => (
-            "Albers Equal Area",
-            9822,
-            format!(
-                "{},{},{},{},{},{}",
-                pa("Latitude of false origin", m.lat0),
-                pa("Longitude of false origin", m.lon0),
-                pa("Latitude of 1st standard parallel", m.lat1),
-                pa("Latitude of 2nd standard parallel", m.lat2),
-                pl("Easting at false origin", m.false_easting),
-                pl("Northing at false origin", m.false_northing),
-            ),
-        ),
-        ProjectionKind::PolarStereographic(m) => (
-            "Polar Stereographic (variant B)",
-            9829,
-            format!(
-                "{},{},{},{}",
-                pa("Latitude of standard parallel", m.lat_ts),
-                pa("Longitude of origin", m.lon0),
-                pl("False easting", m.false_easting),
-                pl("False northing", m.false_northing),
-            ),
-        ),
-        ProjectionKind::WebMercator(_) => (
-            "Popular Visualisation Pseudo Mercator",
-            1024,
-            format!(
-                "{},{},{},{}",
-                pa("Latitude of natural origin", 0.0),
-                pa("Longitude of natural origin", 0.0),
-                pl("False easting", 0.0),
-                pl("False northing", 0.0),
-            ),
-        ),
-        // Topocentric has no standard WKT2 method — best-effort, not re-parseable.
-        ProjectionKind::LocalTangentPlane(_) => ("Topocentric", 0, String::new()),
+    // Topocentric has no standard WKT2 method — best-effort, not re-parseable.
+    let Some((method, mid, params)) = method::conversion_params(projection) else {
+        return r#"CONVERSION["conversion",METHOD["Topocentric"]]"#.to_string();
     };
-    let params = if params.is_empty() {
-        String::new()
-    } else {
-        format!(",{params}")
-    };
-    format!(r#"CONVERSION["conversion",METHOD["{method}",ID["EPSG",{mid}]]{params}]"#)
+    let body: Vec<String> = params
+        .iter()
+        .map(|&(name, value, ref unit)| {
+            let u = match unit {
+                ParamUnit::Angle => DEG,
+                ParamUnit::Length => METRE,
+                ParamUnit::Scale => r#"SCALEUNIT["unity",1]"#,
+            };
+            format!(r#"PARAMETER["{name}",{value},{u}]"#)
+        })
+        .collect();
+    format!(
+        r#"CONVERSION["conversion",METHOD["{method}",ID["EPSG",{mid}]],{}]"#,
+        body.join(",")
+    )
 }
 
 /// The datum of a geographic/geocentric (or base) node: the **registry** datum
@@ -253,69 +196,11 @@ fn datum_of(node: &WktNode) -> Option<Datum> {
 
 /// Build the [`ProjectionKind`] from a `CONVERSION` node's `METHOD` + `PARAMETER`s.
 fn projection_of(conv: &WktNode, ellipsoid: Ellipsoid) -> Option<ProjectionKind> {
-    let method = conv.child("METHOD").or_else(|| conv.child("PROJECTION"))?;
-    let param = |name: &str| -> Option<f64> {
+    let method = conv.child("METHOD").or_else(|| conv.child("PROJECTION"))?.str_arg(0)?;
+    method::projection_from_method(method, ellipsoid, |name| {
         conv.children("PARAMETER")
             .find(|p| p.str_arg(0).is_some_and(|n| n.eq_ignore_ascii_case(name)))
             .and_then(|p| p.num_arg(1))
-    };
-    Some(match method.str_arg(0)?.to_ascii_lowercase().as_str() {
-        "transverse mercator" => ProjectionKind::TransverseMercator(TransverseMercator {
-            ellipsoid,
-            central_meridian: param("Longitude of natural origin")?,
-            lat_origin: param("Latitude of natural origin").unwrap_or(0.0),
-            k0: param("Scale factor at natural origin").unwrap_or(1.0),
-            false_easting: param("False easting").unwrap_or(0.0),
-            false_northing: param("False northing").unwrap_or(0.0),
-        }),
-        "lambert conic conformal (2sp)" => {
-            ProjectionKind::LambertConformalConic(LambertConformalConic {
-                ellipsoid,
-                lat1: param("Latitude of 1st standard parallel")?,
-                lat2: param("Latitude of 2nd standard parallel")?,
-                lat0: param("Latitude of false origin").unwrap_or(0.0),
-                lon0: param("Longitude of false origin")?,
-                false_easting: param("Easting at false origin").unwrap_or(0.0),
-                false_northing: param("Northing at false origin").unwrap_or(0.0),
-            })
-        }
-        "lambert conic conformal (1sp)" => {
-            let lat0 = param("Latitude of natural origin")?;
-            ProjectionKind::LambertConformalConic(LambertConformalConic {
-                ellipsoid,
-                lat1: lat0,
-                lat2: lat0,
-                lat0,
-                lon0: param("Longitude of natural origin")?,
-                false_easting: param("False easting").unwrap_or(0.0),
-                false_northing: param("False northing").unwrap_or(0.0),
-            })
-        }
-        "albers equal area" => ProjectionKind::AlbersEqualArea(AlbersEqualArea {
-            ellipsoid,
-            lat1: param("Latitude of 1st standard parallel")?,
-            lat2: param("Latitude of 2nd standard parallel")?,
-            lat0: param("Latitude of false origin").unwrap_or(0.0),
-            lon0: param("Longitude of false origin")?,
-            false_easting: param("Easting at false origin").unwrap_or(0.0),
-            false_northing: param("Northing at false origin").unwrap_or(0.0),
-        }),
-        "polar stereographic (variant b)" => {
-            let lat_ts = param("Latitude of standard parallel")?;
-            ProjectionKind::PolarStereographic(PolarStereographic {
-                ellipsoid,
-                lat_ts,
-                lon0: param("Longitude of origin").unwrap_or(0.0),
-                north: lat_ts > 0.0,
-                false_easting: param("False easting").unwrap_or(0.0),
-                false_northing: param("False northing").unwrap_or(0.0),
-            })
-        }
-        "popular visualisation pseudo mercator" | "mercator (variant a)"
-        | "mercator (variant b)" => {
-            ProjectionKind::WebMercator(WebMercator { radius: ellipsoid.a })
-        }
-        _ => return None,
     })
 }
 

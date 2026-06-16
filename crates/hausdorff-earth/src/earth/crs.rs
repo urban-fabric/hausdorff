@@ -33,7 +33,9 @@ use hausdorff_planar::space::r2::Coord;
 mod datum;
 pub use datum::{Datum, DatumShift, Helmert};
 
+mod method;
 mod proj_string;
+mod projjson;
 mod wkt;
 
 /// A concrete map projection — the projected-CRS member of the enum, so a [`Crs`]
