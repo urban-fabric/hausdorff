@@ -239,6 +239,21 @@ impl Datum {
     }
 }
 
+/// The reference [`Ellipsoid`] for a PROJ `+ellps=` name (the subset this crate's
+/// datums use), or `None` if unrecognised. Backs PROJ-string parsing.
+pub(super) fn ellipsoid_by_proj_name(name: &str) -> Option<Ellipsoid> {
+    Some(match name {
+        "WGS84" => Ellipsoid::WGS84,
+        "GRS80" => Ellipsoid::GRS80,
+        "airy" => airy1830(),
+        "intl" => intl1924(),
+        "clrk66" => clarke1866(),
+        "bessel" => bessel1841(),
+        "clrk80ign" => clarke1880ign(),
+        _ => return None,
+    })
+}
+
 /// Airy 1830 — the ellipsoid of OSGB36 / the British National Grid.
 fn airy1830() -> Ellipsoid {
     Ellipsoid {
