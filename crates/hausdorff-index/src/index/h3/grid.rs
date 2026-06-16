@@ -152,6 +152,12 @@ pub(super) fn neighbor_rotations(
 
 /// All cells within grid distance `k` of `origin` (the filled grid disk,
 /// including `origin`). Safe BFS — robust around pentagons.
+///
+/// Proof-backed by `riemann` `Hausdorff/H3Grid.gridDistance_stepPath_le` (at the
+/// ideal-`CoordIJK` level): a BFS path of `n` unit ring-steps stays within grid
+/// distance `n`, so the BFS ring index `k` soundly bounds the grid distance and
+/// `grid_disk k` ⊆ the radius-`k` disk. (The cell-id/pentagon traversal itself —
+/// `neighbor_rotations` — is graph plumbing, out of scope.)
 pub(super) fn grid_disk(origin: u64, k: u32) -> Vec<u64> {
     grid_disk_distances(origin, k)
         .into_iter()

@@ -7,6 +7,7 @@
 //! the Euclidean dimensional ladder — the line `r1`, the plane `r2`, the space
 //! `r3` — and carries no physical unit (metres enter only in [`crate::earth`]).
 
+use hausdorff_geometry_traits::ClosedInterval;
 use serde::{Deserialize, Serialize};
 
 /// A closed interval `[lo, hi]` on the real line. `lo > hi` denotes the empty
@@ -206,5 +207,54 @@ impl Interval {
             return self.length() <= 2.0 * EPSILON;
         }
         (other.lo - self.lo).abs() <= EPSILON && (other.hi - self.hi).abs() <= EPSILON
+    }
+}
+
+/// `r1::Interval` is the canonical [`ClosedInterval`] — the real-line interval the
+/// shared algebra is written over (delegating to the inherent `const fn`
+/// methods). The interval laws are machine-checked in `riemann`
+/// `Hausdorff/R1Interval`: `mem_inter_iff` (intersection = set intersection),
+/// `mem_hull_of_mem_left/right` (union contains both), `mem_of_subset`
+/// (containment is sound), `clamp_nearest` (the clamp is the nearest point).
+impl ClosedInterval for Interval {
+    #[inline]
+    fn from_bounds(lo: f64, hi: f64) -> Self {
+        Self::new(lo, hi)
+    }
+    #[inline]
+    fn lo(self) -> f64 {
+        self.lo
+    }
+    #[inline]
+    fn hi(self) -> f64 {
+        self.hi
+    }
+    #[inline]
+    fn empty() -> Self {
+        Interval::empty()
+    }
+    #[inline]
+    fn is_empty(self) -> bool {
+        Interval::is_empty(self)
+    }
+    #[inline]
+    fn contains(self, p: f64) -> bool {
+        Interval::contains(self, p)
+    }
+    #[inline]
+    fn contains_interval(self, other: Self) -> bool {
+        Interval::contains_interval(self, other)
+    }
+    #[inline]
+    fn intersection(self, other: Self) -> Self {
+        Interval::intersection(self, other)
+    }
+    #[inline]
+    fn union(self, other: Self) -> Self {
+        Interval::union(self, other)
+    }
+    #[inline]
+    fn expanded(self, margin: f64) -> Self {
+        Interval::expanded(self, margin)
     }
 }

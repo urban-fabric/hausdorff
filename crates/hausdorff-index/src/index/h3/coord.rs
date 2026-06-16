@@ -68,6 +68,19 @@ impl CoordIJ {
 }
 
 /// IJK hex coordinates (each axis 120° apart).
+///
+/// Proof-backed by `riemann` `Hausdorff/H3Coord` (`CoordIJK` over ℤ): `normalize`
+/// is the canonical smallest-non-negative name (`normalize_{nonneg,idem}`,
+/// `cmin_normalize`) and is translation-invariant (`normalize_translate`);
+/// `distance` is the component-spread **pseudometric** on the hex equivalence
+/// (`gridDistance_{eq_spread,self,nonneg,comm,triangle,eq_zero_iff}`); `rotate60`
+/// CW/CCW are mutual inverses and compose to the 120° axis 3-cycle
+/// (`rotate60_{cw_ccw,ccw_cw}`, `rotate60{ccw,cw}_sq`); `down_aperture{7,3}` are
+/// well-defined on the hex equivalence (`downAp*_normalize`); `neighbor` moves
+/// one cell (`gridDistance_neighbor_le_one`); and `to_digit` ↔ the digit decode
+/// is a bijection on `0..6` (`toDigit_mem`, `unpackDigit_isUnit`,
+/// `unpackDigit_toDigit`, `toDigit_unpackDigit`, `neighborByDigit_toDigit`). The
+/// `IJ` packing is faithful (`normalize_ofIJ_toIJ`).
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq)]
 pub(super) struct CoordIJK {
     i: i32,

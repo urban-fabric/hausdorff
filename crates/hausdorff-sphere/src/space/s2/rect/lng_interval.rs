@@ -165,10 +165,12 @@ impl LngInterval {
     /// The intersection of the two longitude intervals.
     ///
     /// Proof-backed by `riemann` `Hausdorff/S1Interval.intersection_complete`
-    /// (antimeridian-free case): for non-inverted intervals the result contains
-    /// every shared longitude — so the intersection never drops an overlap (no
-    /// false "disjoint"). The wrap-crossing/inverted case is a harder open piece;
-    /// full wrap-aware *containment* is covered by `subset_sound`.
+    /// (**full wrap-aware case**, inverted intervals included): the result
+    /// contains every shared longitude — the intersection never drops an overlap
+    /// (no false "disjoint"). Holds under golang's `Valid` invariant (`-π` only as
+    /// the full/empty endpoint); completeness (result ⊇ the set intersection) is
+    /// the right guarantee, since a two-arc overlap returns the shorter input (a
+    /// superset) — `s1.Interval` cannot represent two arcs.
     pub(super) fn intersection(self, o: Self) -> Self {
         if o.is_empty() {
             return Self::empty();

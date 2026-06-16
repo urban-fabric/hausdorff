@@ -26,6 +26,11 @@ pub struct Outcome {
 
 /// Find the extreme coordinates and indices of a geometry, or `None` when it
 /// has no coordinates.
+///
+/// Proof-backed by `riemann` `Hausdorff/Extremes`: the running min/max fold
+/// returns a genuine extreme — its key bounds every candidate (`argmin_le_mem` /
+/// `argmax_ge_mem`) and is **attained** by an input coordinate (`argmin_mem` /
+/// `argmax_mem`), with the strict `<`/`>` keeping the first coordinate on ties.
 pub trait Extremes {
     fn extremes(&self) -> Option<Outcome>;
 }

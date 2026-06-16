@@ -16,6 +16,8 @@
 //! - [`region`] — the [`PointRegion`] / [`Prunable`] bounding-volume traits +
 //!   the generic spatial filters ([`filter_contained`], [`count_contained`],
 //!   [`any_contained`], [`disjoint`]).
+//! - [`interval`] — the [`ClosedInterval`] algebra (`contains` / `intersection` /
+//!   `union` / `expanded` / hull), shared by `r1::Interval` and `s2::LatInterval`.
 //!
 //! Each trait's laws are machine-checked in the `riemann` Lean development
 //! (`Geometry.*` / `Hausdorff.*`); the per-space impls cite the theorems. The
@@ -25,11 +27,13 @@
 //! [`hausdorff-base`]: https://docs.rs/hausdorff-base
 
 pub mod interpolate;
+pub mod interval;
 pub mod orientation;
 pub mod region;
 pub mod simplex;
 pub mod vector;
 
+pub use interval::ClosedInterval;
 pub use interpolate::{Interpolate, sample};
 pub use orientation::{
     Orientation, contains_convex, convex_winding, in_triangle, is_collinear, is_convex_ring,

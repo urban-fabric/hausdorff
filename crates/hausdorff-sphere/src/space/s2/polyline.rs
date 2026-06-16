@@ -48,6 +48,13 @@ impl Polyline {
 
     /// Total length — the sum of the great-circle edge lengths — as an
     /// [`Angle`]; multiply by a planet radius for metres.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/SpherePolyline`: the length is
+    /// non-negative (`spherePolyLen_nonneg`), a two-vertex polyline measures the
+    /// endpoint great-circle distance (`spherePolyLen_pair`), and the **chord
+    /// bound** holds — the direct great-circle distance between the first and last
+    /// vertices is at most the total length (`sphereDist_le_polyLen`, the
+    /// spherical triangle inequality chained). Same fold as `Loop::perimeter`.
     #[must_use]
     pub fn length(&self) -> Angle {
         let total: f64 = self

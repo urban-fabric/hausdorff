@@ -10,6 +10,7 @@ description = "Unit-sphere geometry (the golang/geo S2 port): cell ids, caps, lo
 
 [dependencies]
 hausdorff-base = { workspace = true }
+hausdorff-geometry-traits = { workspace = true }
 hausdorff-planar = { workspace = true }
 serde = { workspace = true }
 
