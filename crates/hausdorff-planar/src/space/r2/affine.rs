@@ -20,6 +20,12 @@ use super::{
 /// A general affine transformation matrix mapping `(x, y)` to
 /// `(a·x + b·y + xoff, d·x + e·y + yoff)` — row-major, with the rows ordered
 /// `[[a, b, xoff], [d, e, yoff], [0, 0, 1]]`.
+///
+/// Proof-backed by `riemann` `ExactArith/Affine`: affine maps scale the
+/// orientation determinant by `det` (`triDet_affMap`, with `triDet_affMap_pos`
+/// when `det > 0`) — so a positive-determinant transform preserves orientation —
+/// and preserve collinearity (`collinear_affMap`); rotations preserve it exactly
+/// (`triDet_rotation`).
 #[derive(Copy, Clone, PartialEq)]
 pub struct AffineTransform([[f64; 3]; 3]);
 

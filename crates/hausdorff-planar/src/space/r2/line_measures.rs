@@ -118,6 +118,13 @@ impl Distance<GeoPoint, GeoPoint> for Geodesic {
 }
 
 /// Total length of a linear geometry under a metric space.
+///
+/// Proof-backed (Euclidean) by `riemann` `Hausdorff/Length`: the polyline length
+/// `Σ‖vᵢ₊₁−vᵢ‖` is non-negative (`polyLen_nonneg`), a two-vertex line measures the
+/// endpoint distance (`polyLen_pair`), and obeys the **chord bound** — the
+/// straight-line endpoint distance is at most the polyline length
+/// (`dist_le_polyLen`), so a refined or coarsened path can't drift past its
+/// length. (The sphere instance is `Hausdorff/SpherePolyline`.)
 pub trait Length<G> {
     fn length(&self, geometry: &G) -> f64;
 }

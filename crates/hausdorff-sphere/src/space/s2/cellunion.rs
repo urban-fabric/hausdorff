@@ -20,6 +20,12 @@ impl From<Vec<S2CellId>> for CellUnion {
     /// (cells contained in another cell of the set are removed), and any four
     /// complete siblings are replaced by their parent, repeating up the
     /// hierarchy.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/CellNesting`: the id-range `contains`
+    /// test implies the contained cell's whole range nests (`nesting`/`nesting'`,
+    /// via the odd-multiple-of-`4^e` divisibility invariant), so dropping a
+    /// contained cell loses no leaf coverage (`covers_of_contains`) — the
+    /// soundness of the maximal-cell reduction.
     fn from(mut ids: Vec<S2CellId>) -> Self {
         ids.retain(|id| id.is_valid());
         ids.sort_unstable();

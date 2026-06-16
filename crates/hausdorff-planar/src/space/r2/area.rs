@@ -6,6 +6,12 @@ use super::util::signed_area2;
 use super::{LineString, MultiPolygon, Point, Polygon, Rect, Triangle};
 
 /// Signed and unsigned planar area.
+///
+/// Proof-backed by `riemann` `ExactArith/Shoelace` and `ExactArith/PlanarArea`:
+/// the shoelace sum is the triangle area (`shoelace_triangle`,
+/// `triangle_shoelace_eq_det`), translation-invariant (`shoelace_translation` /
+/// `triSignedArea_translation`) and sign-flips on vertex swap
+/// (`triSignedArea_swap`) — so signed area's sign is the orientation.
 pub trait Area {
     /// Signed area: positive when the exterior ring is counter-clockwise,
     /// negative when clockwise. Holes reduce the magnitude.

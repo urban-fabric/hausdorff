@@ -1,6 +1,14 @@
 //! Native intersection predicate — do two geometries share at least one point?
 //! The in-house equivalent of `geo`'s `Intersects` on `Geometry`, built from
 //! robust segment crossing + point-in-polygon (no DE-9IM matrix needed).
+//!
+//! Proof-backed by `riemann` `ExactArith/SegmentCross` and
+//! `ExactArith/SegmentIntersection`: two segments properly cross iff their
+//! endpoints straddle each other's lines (`straddle_crossing`,
+//! `segments_properly_cross`), with the orientation determinant interpolating
+//! linearly along an edge (`triDet_lerp`) and a shared point staying on one side
+//! otherwise (`segment_stays_one_side`) — the soundness of the sign-based
+//! crossing test. Point-in-polygon is `Hausdorff/PolygonParity` (see `contains`).
 
 use super::util::{point_in_ring, ring_vertices};
 use super::{Coord, CoordsIter, Geometry, Polygon, Rect};

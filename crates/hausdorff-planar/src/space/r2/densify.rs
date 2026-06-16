@@ -28,6 +28,12 @@ use super::{
 /// `Output` differs from the input only where densifying changes the natural
 /// shape: a [`Line`] becomes a [`LineString`], a [`Rect`] / [`Triangle`] a
 /// [`Polygon`] (the fixed-vertex types cannot hold inserted vertices).
+///
+/// Proof-backed by `riemann` `Hausdorff/Densify`: inserted samples lie on the
+/// segment as the convex combination `(1−i/n)a + (i/n)b` (`densPoint_eq_combo`),
+/// are evenly spaced (`densPoint_step`), and preserve length exactly — the pieces
+/// sum to `‖b−a‖` (`densify_length`); the `⌈‖b−a‖/maxLen⌉` count keeps every piece
+/// `≤ maxLen` (`pieces_satisfies_cap`).
 pub trait Densify<G> {
     /// The densified shape (the input type, widened where necessary).
     type Output;

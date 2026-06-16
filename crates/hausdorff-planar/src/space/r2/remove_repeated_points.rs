@@ -14,6 +14,10 @@ use super::{
 ///
 /// For [`Geometry::GeometryCollection`] each member is cleaned individually.
 /// [`Point`], [`Line`], [`Rect`] and [`Triangle`] are returned unchanged.
+///
+/// Proof-backed by `riemann` `Hausdorff/RemoveRepeated`: consecutive dedup
+/// preserves the point *set* (`mem_dedupAdj`: `x ∈ dedup l ↔ x ∈ l`) and never
+/// grows the list (`dedupAdj_length_le`).
 pub trait RemoveRepeatedPoints {
     /// A copy of the geometry with (consecutive) repeated points removed.
     fn remove_repeated_points(&self) -> Self;

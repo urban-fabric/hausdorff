@@ -108,6 +108,12 @@ fn encode_bisect(lon: f64, lat: f64, precision: usize) -> String {
 
 /// Decode a geohash to the `(lon, lat)` of its cell center, or `None` for an
 /// empty string or an invalid character.
+///
+/// Proof-backed by `riemann` `Hausdorff/Geohash`: decode is per-axis interval
+/// bisection — each base-32 bit halves the lon/lat range toward the coordinate
+/// (`encStepN_mem` keeps `x` in range, `encStepN_width` gives width `(hi−lo)/2ⁿ`),
+/// so the returned midpoint is within `(hi−lo)/2^(n+1)` of the true coordinate
+/// (`geohash_decode_close`) — the decode precision bound.
 #[must_use]
 pub fn decode(hash: &str) -> Option<(f64, f64)> {
     if hash.is_empty() {
