@@ -604,3 +604,63 @@ fn wkt2_dimension_datum_and_rejects() {
     assert_eq!(Crs::from_wkt2("not wkt"), None);
     assert_eq!(Crs::from_wkt2(r#"VERTCRS["height",VDATUM["d"]]"#), None);
 }
+
+#[test]
+fn serializers_round_trip_through_the_parsers() {
+    // Each registry CRS emitted to PROJ-string and WKT2, then re-parsed, must
+    // project identically. (Spans geographic 2-D/3-D, geocentric, and every
+    // projection family.)
+    let cases: &[(u32, f64, f64)] = &[
+        (4326, 51.5, -0.1),
+        (4979, 51.5, -0.1),
+        (4978, 45.0, 45.0),
+        (4269, 40.0, -100.0),
+        (3857, 51.5, -0.1),
+        (32_630, 51.5, -0.1),
+        (27_700, 52.0, -1.0),
+        (2154, 46.5, 2.5),
+        (5070, 40.0, -100.0),
+        (3031, -75.0, 30.0),
+    ];
+    for &(code, lat, lon) in cases {
+        let crs = Crs::from_epsg(code).unwrap();
+        let ps = crs.to_proj_string();
+        let from_ps = Crs::from_proj_string(&ps)
+            .unwrap_or_else(|| panic!("EPSG:{code}: re-parse of proj-string failed: {ps}"));
+        assert!(
+            projection_delta(crs, from_ps, lat, lon) < 1e-6,
+            "EPSG:{code}: proj-string round-trip off — {ps}"
+        );
+        let w = crs.to_wkt2();
+        let from_w =
+            Crs::from_wkt2(&w).unwrap_or_else(|| panic!("EPSG:{code}: re-parse of WKT2 failed: {w}"));
+        assert!(
+            projection_delta(crs, from_w, lat, lon) < 1e-6,
+            "EPSG:{code}: WKT2 round-trip off — {w}"
+        );
+        // WKT2 carries the ID, so the code survives the round-trip.
+        assert_eq!(from_w.epsg(), Some(code), "EPSG:{code}: WKT2 keeps the code");
+    }
+}
+
+#[test]
+fn serialized_datum_shift_round_trips() {
+    // OSGB36 / BNG (27700) carries a real Helmert shift; both serializers preserve
+    // it — proj-string via +towgs84, WKT2 via the BASEGEOGCRS EPSG id — so a full
+    // WGS84→BNG transform through the re-parsed CRS matches the registry.
+    let reg = Crs::from_epsg(27_700).unwrap();
+    let p = CrsCoord::geographic(GeoPoint::from_lat_lon(52.0, -1.0));
+    let want = transform(Crs::wgs84(), reg, p).projected();
+    for parsed in [
+        Crs::from_proj_string(&reg.to_proj_string()).unwrap(),
+        Crs::from_wkt2(&reg.to_wkt2()).unwrap(),
+    ] {
+        // The shift survived (non-identity), not silently dropped to projection-only.
+        assert!(matches!(parsed.datum().to_wgs84, DatumShift::Helmert(h) if !h.is_identity()));
+        let got = transform(Crs::wgs84(), parsed, p).projected();
+        assert!(
+            (got.x - want.x).abs() < 1e-6 && (got.y - want.y).abs() < 1e-6,
+            "datum shift not preserved: {got:?} vs {want:?}"
+        );
+    }
+}

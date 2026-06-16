@@ -122,6 +122,83 @@ impl Crs {
     }
 }
 
+impl Crs {
+    /// Serialize this CRS to a **PROJ-string** — the inverse of
+    /// [`from_proj_string`](Self::from_proj_string). Round-trips the projection and
+    /// ellipsoid; a datum's Helmert shift is emitted as `+towgs84`. (An NTv2-grid
+    /// datum shift has no PROJ-string form — no embedded grids — so it is dropped.)
+    #[must_use]
+    pub fn to_proj_string(&self) -> String {
+        let body = match *self {
+            Crs::Geographic { datum, .. } => format!("+proj=longlat {}", proj_datum(datum)),
+            Crs::Geocentric { datum, .. } => format!("+proj=geocent {}", proj_datum(datum)),
+            Crs::Projected {
+                datum, projection, ..
+            } => match projection {
+                ProjectionKind::WebMercator(m) => {
+                    format!("+proj=merc +a={} +b={} +lat_ts=0 +lon_0=0", m.radius, m.radius)
+                }
+                ProjectionKind::TransverseMercator(m) => format!(
+                    "+proj=tmerc +lat_0={} +lon_0={} +k={} +x_0={} +y_0={} {}",
+                    m.lat_origin,
+                    m.central_meridian,
+                    m.k0,
+                    m.false_easting,
+                    m.false_northing,
+                    proj_datum(datum),
+                ),
+                ProjectionKind::LambertConformalConic(m) => format!(
+                    "+proj=lcc +lat_0={} +lon_0={} +lat_1={} +lat_2={} +x_0={} +y_0={} {}",
+                    m.lat0, m.lon0, m.lat1, m.lat2, m.false_easting, m.false_northing,
+                    proj_datum(datum),
+                ),
+                ProjectionKind::AlbersEqualArea(m) => format!(
+                    "+proj=aea +lat_0={} +lon_0={} +lat_1={} +lat_2={} +x_0={} +y_0={} {}",
+                    m.lat0, m.lon0, m.lat1, m.lat2, m.false_easting, m.false_northing,
+                    proj_datum(datum),
+                ),
+                ProjectionKind::PolarStereographic(m) => format!(
+                    "+proj=stere +lat_0={} +lat_ts={} +lon_0={} +x_0={} +y_0={} {}",
+                    if m.north { 90.0 } else { -90.0 },
+                    m.lat_ts,
+                    m.lon0,
+                    m.false_easting,
+                    m.false_northing,
+                    proj_datum(datum),
+                ),
+                // Topocentric has no `from_proj_string` reader — best-effort only.
+                ProjectionKind::LocalTangentPlane(_) => {
+                    format!("+proj=topocentric {}", proj_datum(datum))
+                }
+            },
+        };
+        format!("{body} +units=m +no_defs")
+    }
+}
+
+/// The `+datum`/`+ellps`(+`+towgs84`) fragment for a datum.
+fn proj_datum(d: Datum) -> String {
+    if d == Datum::WGS84 {
+        return "+datum=WGS84".to_string();
+    }
+    let e = d.ellipsoid;
+    let ell = match datum::proj_name_of_ellipsoid(e) {
+        Some(name) => format!("+ellps={name}"),
+        None if e.f == 0.0 => format!("+a={} +b={}", e.a, e.a),
+        None => format!("+a={} +rf={}", e.a, 1.0 / e.f),
+    };
+    match d.to_wgs84 {
+        DatumShift::Helmert(h) if !h.is_identity() => {
+            let t = h.to_towgs84();
+            format!(
+                "{ell} +towgs84={},{},{},{},{},{},{}",
+                t[0], t[1], t[2], t[3], t[4], t[5], t[6]
+            )
+        }
+        _ => ell,
+    }
+}
+
 /// A parsed bag of PROJ `+key[=value]` parameters (order preserved; first match
 /// wins). Borrows from the input string.
 struct ProjParams<'a> {

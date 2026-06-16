@@ -16,7 +16,7 @@
 //! Transverse Mercator, Lambert Conic Conformal (1SP/2SP), Albers Equal Area,
 //! Polar Stereographic (variant B), and the pseudo-Mercator.
 
-use super::{Crs, Datum, DatumShift, GeoDim, Helmert, ProjectionKind};
+use super::{Crs, Datum, DatumShift, GeoDim, Helmert, ProjectionKind, datum};
 use crate::earth::projection::{
     AlbersEqualArea, LambertConformalConic, PolarStereographic, TransverseMercator, WebMercator,
 };
@@ -72,6 +72,164 @@ impl Crs {
             _ => None,
         }
     }
+}
+
+impl Crs {
+    /// Serialize this CRS to a **WKT2** string — the inverse of
+    /// [`from_wkt2`](Self::from_wkt2). The output is valid WKT2 (units, `PRIMEM`,
+    /// method/axis order), accepted by other readers (e.g. PROJ).
+    ///
+    /// When the datum is a registry datum its geographic `ID["EPSG",NNNN]` is
+    /// emitted on the `BASEGEOGCRS`, so [`from_wkt2`](Self::from_wkt2) recovers the
+    /// datum *with* its shift to WGS84. Note this datum shift is **not embedded**
+    /// in the WKT itself — a self-contained shift would need a `BOUNDCRS` /
+    /// `ABRIDGEDTRANSFORMATION` (not emitted), so an external reader that does not
+    /// resolve the EPSG id treats the datum as shift-free. The *projection* is
+    /// always exact. (For a fully self-contained datum shift, prefer
+    /// [`to_proj_string`](Self::to_proj_string), which embeds `+towgs84`.)
+    #[must_use]
+    pub fn to_wkt2(&self) -> String {
+        match *self {
+            Crs::Geographic { datum, epsg, dim } => {
+                let (n, axes) = if dim == GeoDim::D3 {
+                    (3, format!(
+                        r#"AXIS["latitude",north,ORDER[1],{DEG}],AXIS["longitude",east,ORDER[2],{DEG}],AXIS["ellipsoidal height",up,ORDER[3],{METRE}]"#
+                    ))
+                } else {
+                    (2, format!(
+                        r#"AXIS["latitude",north,ORDER[1],{DEG}],AXIS["longitude",east,ORDER[2],{DEG}]"#
+                    ))
+                };
+                format!(
+                    r#"GEOGCRS["geographic",{},{PRIMEM},CS[ellipsoidal,{n}],{axes}{}]"#,
+                    datum_node(datum),
+                    id_node(epsg)
+                )
+            }
+            Crs::Geocentric { datum, epsg } => format!(
+                r#"GEODCRS["geocentric",{},{PRIMEM},CS[Cartesian,3],AXIS["(X)",geocentricX,ORDER[1],{METRE}],AXIS["(Y)",geocentricY,ORDER[2],{METRE}],AXIS["(Z)",geocentricZ,ORDER[3],{METRE}]{}]"#,
+                datum_node(datum),
+                id_node(epsg)
+            ),
+            Crs::Projected {
+                datum,
+                projection,
+                epsg,
+            } => {
+                let base = format!(
+                    r#"BASEGEOGCRS["base",{},{PRIMEM}{}]"#,
+                    datum_node(datum),
+                    id_node(datum::base_geographic_code(datum))
+                );
+                format!(
+                    r#"PROJCRS["projected",{base},{},CS[Cartesian,2],AXIS["(E)",east,ORDER[1],{METRE}],AXIS["(N)",north,ORDER[2],{METRE}]{}]"#,
+                    conversion_node(projection),
+                    id_node(epsg)
+                )
+            }
+        }
+    }
+}
+
+/// WKT2 unit / prime-meridian fragments shared by the serializer.
+const DEG: &str = r#"ANGLEUNIT["degree",0.0174532925199433]"#;
+const METRE: &str = r#"LENGTHUNIT["metre",1]"#;
+const PRIMEM: &str = r#"PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]]"#;
+
+/// `ELLIPSOID["…",a,1/f,LENGTHUNIT["metre",1]]` (inverse flattening; 0 for a sphere).
+fn ellipsoid_node(e: Ellipsoid) -> String {
+    let rf = if e.f == 0.0 { 0.0 } else { 1.0 / e.f };
+    format!(r#"ELLIPSOID["ellipsoid",{},{},LENGTHUNIT["metre",1]]"#, e.a, rf)
+}
+
+/// `DATUM["…",ELLIPSOID[…]]`.
+fn datum_node(d: Datum) -> String {
+    format!(r#"DATUM["datum",{}]"#, ellipsoid_node(d.ellipsoid))
+}
+
+/// `,ID["EPSG",code]` or empty.
+fn id_node(code: Option<u32>) -> String {
+    code.map_or(String::new(), |c| format!(r#",ID["EPSG",{c}]"#))
+}
+
+/// The `CONVERSION["…",METHOD[…],PARAMETER[…]…]` for a projection. Parameters
+/// carry their EPSG units (angle / length / scale) so the WKT2 is valid for any
+/// reader, not just this crate's parser.
+fn conversion_node(projection: ProjectionKind) -> String {
+    // Angle / length / scale parameters, each with its EPSG unit.
+    let pa = |name: &str, v: f64| format!(r#"PARAMETER["{name}",{v},{DEG}]"#);
+    let pl = |name: &str, v: f64| format!(r#"PARAMETER["{name}",{v},{METRE}]"#);
+    let ps = |name: &str, v: f64| format!(r#"PARAMETER["{name}",{v},SCALEUNIT["unity",1]]"#);
+    let (method, mid, params): (&str, u32, String) = match projection {
+        ProjectionKind::TransverseMercator(m) => (
+            "Transverse Mercator",
+            9807,
+            format!(
+                "{},{},{},{},{}",
+                pa("Latitude of natural origin", m.lat_origin),
+                pa("Longitude of natural origin", m.central_meridian),
+                ps("Scale factor at natural origin", m.k0),
+                pl("False easting", m.false_easting),
+                pl("False northing", m.false_northing),
+            ),
+        ),
+        ProjectionKind::LambertConformalConic(m) => (
+            "Lambert Conic Conformal (2SP)",
+            9802,
+            format!(
+                "{},{},{},{},{},{}",
+                pa("Latitude of false origin", m.lat0),
+                pa("Longitude of false origin", m.lon0),
+                pa("Latitude of 1st standard parallel", m.lat1),
+                pa("Latitude of 2nd standard parallel", m.lat2),
+                pl("Easting at false origin", m.false_easting),
+                pl("Northing at false origin", m.false_northing),
+            ),
+        ),
+        ProjectionKind::AlbersEqualArea(m) => (
+            "Albers Equal Area",
+            9822,
+            format!(
+                "{},{},{},{},{},{}",
+                pa("Latitude of false origin", m.lat0),
+                pa("Longitude of false origin", m.lon0),
+                pa("Latitude of 1st standard parallel", m.lat1),
+                pa("Latitude of 2nd standard parallel", m.lat2),
+                pl("Easting at false origin", m.false_easting),
+                pl("Northing at false origin", m.false_northing),
+            ),
+        ),
+        ProjectionKind::PolarStereographic(m) => (
+            "Polar Stereographic (variant B)",
+            9829,
+            format!(
+                "{},{},{},{}",
+                pa("Latitude of standard parallel", m.lat_ts),
+                pa("Longitude of origin", m.lon0),
+                pl("False easting", m.false_easting),
+                pl("False northing", m.false_northing),
+            ),
+        ),
+        ProjectionKind::WebMercator(_) => (
+            "Popular Visualisation Pseudo Mercator",
+            1024,
+            format!(
+                "{},{},{},{}",
+                pa("Latitude of natural origin", 0.0),
+                pa("Longitude of natural origin", 0.0),
+                pl("False easting", 0.0),
+                pl("False northing", 0.0),
+            ),
+        ),
+        // Topocentric has no standard WKT2 method — best-effort, not re-parseable.
+        ProjectionKind::LocalTangentPlane(_) => ("Topocentric", 0, String::new()),
+    };
+    let params = if params.is_empty() {
+        String::new()
+    } else {
+        format!(",{params}")
+    };
+    format!(r#"CONVERSION["conversion",METHOD["{method}",ID["EPSG",{mid}]]{params}]"#)
 }
 
 /// The datum of a geographic/geocentric (or base) node: the **registry** datum
