@@ -50,7 +50,7 @@ pub use measures::{
     angle, girard_area, point_area, polygon_signed_area_vos, signed_area, signed_area_vos,
     turn_angle,
 };
-pub use metric::SphereMetric;
+pub use metric::{AVG_EDGE, LengthMetric, MIN_WIDTH, SphereMetric};
 pub use point::S2Point;
 pub use polygon::Polygon;
 pub use polyline::Polyline;
