@@ -336,9 +336,7 @@ impl Destination for Geodesic {
 }
 
 /// Point interpolation along a metric space's "straight line" between two
-/// endpoints — the basis for [`Densify`](super::densify::Densify). The
-/// `Haversine` impl is a future addition (it needs a great-circle
-/// intermediate-point kernel).
+/// endpoints — the basis for [`Densify`](super::densify::Densify).
 pub trait InterpolatePoint {
     /// The point `ratio_from_start` of the way (by this metric's distance)
     /// from `start` to `end`: `0` is `start`, `1` is `end`.
@@ -372,6 +370,35 @@ impl InterpolatePoint for Euclidean {
     ) -> Point {
         let total = self.distance(start, end);
         self.point_at_ratio_between(start, end, distance_from_start / total)
+    }
+}
+
+/// Great-circle interpolation via the spherical destination kernel.
+///
+/// Proof-backed by `riemann` `Hausdorff/Slerp.slerp_unit` / `slerp_angle` and
+/// `Hausdorff/Destination.dest_unit` / `dest_dot`: the waypoint stays on the
+/// sphere and is reached at the requested central angle from the origin.
+impl InterpolatePoint for Haversine {
+    fn point_at_ratio_between(&self, start: Point, end: Point, ratio_from_start: f64) -> Point {
+        let start_geo = as_geo(start.0);
+        let end_geo = as_geo(end.0);
+        let total = haversine_m(start_geo, end_geo);
+        let bearing = CompassBearing::initial(start_geo, end_geo);
+        let p = destination_m(start_geo, bearing, total * ratio_from_start);
+        Point::new(p.lon, p.lat)
+    }
+
+    fn point_at_distance_between(
+        &self,
+        start: Point,
+        end: Point,
+        distance_from_start: f64,
+    ) -> Point {
+        let start_geo = as_geo(start.0);
+        let end_geo = as_geo(end.0);
+        let bearing = CompassBearing::initial(start_geo, end_geo);
+        let p = destination_m(start_geo, bearing, distance_from_start);
+        Point::new(p.lon, p.lat)
     }
 }
 

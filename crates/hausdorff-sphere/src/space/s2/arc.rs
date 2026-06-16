@@ -5,10 +5,12 @@
 //! points — radius-free, like the rest of `s2`. The lat/lon (and metres)
 //! layer over these lives in [`hausdorff_base::earth::arc`].
 
+use std::f64::consts::PI;
+
 use hausdorff_base::space::s1::Angle;
 
-use super::S2Point;
 use super::vector::R3Vector;
+use super::{Rect, S2Point};
 
 /// The point a fraction `t` of the way along the great-circle arc `a → b`
 /// (spherical linear interpolation): `t = 0` is `a`, `t = 1` is `b`; values
@@ -114,6 +116,53 @@ pub fn closest_point(p: S2Point, a: S2Point, b: S2Point) -> S2Point {
 #[must_use]
 pub fn distance_to_arc(p: S2Point, a: S2Point, b: S2Point) -> Angle {
     p.vector().angle(closest_point(p, a, b).vector())
+}
+
+/// A conservative lat/lng rectangle containing the minor arc segment `a -> b`.
+///
+/// Latitude uses [`latitude_extremes`] (Clairaut's relation) so a high-riding
+/// great-circle arc does not escape the endpoint latitude band. Longitude is
+/// monotone along a non-pole-touching minor arc; if the arc touches a pole, the
+/// rectangle widens to every longitude.
+///
+/// Proof-backed by `riemann` `Hausdorff/Clairaut.latitude_bound` for the
+/// latitude band and by `Hausdorff/SphereLongitude`/`SphereRect` for the
+/// wrap-aware longitude interval.
+#[must_use]
+pub fn rect_bound(a: S2Point, b: S2Point) -> Rect {
+    const PAD_DEG: f64 = 1e-9;
+    const POLE_EPS_DEG: f64 = 1e-12;
+
+    if a.vector().angle(b.vector()).radians() >= PI - 1e-15 {
+        return Rect::full();
+    }
+
+    let ag = a.to_geo_point();
+    let bg = b.to_geo_point();
+    let (min_lat, max_lat) = latitude_extremes(a, b);
+    let min_lat = (min_lat.degrees() - PAD_DEG).max(-90.0);
+    let max_lat = (max_lat.degrees() + PAD_DEG).min(90.0);
+    if max_lat >= 90.0 - POLE_EPS_DEG || min_lat <= -90.0 + POLE_EPS_DEG {
+        return Rect::from_degrees(min_lat, -180.0, max_lat, 180.0);
+    }
+
+    let delta = (bg.lon - ag.lon + 540.0).rem_euclid(360.0) - 180.0;
+    let (lng_lo, lng_hi) = if delta >= 0.0 {
+        (ag.lon - PAD_DEG, ag.lon + delta + PAD_DEG)
+    } else {
+        (ag.lon + delta - PAD_DEG, ag.lon + PAD_DEG)
+    };
+    Rect::from_degrees(
+        min_lat,
+        normalize_degrees(lng_lo),
+        max_lat,
+        normalize_degrees(lng_hi),
+    )
+}
+
+fn normalize_degrees(degrees: f64) -> f64 {
+    let x = (degrees + 180.0).rem_euclid(360.0) - 180.0;
+    if x <= -180.0 { 180.0 } else { x }
 }
 
 /// The minimum and maximum **latitude** attained on the arc segment `a → b`,
@@ -234,5 +283,33 @@ mod tests {
             "{} vs {sampled}",
             max.degrees()
         );
+    }
+
+    #[test]
+    fn rect_bound_contains_high_latitude_arc_samples() {
+        let a = sp(45.0, 0.0);
+        let b = sp(45.0, 90.0);
+        let bound = rect_bound(a, b);
+        assert!(
+            bound.hi().lat > 50.0,
+            "bound should include the Clairaut vertex"
+        );
+        for i in 0..=100 {
+            let p = interpolate(a, b, f64::from(i) / 100.0).to_geo_point();
+            assert!(bound.contains_lat_lng(p), "{p:?} escaped {bound:?}");
+        }
+    }
+
+    #[test]
+    fn rect_bound_wraps_antimeridian() {
+        let a = sp(10.0, 170.0);
+        let b = sp(10.0, -170.0);
+        let bound = rect_bound(a, b);
+        assert!(bound.contains_lat_lng(a.to_geo_point()));
+        assert!(bound.contains_lat_lng(b.to_geo_point()));
+        for i in 0..=100 {
+            let p = interpolate(a, b, f64::from(i) / 100.0).to_geo_point();
+            assert!(bound.contains_lat_lng(p), "{p:?} escaped {bound:?}");
+        }
     }
 }

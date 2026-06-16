@@ -3,12 +3,12 @@
 //! containment, exact at the poles and antimeridian since it is all unit-vector
 //! arithmetic. Ported from golang/geo's `s2.Cap`.
 
-use std::f64::consts::PI;
+use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use hausdorff_base::space::s1::Angle;
 use hausdorff_planar::algebra::{PointRegion, Prunable};
 
-use super::S2Point;
+use super::{Rect, S2Point};
 
 /// A spherical cap: all points `p` with angular distance `center → p ≤ radius`.
 /// A negative radius is the empty cap; a radius of `π` or more is the full
@@ -167,9 +167,58 @@ impl Cap {
         }
     }
 
+    /// A conservative latitude/longitude rectangle containing this cap.
+    ///
+    /// Latitude is bounded by `center.lat ± radius`. If the cap reaches either
+    /// pole, every longitude is possible. Otherwise the longitude half-width is
+    /// `asin(sin(radius) / cos(center.lat))`, the classic spherical cap extent.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/SphereLatitude` for the latitude band
+    /// (`cap_latitude_bound`) and `Hausdorff/SphereLongitude` for the longitude
+    /// band (`cap_lon_sin_sq_bound`).
+    #[must_use]
+    pub fn rect_bound(self) -> Rect {
+        if self.is_empty() {
+            return Rect::empty();
+        }
+        if self.is_full() {
+            return Rect::full();
+        }
+
+        let center = self.center.to_geo_point();
+        let center_lat = center.lat.to_radians();
+        let center_lng = center.lon.to_radians();
+        let radius = self.radius.radians().clamp(0.0, PI);
+
+        let lat_lo = (center_lat - radius).max(-FRAC_PI_2);
+        let lat_hi = (center_lat + radius).min(FRAC_PI_2);
+        if lat_lo <= -FRAC_PI_2 || lat_hi >= FRAC_PI_2 {
+            return Rect::from_degrees(lat_lo.to_degrees(), -180.0, lat_hi.to_degrees(), 180.0);
+        }
+
+        let cos_lat = center_lat.cos().abs();
+        let ratio = radius.sin() / cos_lat;
+        if ratio >= 1.0 {
+            return Rect::from_degrees(lat_lo.to_degrees(), -180.0, lat_hi.to_degrees(), 180.0);
+        }
+
+        let lng_delta = ratio.clamp(-1.0, 1.0).asin();
+        Rect::from_degrees(
+            lat_lo.to_degrees(),
+            normalize_lng(center_lng - lng_delta).to_degrees(),
+            lat_hi.to_degrees(),
+            normalize_lng(center_lng + lng_delta).to_degrees(),
+        )
+    }
+
     fn center_distance(self, other: Cap) -> f64 {
         self.center.vector().angle(other.center.vector()).radians()
     }
+}
+
+fn normalize_lng(lng: f64) -> f64 {
+    let x = (lng + PI).rem_euclid(TAU) - PI;
+    if x <= -PI { PI } else { x }
 }
 
 /// The spherical cap as a cross-space [`PointRegion`] — the S2 instance of the
@@ -225,5 +274,37 @@ mod region_tests {
         // The generic filter works on the sphere too.
         let pts = [north, pt(0.1, 0.1, 1.0), pt(1.0, 0.0, 0.0)];
         assert_eq!(filter_contained(&cap, &pts).len(), 2);
+    }
+
+    #[test]
+    fn cap_rect_bound_contains_boundary_samples() {
+        let cap = Cap::from_center_angle(
+            S2Point::from_geo_point(hausdorff_base::earth::GeoPoint::from_lat_lon(20.0, 170.0)),
+            Angle::from_degrees(12.0),
+        );
+        let bound = cap.rect_bound();
+        assert!(bound.contains_lat_lng(cap.center().to_geo_point()));
+        for bearing in [0.0, 90.0, 180.0, 270.0] {
+            let p = cap
+                .center()
+                .destination(Angle::from_degrees(bearing), cap.radius())
+                .to_geo_point();
+            assert!(bound.contains_lat_lng(p), "{p:?} escaped {bound:?}");
+        }
+    }
+
+    #[test]
+    fn cap_rect_bound_reaching_pole_has_full_longitude() {
+        let cap = Cap::from_center_angle(
+            S2Point::from_geo_point(hausdorff_base::earth::GeoPoint::from_lat_lon(80.0, 42.0)),
+            Angle::from_degrees(15.0),
+        );
+        let bound = cap.rect_bound();
+        assert!(
+            bound.contains_lat_lng(hausdorff_base::earth::GeoPoint::from_lat_lon(89.0, -160.0,))
+        );
+        assert!(
+            bound.contains_lat_lng(hausdorff_base::earth::GeoPoint::from_lat_lon(89.0, 160.0,))
+        );
     }
 }
