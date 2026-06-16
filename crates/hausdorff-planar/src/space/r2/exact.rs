@@ -84,6 +84,25 @@ impl OrientationSign {
     }
 }
 
+#[cfg(euler_extract)]
+macro_rules! euler_targets {
+    ($($target:ident),+ $(,)?) => {
+        #[allow(dead_code, non_snake_case)]
+        mod __euler_targets {
+            $(pub fn $target() {})+
+        }
+    };
+}
+
+#[cfg(euler_extract)]
+euler_targets!(
+    OrientationSign__from_determinant,
+    relative,
+    det2,
+    orientation_determinant,
+    orient,
+);
+
 /// The position of a query point relative to an oriented triangle's
 /// circumcircle, normalized so the result is independent of triangle winding.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
