@@ -2,9 +2,11 @@
 //!
 //! A [`Crs`] is a coordinate reference system identified (where standard) by an
 //! EPSG code. Three kinds are modelled, matching the EPSG `coord_ref_sys_kind`:
-//! **geographic 2D** (lat/lon on a datum, e.g. EPSG:4326), **geocentric** (ECEF
-//! Cartesian, EPSG:4978), and **projected** (a [`Projection`] of a geographic
-//! CRS, e.g. EPSG:3857 Web Mercator or the UTM zones).
+//! **geographic** (lat/lon on a datum — 2-D EPSG:4326, or 3-D EPSG:4979 with
+//! ellipsoidal height), **geocentric** (ECEF Cartesian, EPSG:4978), and
+//! **projected** (a [`Projection`] of a geographic CRS, e.g. EPSG:3857 Web
+//! Mercator or the UTM zones). A [`CompoundCrs`] pairs a horizontal CRS with a
+//! [`VerticalCrs`] (height).
 //!
 //! [`transform`] converts a coordinate from one CRS to another by pivoting
 //! through **WGS84 geocentric (ECEF)** — the one frame every CRS can reach:
@@ -30,6 +32,11 @@ use hausdorff_planar::space::r2::Coord;
 
 mod datum;
 pub use datum::{Datum, DatumShift, Helmert};
+
+mod method;
+mod proj_string;
+mod projjson;
+mod wkt;
 
 /// A concrete map projection — the projected-CRS member of the enum, so a [`Crs`]
 /// stays `Copy` and match-able (no `dyn Projection`). Phase 2 adds the conic /
@@ -79,44 +86,96 @@ impl ProjectionKind {
 }
 
 /// A coordinate value tagged by which kind of CRS it belongs to — geographic
-/// (lat/lon [`GeoPoint`]), projected planar metres ([`Coord`]), or geocentric
-/// ECEF ([`EcefPoint`]). [`transform`] consumes and produces these.
+/// (lat/lon [`GeoPoint`] + ellipsoidal height), projected planar metres
+/// ([`Coord`]), or geocentric ECEF ([`EcefPoint`]). [`transform`] consumes and
+/// produces these.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CrsCoord {
-    /// Lat/lon on a geographic CRS.
-    Geographic(GeoPoint),
-    /// Easting/northing on a projected CRS.
+    /// Lat/lon on a geographic CRS, with **ellipsoidal height** in metres. A
+    /// 2-D geographic coordinate uses `height = 0`; a 3-D one (e.g. EPSG:4979)
+    /// carries the height through the [`transform`] pivot. Build with
+    /// [`geographic`](Self::geographic) / [`geographic_with_height`](Self::geographic_with_height).
+    Geographic { point: GeoPoint, height: f64 },
+    /// Easting/northing on a projected CRS (planar metres; no height).
     Projected(Coord),
     /// X/Y/Z on a geocentric CRS.
     Geocentric(EcefPoint),
 }
 
 impl CrsCoord {
-    fn geographic(self) -> GeoPoint {
-        match self {
-            CrsCoord::Geographic(p) => p,
-            _ => panic!("expected a Geographic coordinate for a geographic CRS"),
-        }
+    /// A 2-D geographic coordinate — lat/lon at ellipsoidal height 0.
+    #[must_use]
+    pub fn geographic(point: GeoPoint) -> CrsCoord {
+        CrsCoord::Geographic { point, height: 0.0 }
     }
-    fn projected(self) -> Coord {
+
+    /// A 3-D geographic coordinate — lat/lon at `height` metres above the ellipsoid.
+    #[must_use]
+    pub fn geographic_with_height(point: GeoPoint, height: f64) -> CrsCoord {
+        CrsCoord::Geographic { point, height }
+    }
+
+    /// The geographic lat/lon (panics if this is not a geographic coordinate).
+    #[must_use]
+    pub fn point(self) -> GeoPoint {
+        self.as_geographic().0
+    }
+
+    /// The ellipsoidal height in metres (panics if this is not geographic).
+    #[must_use]
+    pub fn height(self) -> f64 {
+        self.as_geographic().1
+    }
+
+    /// The projected easting/northing (panics if this is not projected).
+    #[must_use]
+    pub fn projected(self) -> Coord {
         match self {
             CrsCoord::Projected(c) => c,
             _ => panic!("expected a Projected coordinate for a projected CRS"),
         }
     }
-    fn geocentric(self) -> EcefPoint {
+
+    /// The geocentric ECEF point (panics if this is not geocentric).
+    #[must_use]
+    pub fn geocentric(self) -> EcefPoint {
         match self {
             CrsCoord::Geocentric(p) => p,
             _ => panic!("expected a Geocentric coordinate for a geocentric CRS"),
         }
     }
+
+    /// (lat/lon, ellipsoidal height) — the pivot's geographic accessor.
+    fn as_geographic(self) -> (GeoPoint, f64) {
+        match self {
+            CrsCoord::Geographic { point, height } => (point, height),
+            _ => panic!("expected a Geographic coordinate for a geographic CRS"),
+        }
+    }
+}
+
+/// The dimensionality of a geographic CRS: **2-D** (lat/lon, e.g. EPSG:4326 — no
+/// height) or **3-D** (lat/lon + ellipsoidal height, e.g. EPSG:4979). The pivot
+/// carries height through ECEF regardless; `dim` decides whether the *output* of
+/// a geographic CRS retains it (`D3`) or drops it to 0 (`D2`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GeoDim {
+    /// Geographic 2-D — lat/lon only.
+    D2,
+    /// Geographic 3-D — lat/lon + ellipsoidal height (metres).
+    D3,
 }
 
 /// A **coordinate reference system**, keyed (where standard) by EPSG code.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Crs {
-    /// Geographic 2D — latitude/longitude on a datum (EPSG:4326 is WGS84).
-    Geographic { datum: Datum, epsg: Option<u32> },
+    /// Geographic — latitude/longitude on a datum, 2-D (EPSG:4326 is WGS84) or
+    /// 3-D with ellipsoidal height (`dim = D3`, e.g. EPSG:4979).
+    Geographic {
+        datum: Datum,
+        epsg: Option<u32>,
+        dim: GeoDim,
+    },
     /// Geocentric — ECEF Cartesian on a datum (EPSG:4978 is WGS84).
     Geocentric { datum: Datum, epsg: Option<u32> },
     /// Projected — a map projection of a geographic CRS (EPSG:3857, UTM, …).
@@ -128,12 +187,24 @@ pub enum Crs {
 }
 
 impl Crs {
-    /// WGS84 geographic (EPSG:4326).
+    /// WGS84 geographic 2-D (EPSG:4326).
     #[must_use]
     pub fn wgs84() -> Crs {
         Crs::Geographic {
             datum: Datum::WGS84,
             epsg: Some(4326),
+            dim: GeoDim::D2,
+        }
+    }
+
+    /// WGS84 geographic 3-D (EPSG:4979) — lat/lon + ellipsoidal height. Unlike
+    /// [`wgs84`](Self::wgs84), a transform into this CRS retains the height.
+    #[must_use]
+    pub fn wgs84_3d() -> Crs {
+        Crs::Geographic {
+            datum: Datum::WGS84,
+            epsg: Some(4979),
+            dim: GeoDim::D3,
         }
     }
 
@@ -156,9 +227,11 @@ impl Crs {
     /// The CRS for a standard EPSG `code`, or `None` if unrecognised.
     ///
     /// Recognised:
-    /// - **Geographic**: `4326` (WGS84), `4258` (ETRS89), `4269` (NAD83); the
+    /// - **Geographic 2D**: `4326` (WGS84), `4258` (ETRS89), `4269` (NAD83); the
     ///   Helmert-shifted `4277` (OSGB36), `4230` (ED50), `4267` (NAD27); the
     ///   **NTv2 grid-shifted** `4314` (DHDN), `4275` (NTF), `4272` (NZGD49).
+    /// - **Geographic 3D** (lat/lon + ellipsoidal height): `4979` (WGS84),
+    ///   `4937` (ETRS89).
     /// - **Geocentric**: `4978` (WGS84 ECEF).
     /// - **Web Mercator**: `3857`/`900913`.
     /// - **Transverse Mercator / UTM**: the WGS84 UTM zones `32601..=32660`
@@ -218,31 +291,44 @@ impl Crs {
             }),
             3995 => Some(Self::polar_stereographic(71.0, 0.0, true, 3995)),
             3031 => Some(Self::polar_stereographic(-71.0, 0.0, false, 3031)),
+            // Geographic 3-D — lat/lon + ellipsoidal height (height retained).
+            4979 => Some(Crs::wgs84_3d()), // WGS84 3D
+            4937 => Some(Crs::Geographic {
+                datum: Datum::GRS80, // ETRS89 3D
+                epsg: Some(4937),
+                dim: GeoDim::D3,
+            }),
             // Datum-shifted geographic CRSes (non-WGS84 datums).
             4277 => Some(Crs::Geographic {
                 datum: Datum::osgb36(),
                 epsg: Some(4277),
+                dim: GeoDim::D2,
             }),
             4230 => Some(Crs::Geographic {
                 datum: Datum::ed50(),
                 epsg: Some(4230),
+                dim: GeoDim::D2,
             }),
             4267 => Some(Crs::Geographic {
                 datum: Datum::nad27(),
                 epsg: Some(4267),
+                dim: GeoDim::D2,
             }),
             // NTv2 grid-shifted geographic datums (~cm accuracy, embedded grids).
             4314 => Some(Crs::Geographic {
                 datum: Datum::dhdn(), // German DHDN — BETA2007
                 epsg: Some(4314),
+                dim: GeoDim::D2,
             }),
             4275 => Some(Crs::Geographic {
                 datum: Datum::ntf(), // French NTF — ntf_r93
                 epsg: Some(4275),
+                dim: GeoDim::D2,
             }),
             4272 => Some(Crs::Geographic {
                 datum: Datum::nzgd49(), // New Zealand NZGD49 — nzgd2kgrid0005
                 epsg: Some(4272),
+                dim: GeoDim::D2,
             }),
             // OSGB36 / British National Grid (Transverse Mercator on Airy 1830).
             27_700 => Some(Crs::Projected {
@@ -261,10 +347,12 @@ impl Crs {
             4269 => Some(Crs::Geographic {
                 datum: Datum::GRS80,
                 epsg: Some(4269),
+                dim: GeoDim::D2,
             }),
             4258 => Some(Crs::Geographic {
                 datum: Datum::GRS80,
                 epsg: Some(4258),
+                dim: GeoDim::D2,
             }),
             // ETRS89 / UTM zones 28N..=38N (GRS80) — Europe.
             25_828..=25_838 => Some(Self::utm_on(Datum::GRS80, (code - 25_800) as u8, true, code)),
@@ -399,7 +487,7 @@ impl Crs {
         let code = self.epsg()?;
         Some(match code {
             // Global frames.
-            4326 | 4978 => BBox::new(-90.0, -180.0, 90.0, 180.0),
+            4326 | 4978 | 4979 => BBox::new(-90.0, -180.0, 90.0, 180.0),
             3857 | 900_913 => BBox::new(-85.06, -180.0, 85.06, 180.0),
             // UTM-family: the 6° zone band (north 0..84, south −80..0).
             32_601..=32_660 => utm_band((code - 32_600) as u8, true),
@@ -416,7 +504,7 @@ impl Crs {
             2180 => BBox::new(49.0, 14.14, 55.93, 24.15),
             3995 | 3413 => BBox::new(60.0, -180.0, 90.0, 180.0),
             3031 | 3976 => BBox::new(-90.0, -180.0, -60.0, 180.0),
-            4258 => BBox::new(32.88, -16.1, 84.73, 40.18),
+            4258 | 4937 => BBox::new(32.88, -16.1, 84.73, 40.18),
             4230 => BBox::new(25.71, -16.1, 84.73, 48.61),
             4314 => BBox::new(47.27, 5.86, 55.09, 13.84),
             4275 => BBox::new(41.31, -4.87, 51.14, 9.63),
@@ -456,27 +544,36 @@ impl Crs {
     }
 
     /// This CRS's native coordinate → **WGS84 geocentric (ECEF)**, the universal
-    /// transform pivot.
+    /// transform pivot. Geographic coordinates carry their ellipsoidal height
+    /// into ECEF; projected ones are planar (height 0).
     fn to_wgs84_ecef(self, c: CrsCoord) -> EcefPoint {
         match self {
             Crs::Geographic { datum, .. } => {
-                datum.to_wgs84_ecef(geodetic_to_ecef(datum, c.geographic()))
+                let (geo, height) = c.as_geographic();
+                datum.to_wgs84_ecef(geodetic_to_ecef(datum, geo, height))
             }
             Crs::Geocentric { datum, .. } => datum.to_wgs84_ecef(c.geocentric()),
             Crs::Projected {
                 datum, projection, ..
             } => {
                 let geo = projection.inverse(c.projected());
-                datum.to_wgs84_ecef(geodetic_to_ecef(datum, geo))
+                datum.to_wgs84_ecef(geodetic_to_ecef(datum, geo, 0.0))
             }
         }
     }
 
     /// **WGS84 geocentric (ECEF)** → this CRS's native coordinate (inverse pivot).
+    /// A 2-D geographic CRS drops the recovered height; a 3-D one (`dim = D3`)
+    /// keeps it.
     fn decode_wgs84_ecef(self, e: EcefPoint) -> CrsCoord {
         match self {
-            Crs::Geographic { datum, .. } => {
-                CrsCoord::Geographic(ecef_to_geodetic(datum, datum.decode_wgs84_ecef(e)))
+            Crs::Geographic { datum, dim, .. } => {
+                let (geo, height) = ecef_to_geodetic(datum, datum.decode_wgs84_ecef(e));
+                let height = match dim {
+                    GeoDim::D2 => 0.0,
+                    GeoDim::D3 => height,
+                };
+                CrsCoord::Geographic { point: geo, height }
             }
             Crs::Geocentric { datum, .. } => {
                 CrsCoord::Geocentric(datum.decode_wgs84_ecef(e))
@@ -484,7 +581,7 @@ impl Crs {
             Crs::Projected {
                 datum, projection, ..
             } => {
-                let geo = ecef_to_geodetic(datum, datum.decode_wgs84_ecef(e));
+                let (geo, _height) = ecef_to_geodetic(datum, datum.decode_wgs84_ecef(e));
                 CrsCoord::Projected(projection.project(geo))
             }
         }
@@ -499,15 +596,73 @@ pub fn transform(from: Crs, to: Crs, coord: CrsCoord) -> CrsCoord {
     to.decode_wgs84_ecef(from.to_wgs84_ecef(coord))
 }
 
-/// Geodetic → ECEF on a datum's ellipsoid, at ellipsoidal height 0 (geographic
-/// 2D carries no height).
-fn geodetic_to_ecef(datum: Datum, p: GeoPoint) -> EcefPoint {
-    datum.ellipsoid.geodetic_to_ecef(p, 0.0)
+/// A **vertical CRS** — a one-dimensional height system.
+///
+/// Only the ellipsoidal datum is modelled today: [`Ellipsoidal`](Self::Ellipsoidal)
+/// height is the geometric height the ECEF pivot already carries, so no grid is
+/// needed. **Orthometric (geoid) height** — EGM2008, NAVD88, … — requires a
+/// geoid-model grid lookup and is deferred (see `plans/active/crs-follow-ons.md`
+/// §2); it would join this enum as a `Geoid` variant once the grid path lands.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum VerticalCrs {
+    /// Height in metres above the reference ellipsoid — the geometric height the
+    /// [`transform`] pivot carries natively. The trivial vertical datum.
+    Ellipsoidal { epsg: Option<u32> },
 }
 
-/// ECEF → geodetic on a datum's ellipsoid (height discarded — 2D).
-fn ecef_to_geodetic(datum: Datum, e: EcefPoint) -> GeoPoint {
-    datum.ellipsoid.ecef_to_geodetic(e).0
+/// A **compound CRS** — a horizontal [`Crs`] paired with a [`VerticalCrs`], the
+/// EPSG model for "where, plus how high". With an [`Ellipsoidal`](VerticalCrs::Ellipsoidal)
+/// vertical and a *geographic* horizontal CRS this is exactly a geographic-3D CRS
+/// ([`as_crs`](Self::as_crs) returns the equivalent [`Crs`], so it flows through
+/// [`transform`]). Projected-horizontal compounds and geoid verticals are
+/// deferred (`plans/active/crs-follow-ons.md` §2).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CompoundCrs {
+    /// The horizontal (geographic or projected) CRS.
+    pub horizontal: Crs,
+    /// The vertical (height) CRS.
+    pub vertical: VerticalCrs,
+}
+
+impl CompoundCrs {
+    /// A compound CRS from a horizontal and a vertical component.
+    #[must_use]
+    pub fn new(horizontal: Crs, vertical: VerticalCrs) -> CompoundCrs {
+        CompoundCrs {
+            horizontal,
+            vertical,
+        }
+    }
+
+    /// The equivalent single [`Crs`], when one exists: a *geographic* horizontal
+    /// CRS over an [`Ellipsoidal`](VerticalCrs::Ellipsoidal) vertical is the
+    /// geographic-3D CRS on the same datum (height retained). Returns `None` for
+    /// the not-yet-collapsible cases (projected horizontal — there is no
+    /// projected-with-height [`CrsCoord`] yet), so callers can fall back or error.
+    #[must_use]
+    pub fn as_crs(self) -> Option<Crs> {
+        match (self.horizontal, self.vertical) {
+            (Crs::Geographic { datum, .. }, VerticalCrs::Ellipsoidal { .. }) => {
+                Some(Crs::Geographic {
+                    datum,
+                    epsg: None,
+                    dim: GeoDim::D3,
+                })
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Geodetic → ECEF on a datum's ellipsoid, at ellipsoidal `height` metres.
+fn geodetic_to_ecef(datum: Datum, p: GeoPoint, height: f64) -> EcefPoint {
+    datum.ellipsoid.geodetic_to_ecef(p, height)
+}
+
+/// ECEF → geodetic on a datum's ellipsoid, returning lat/lon and the recovered
+/// ellipsoidal height.
+fn ecef_to_geodetic(datum: Datum, e: EcefPoint) -> (GeoPoint, f64) {
+    datum.ellipsoid.ecef_to_geodetic(e)
 }
 
 /// The area-of-use bounding box for UTM `zone` (1..=60): the 6° longitude band

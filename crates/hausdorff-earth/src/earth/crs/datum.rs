@@ -84,6 +84,23 @@ impl Helmert {
         }
     }
 
+    /// The PROJ `+towgs84=` parameters: `[tx, ty, tz, rx, ry, rz, ds]` in the
+    /// EPSG units (translation metres, rotation **arc-seconds**, scale **ppm**) —
+    /// the inverse of [`bursa_wolf`](Self::bursa_wolf). Backs serialization.
+    #[must_use]
+    pub fn to_towgs84(self) -> [f64; 7] {
+        let sec = std::f64::consts::PI / (180.0 * 3600.0); // radians → arc-seconds
+        [
+            self.tx,
+            self.ty,
+            self.tz,
+            self.rx / sec,
+            self.ry / sec,
+            self.rz / sec,
+            (self.scale - 1.0) * 1e6,
+        ]
+    }
+
     /// The **exact** inverse of [`apply`](Self::apply): `p = R⁻¹·(p' − T)/scale`,
     /// using `R⁻¹ = (I − [θ]ₓ + θθᵀ)/(1 + |θ|²)` (the closed inverse of `I + [θ]ₓ`),
     /// so `inverse_apply(apply(p)) = p`.
@@ -237,6 +254,41 @@ impl Datum {
             to_wgs84: DatumShift::Helmert(Helmert::bursa_wolf(-8.0, 160.0, 176.0, 0.0, 0.0, 0.0, 0.0)),
         }
     }
+}
+
+/// The PROJ `+ellps=` name for a known reference [`Ellipsoid`] (the reverse of
+/// [`ellipsoid_by_proj_name`]), or `None` if it is not one of the named set.
+pub(super) fn proj_name_of_ellipsoid(e: Ellipsoid) -> Option<&'static str> {
+    [
+        "WGS84", "GRS80", "airy", "intl", "clrk66", "bessel", "clrk80ign",
+    ]
+    .into_iter()
+    .find(|&n| ellipsoid_by_proj_name(n) == Some(e))
+}
+
+/// The EPSG code of the geographic CRS for a known [`Datum`] (the base CRS used
+/// when serializing) — so a re-parse recovers the datum *with* its shift to
+/// WGS84. `None` for a datum this crate does not register.
+pub(super) fn base_geographic_code(d: Datum) -> Option<u32> {
+    // ETRS89 (4258) is the GRS80 representative; both 4258/4269 are GRS80 here.
+    [4326, 4258, 4277, 4230, 4267, 4314, 4275, 4272]
+        .into_iter()
+        .find(|&code| super::Crs::from_epsg(code).map(|c| c.datum()) == Some(d))
+}
+
+/// The reference [`Ellipsoid`] for a PROJ `+ellps=` name (the subset this crate's
+/// datums use), or `None` if unrecognised. Backs PROJ-string parsing.
+pub(super) fn ellipsoid_by_proj_name(name: &str) -> Option<Ellipsoid> {
+    Some(match name {
+        "WGS84" => Ellipsoid::WGS84,
+        "GRS80" => Ellipsoid::GRS80,
+        "airy" => airy1830(),
+        "intl" => intl1924(),
+        "clrk66" => clarke1866(),
+        "bessel" => bessel1841(),
+        "clrk80ign" => clarke1880ign(),
+        _ => return None,
+    })
 }
 
 /// Airy 1830 — the ellipsoid of OSGB36 / the British National Grid.
