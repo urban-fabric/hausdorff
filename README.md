@@ -48,19 +48,24 @@ the split. Consumers that only need a slice can depend on a subcrate directly
   `Haversine`, ellipsoidal `Geodesic`, or rhumb-line `Rhumb` metric),
   `GeodesicArea` (exact ellipsoidal polygon area/perimeter) beside the
   spherical `ChamberlainDuquetteArea`, linear referencing
-  (`LineInterpolatePoint` / `LineLocatePoint`), affine transforms
+  (`LineInterpolatePoint` / `LineLocatePoint`), metric interpolation for
+  Euclidean, Haversine, and rhumb-line paths, affine transforms
   (`AffineTransform` with `Translate` / `Rotate` / `Scale` / `Skew`),
   `MapCoords`, `Orient`, `Validation` (OGC validity with typed reasons),
   `RemoveRepeatedPoints`, `InteriorPoint`, `BooleanOps` plus cascaded
   `unary_union`, `relate` (DE-9IM), the `StrTree` spatial index,
-  `PreparedGeometry`, spatial joins, and set/curve distances
-  (`hausdorff_distance` / `frechet_distance`).
+  `PreparedGeometry`, spatial joins, exact fixed-grid predicates
+  (`exact::orient`, `exact::segment_intersection`,
+  `exact::point_in_triangle`, `exact::in_circle_position`), and set/curve
+  distances (`hausdorff_distance` / `frechet_distance`).
 - **`space::s2`** — spherical S2 primitives ported from golang/geo: cell ids,
   normalized cell-set unions (`CellUnion` with union / intersection /
   difference), caps, lat/lng rectangles (`Rect`, antimeridian-aware),
   polylines, edge crossings, orientation predicates, measures, and
   great-circle arc kernels (`s2::arc`: slerp, cross/along-track, latitude
-  extremes). **`RegionCoverer` is experimental** (see *Stability*).
+  extremes, arc rect bounds). `Cap`, `Polyline`, `Loop`, `Polygon`, and
+  `Region` expose conservative lat/lng rectangle bounds. **`RegionCoverer` is
+  experimental** (see *Stability*).
 - **`space::r3` / `space::s1`** — supporting unit-less vector / angle types.
 - **`earth`** — the WGS84 lat/lon layer: `GeoPoint`, spherical (haversine) and
   ellipsoidal geodesics (Karney direct/inverse/area on any `Ellipsoid` — WGS84,
@@ -115,6 +120,10 @@ treat this as guidance, not a guarantee):
   no empty form, so `POINT EMPTY` parses to an empty `MultiPoint` and re-emits as
   `MULTIPOINT EMPTY`. Every other `… EMPTY` round-trips with its own type
   preserved.
+- **Proof-backed APIs are algebraic contracts, not a blanket IEEE proof.**
+  Riemann theorem names in docs identify the exact real/integer formulas the Rust
+  code implements. Floating-point kernels still have ordinary `f64` roundoff;
+  fixed-grid `space::r2::exact` predicates report overflow instead of guessing.
 
 ## Attribution
 

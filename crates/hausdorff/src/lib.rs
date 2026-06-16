@@ -21,11 +21,11 @@
 //!   `hausdorff-format`.
 //! - [`convert`] bridges the planar and spherical sides.
 
+pub use hausdorff_base::web;
 pub use hausdorff_earth::{convert, earth};
 pub use hausdorff_format::format;
 pub use hausdorff_index::index;
 pub use hausdorff_planar::{algebra, config};
-pub use hausdorff_base::web;
 
 pub mod space {
     //! `space` — the unit-less **continuous** geometry spaces, organized after
@@ -70,9 +70,9 @@ pub use earth::{FixedGeoPoint, GeoPoint};
 pub use space::r2::{
     Area, Bearing, BooleanOps, BoundingRect, Centroid, ChamberlainDuquetteArea, ConcaveHull,
     ConfidenceEllipse, Contains, ConvexHull, Coord, CoordsIter, Densify, Destination, Dimensions,
-    Direction, Distance, Ellipse, Euclidean, Geometry, HasDimensions, Haversine, InterpolatePoint,
-    Intersects, Length,
-    Line,
-    LineString, MultiLineString, MultiPoint, MultiPolygon, Operation, Orient, Perimeter, Point,
-    Polygon, Rect, Rhumb, Simplify, Triangle, Winding, WindingOrder,
+    Direction, Distance, Ellipse, Euclidean, ExactCoord, ExactPredicateError, ExactResult,
+    ExactSegmentIntersection, ExactTrianglePosition, Geometry, HasDimensions, Haversine,
+    InCirclePosition, InterpolatePoint, Intersects, Length, Line, LineString, MultiLineString,
+    MultiPoint, MultiPolygon, Operation, Orient, OrientationSign, Perimeter, Point, Polygon, Rect,
+    Rhumb, Simplify, Triangle, Winding, WindingOrder,
 };

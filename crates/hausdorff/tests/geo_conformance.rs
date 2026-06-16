@@ -10,7 +10,7 @@ use hausdorff::{
     Area, BoundingRect, Centroid, ChamberlainDuquetteArea, Contains, ConvexHull, CoordsIter,
     Simplify,
 };
-use hausdorff::{Bearing as _, Destination as _, Distance as _, Length as _};
+use hausdorff::{Bearing as _, Destination as _, Distance as _, InterpolatePoint as _, Length as _};
 
 const EPS: f64 = 1e-9;
 
@@ -292,6 +292,23 @@ fn haversine_destination_matches_golden() {
         let d = hausdorff::Haversine.destination(origin, bearing, dist);
         assert!((d.x() - gx).abs() < 1e-9 && (d.y() - gy).abs() < 1e-9, "destination {bearing}/{dist}");
     }
+}
+
+#[test]
+fn haversine_interpolation_follows_the_great_circle() {
+    let start = hausdorff::Point::new(-122.4194, 37.7749);
+    let end = hausdorff::Point::new(-73.9857, 40.7484);
+    let total = hausdorff::Haversine.distance(start, end);
+
+    let half = hausdorff::Haversine.point_at_ratio_between(start, end, 0.5);
+    let first_half = hausdorff::Haversine.distance(start, half);
+    let second_half = hausdorff::Haversine.distance(half, end);
+    assert!((first_half - total * 0.5).abs() <= total * 1e-9);
+    assert!((second_half - total * 0.5).abs() <= total * 1e-9);
+
+    let waypoint = hausdorff::Haversine.point_at_distance_between(start, end, 100_000.0);
+    let travelled = hausdorff::Haversine.distance(start, waypoint);
+    assert!((travelled - 100_000.0).abs() <= 1e-4);
 }
 
 /// Distance from `p` to the bounded segment `a`–`b` (RDP's metric).

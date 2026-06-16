@@ -10,7 +10,7 @@ use std::collections::BinaryHeap;
 use hausdorff_base::space::r3::Vector;
 use hausdorff_base::space::s1::Angle;
 
-use super::{Cap, CellUnion, Crossing, Loop, Polygon, S2CellId, S2Point, crossing_sign};
+use super::{Cap, CellUnion, Crossing, Loop, Polygon, Rect, S2CellId, S2Point, crossing_sign};
 
 /// The deepest S2 subdivision level (a leaf cell).
 const MAX_LEVEL: u32 = 30;
@@ -22,6 +22,11 @@ pub trait Region {
 
     /// A spherical cap that bounds the region (not necessarily the tightest).
     fn bounding_cap(&self) -> Cap;
+
+    /// A lat/lng rectangle that bounds the region (not necessarily the tightest).
+    fn bounding_rect(&self) -> Rect {
+        self.bounding_cap().rect_bound()
+    }
 
     /// True iff the region may intersect `cell`. **Conservative:** an
     /// implementation must return `true` whenever the cell and region share any
@@ -138,6 +143,9 @@ impl Region for Cap {
     fn bounding_cap(&self) -> Cap {
         *self
     }
+    fn bounding_rect(&self) -> Rect {
+        self.rect_bound()
+    }
     fn intersects_cell(&self, cell: S2CellId) -> bool {
         let verts = cell.vertices();
         verts.iter().any(|&v| self.contains_point(v)) || self.intersects(bounding_cap_of(&verts))
@@ -154,6 +162,9 @@ impl Region for Loop {
     fn bounding_cap(&self) -> Cap {
         bounding_cap_of(self.vertices())
     }
+    fn bounding_rect(&self) -> Rect {
+        self.rect_bound()
+    }
     fn intersects_cell(&self, cell: S2CellId) -> bool {
         loops_overlap(self, &cell_loop(cell))
     }
@@ -168,6 +179,9 @@ impl Region for Polygon {
     }
     fn bounding_cap(&self) -> Cap {
         bounding_cap_of(self.shell().vertices())
+    }
+    fn bounding_rect(&self) -> Rect {
+        self.rect_bound()
     }
     fn intersects_cell(&self, cell: S2CellId) -> bool {
         let cl = cell_loop(cell);

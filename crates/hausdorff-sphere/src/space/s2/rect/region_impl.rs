@@ -55,6 +55,10 @@ impl Region for Rect {
         pole_cap
     }
 
+    fn bounding_rect(&self) -> Rect {
+        *self
+    }
+
     fn intersects_cell(&self, cell: S2CellId) -> bool {
         if self.is_empty() {
             return false;

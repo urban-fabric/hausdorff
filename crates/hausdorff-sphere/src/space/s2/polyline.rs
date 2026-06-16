@@ -11,7 +11,7 @@ use hausdorff_base::space::s1::Angle;
 
 use super::edges::{Crossing, crossing_sign};
 use super::region::{Region, bounding_cap_of, cell_loop};
-use super::{Cap, S2CellId, S2Point};
+use super::{Cap, Rect, S2CellId, S2Point, arc};
 
 /// A polyline on the unit sphere: consecutive vertices joined by great-circle
 /// edges.
@@ -68,6 +68,22 @@ impl Polyline {
     fn edges(&self) -> impl Iterator<Item = (S2Point, S2Point)> + '_ {
         self.vertices.windows(2).map(|w| (w[0], w[1]))
     }
+
+    /// A conservative lat/lng rectangle containing every great-circle edge.
+    #[must_use]
+    pub fn rect_bound(&self) -> Rect {
+        match self.vertices.as_slice() {
+            [] => Rect::empty(),
+            [p] => {
+                let g = p.to_geo_point();
+                Rect::from_degrees(g.lat, g.lon, g.lat, g.lon)
+            }
+            _ => self
+                .edges()
+                .map(|(a, b)| arc::rect_bound(a, b))
+                .fold(Rect::empty(), |acc, r| acc.union(&r)),
+        }
+    }
 }
 
 impl Region for Polyline {
@@ -78,6 +94,10 @@ impl Region for Polyline {
 
     fn bounding_cap(&self) -> Cap {
         bounding_cap_of(&self.vertices)
+    }
+
+    fn bounding_rect(&self) -> Rect {
+        self.rect_bound()
     }
 
     /// True iff the polyline may intersect `cell`: a vertex lies inside the
@@ -164,6 +184,27 @@ mod tests {
             "two quarter arcs"
         );
         assert_eq!(line.num_vertices(), 3);
+    }
+
+    #[test]
+    fn rect_bound_contains_sampled_edges() {
+        let line = Polyline::new(vec![
+            pt(45.0, 0.0),
+            pt(45.0, 90.0),
+            pt(10.0, 170.0),
+            pt(10.0, -170.0),
+        ]);
+        let bound = line.rect_bound();
+        assert_eq!(Region::bounding_rect(&line), bound);
+        for w in line.vertices().windows(2) {
+            for s in sample_edge(w[0], w[1], 200) {
+                assert!(
+                    bound.contains_lat_lng(s.to_geo_point()),
+                    "{:?} escaped {bound:?}",
+                    s.to_geo_point()
+                );
+            }
+        }
     }
 
     #[test]

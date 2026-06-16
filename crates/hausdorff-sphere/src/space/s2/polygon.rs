@@ -8,7 +8,7 @@
 
 use hausdorff_base::space::s1::Angle;
 
-use super::{Loop, S2Point};
+use super::{Loop, Rect, S2Point};
 
 /// A spherical polygon: a shell with holes.
 #[derive(Clone, Debug, PartialEq)]
@@ -70,5 +70,35 @@ impl Polygon {
                 .map(|h| h.perimeter().radians())
                 .sum::<f64>();
         Angle::from_radians(total)
+    }
+
+    /// A conservative lat/lng rectangle containing the polygon.
+    ///
+    /// Holes remove area, so the shell's rectangle already bounds the polygon.
+    #[must_use]
+    pub fn rect_bound(&self) -> Rect {
+        self.shell.rect_bound()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use hausdorff_base::earth::GeoPoint;
+
+    fn sp(lat: f64, lon: f64) -> S2Point {
+        S2Point::from_geo_point(GeoPoint::from_lat_lon(lat, lon))
+    }
+
+    #[test]
+    fn rect_bound_is_shell_bound() {
+        let shell = Loop::new(vec![
+            sp(0.0, 0.0),
+            sp(0.0, 10.0),
+            sp(10.0, 10.0),
+            sp(10.0, 0.0),
+        ]);
+        let polygon = Polygon::from_shell(shell.clone());
+        assert_eq!(polygon.rect_bound(), shell.rect_bound());
     }
 }

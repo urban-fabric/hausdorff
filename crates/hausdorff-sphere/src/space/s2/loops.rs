@@ -13,9 +13,9 @@ use std::f64::consts::PI;
 use hausdorff_base::space::s1::Angle;
 use hausdorff_planar::algebra::{Orientation, convex_winding};
 
-use super::S2Point;
 use super::edges::{Crossing, crossing_sign};
 use super::measures::turn_angle;
+use super::{Rect, S2Point, arc};
 
 /// A closed loop of vertices on the unit sphere.
 ///
@@ -150,10 +150,7 @@ impl Loop {
     #[must_use]
     pub fn contains_point_convex(&self, p: S2Point) -> Option<bool> {
         match self.convex_sign {
-            Some(s) if s > 0.0 => Some(
-                self.edges()
-                    .all(|(a, b)| S2Point::orient(a, b, p) > 0.0),
-            ),
+            Some(s) if s > 0.0 => Some(self.edges().all(|(a, b)| S2Point::orient(a, b, p) > 0.0)),
             _ => None,
         }
     }
@@ -185,6 +182,21 @@ impl Loop {
             .map(|(a, b)| a.vector().angle(b.vector()).radians())
             .sum();
         Angle::from_radians(total)
+    }
+
+    /// A conservative lat/lng rectangle containing the loop boundary.
+    #[must_use]
+    pub fn rect_bound(&self) -> Rect {
+        if self.vertices.is_empty() {
+            return Rect::empty();
+        }
+        if self.vertices.len() == 1 {
+            let g = self.vertices[0].to_geo_point();
+            return Rect::from_degrees(g.lat, g.lon, g.lat, g.lon);
+        }
+        self.edges()
+            .map(|(a, b)| arc::rect_bound(a, b))
+            .fold(Rect::empty(), |acc, r| acc.union(&r))
     }
 
     /// True iff this loop and `other` overlap — their boundaries cross, or one
@@ -230,7 +242,12 @@ mod tests {
 
     #[test]
     fn convexity_is_detected() {
-        let sq = ccw(vec![sp(-5.0, -5.0), sp(-5.0, 5.0), sp(5.0, 5.0), sp(5.0, -5.0)]);
+        let sq = ccw(vec![
+            sp(-5.0, -5.0),
+            sp(-5.0, 5.0),
+            sp(5.0, 5.0),
+            sp(5.0, -5.0),
+        ]);
         assert!(sq.is_convex(), "axis-aligned spherical box is convex");
         assert_eq!(sq.convex_sign, Some(1.0), "normalized to CCW (small side)");
 
@@ -276,7 +293,12 @@ mod tests {
         // > tol is unambiguously inside, one with an edge < −tol unambiguously
         // outside; the thin band in between is where either test is documented as
         // unreliable, so we skip it.
-        let quad = ccw(vec![sp(-8.0, -8.0), sp(-8.0, 8.0), sp(8.0, 8.0), sp(8.0, -8.0)]);
+        let quad = ccw(vec![
+            sp(-8.0, -8.0),
+            sp(-8.0, 8.0),
+            sp(8.0, 8.0),
+            sp(8.0, -8.0),
+        ]);
         assert!(quad.contains_point_convex(sp(0.0, 0.0)) == Some(true));
 
         let tol = 1e-3;
@@ -306,5 +328,25 @@ mod tests {
             checked_inside > 100 && checked_outside > 100,
             "grid should exercise both regions (in={checked_inside}, out={checked_outside})"
         );
+    }
+
+    #[test]
+    fn rect_bound_contains_loop_boundary_samples() {
+        use super::super::arc;
+
+        let l = ccw(vec![
+            sp(45.0, 0.0),
+            sp(45.0, 90.0),
+            sp(10.0, 90.0),
+            sp(10.0, 0.0),
+        ]);
+        let bound = l.rect_bound();
+        assert!(bound.hi().lat > 50.0, "bound should include the high arc");
+        for (a, b) in l.edges() {
+            for i in 0..=100 {
+                let p = arc::interpolate(a, b, f64::from(i) / 100.0).to_geo_point();
+                assert!(bound.contains_lat_lng(p), "{p:?} escaped {bound:?}");
+            }
+        }
     }
 }

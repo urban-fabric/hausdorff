@@ -32,6 +32,7 @@ pub mod convex_hull;
 pub mod coords_iter;
 pub mod densify;
 pub mod dimensions;
+pub mod exact;
 pub mod geodesic_area;
 pub mod index;
 pub mod intersects;
@@ -72,6 +73,10 @@ pub use convex_hull::ConvexHull;
 pub use coords_iter::CoordsIter;
 pub use densify::Densify;
 pub use dimensions::{Dimensions, HasDimensions};
+pub use exact::{
+    ExactCoord, ExactPredicateError, ExactResult, ExactSegmentIntersection, ExactTrianglePosition,
+    InCirclePosition, OrientationSign,
+};
 pub use geodesic_area::{ChamberlainDuquetteArea, GeodesicArea};
 pub use index::StrTree;
 pub use intersects::Intersects;
