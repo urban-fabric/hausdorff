@@ -12,6 +12,12 @@ pub trait Simplify {
 
 /// Distance from `p` to the bounded segment `a`–`b` (matching geo's
 /// point-to-`Line` metric, which clamps the projection to the segment).
+///
+/// Proof-backed by `riemann` `Hausdorff/Simplify.clampParam_min`: the clamped
+/// projection is the genuine nearest point on the bounded segment (squared
+/// distance is a convex quadratic in the parameter, minimized at
+/// `clamp(t*, 0, 1)`), so the RDP keep/drop test `max_dist ≤ ε` rests on the true
+/// distance.
 fn point_segment_distance(p: Coord, a: Coord, b: Coord) -> f64 {
     let ab = b - a;
     let len2 = ab.x * ab.x + ab.y * ab.y;

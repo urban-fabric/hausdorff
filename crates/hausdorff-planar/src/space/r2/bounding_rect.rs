@@ -16,6 +16,14 @@ pub trait BoundingRect {
     fn bounding_rect(&self) -> Self::Output;
 }
 
+/// The axis-aligned bounding box of a coordinate set: `[min x, max x] × [min y,
+/// max y]`, or `None` if empty.
+///
+/// Proof-backed by `riemann` `ExactArith/BoundingRect`: the running-`min`/`max`
+/// fold is **sound** — every input point lies in the box (`boundingRect_contains`)
+/// — and **minimal** — any box containing all the points encloses it
+/// (`boundingRect_minimal`), i.e. it is the smallest enclosing box (and so the
+/// R-tree `leaf ⊆ node` invariant feeding `AABB.prune_sound`).
 fn rect_of(coords: impl IntoIterator<Item = Coord>) -> Option<Rect> {
     let mut min_x = f64::INFINITY;
     let mut min_y = f64::INFINITY;

@@ -12,6 +12,14 @@ pub(super) enum Loc {
 /// A DE-9IM intersection matrix: `m[a][b]` is the dimension (`-1` = none, else
 /// `0`/`1`/`2`) of `a`-part(A) ∩ `b`-part(B), with rows/cols ordered
 /// Interior, Boundary, Exterior.
+///
+/// Proof-backed by `riemann` `Hausdorff/Relate`: the DE-9IM predicate algebra
+/// over the 3×3 matrix — `intersects_iff_not_disjoint`, the operand-swap
+/// dualities (`contains_iff_transpose_within`, `covers_iff_transpose_coveredby`),
+/// symmetry of `disjoint`/`intersects`/`equalTopo`/`touches`/`overlaps`, and the
+/// implication lattice (`equal ⟹ within ∧ contains`, `within ⟹ coveredBy ⟹
+/// intersects`, `touches ⟹ intersects`). The matrix-filling noding stays
+/// solver-side.
 #[derive(Clone, Copy, Debug)]
 pub struct IntersectionMatrix {
     m: [[i8; 3]; 3],

@@ -4,6 +4,12 @@
 //! Containment is *interior* membership via an even-odd ray cast: a polygon
 //! contains a point when it falls inside the exterior ring and outside every
 //! hole. Results for points exactly on a boundary are not guaranteed.
+//!
+//! Proof-backed by `riemann` `Hausdorff/PolygonParity` (`point_in_ring`'s
+//! even-odd rule): the signed scanline crossings cancel around a closed ring
+//! (`ringSum_zero`), so the total crossing count is even (`crossings_even`), and
+//! the midpoint of the leftmost gap has an odd count to its right
+//! (`inside_first_gap`) — why the even-odd classification is well-defined.
 
 use super::util::point_in_ring;
 use super::{Coord, Geometry, MultiPolygon, Point, Polygon, Rect};

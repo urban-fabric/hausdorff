@@ -103,6 +103,13 @@ fn loops_overlap(a: &Loop, b: &Loop) -> bool {
 
 /// The bounding cap of a set of points: centered on their normalized vector mean,
 /// with radius equal to the farthest point's angular distance.
+///
+/// Proof-backed by `riemann` `Hausdorff/RegionBound`: the max-radius cap about a
+/// centre **contains every point** (`boundingCap_contains`, soundness — so the
+/// coverer never starts from a cap that omits part of the region) and is
+/// **tightest at that centre** (`boundingCap_minimal`). (The normalized-mean
+/// centre is the uncertified tightness heuristic; the radius is what makes the
+/// bound correct.)
 pub(super) fn bounding_cap_of(points: &[S2Point]) -> Cap {
     if points.is_empty() {
         return Cap::empty(S2Point::from_vector(Vector::new(1.0, 0.0, 0.0)));

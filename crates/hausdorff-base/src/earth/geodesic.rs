@@ -19,6 +19,12 @@ const EARTH_DIAMETER_M: f64 = 2.0 * EARTH_RADIUS_M;
 /// The haversine kernel parameterized by sphere *diameter* — `inline(always)`
 /// so the Earth wrapper keeps its folded [`EARTH_DIAMETER_M`] constant and the
 /// hot path stays a single multiply.
+///
+/// Proof-backed by `riemann` `Hausdorff/Spherical` (`haversine_correct`: the
+/// haversine `h` is `sin²(Δσ/2)`, so `2·asin√h` is the central angle / great-circle
+/// distance; `chord_sq_eq_four_haversine`) and `Hausdorff/HaversineBounds`
+/// (`h ∈ [0, 1]`, distance `∈ [0, πR]` — so the `h.min(1.0)` clamp is a no-op on
+/// the true value).
 #[inline(always)]
 fn haversine_diameter_m(a: GeoPoint, b: GeoPoint, diameter_m: f64) -> f64 {
     let lat1 = a.lat.to_radians();

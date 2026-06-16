@@ -16,6 +16,14 @@ use super::boxes_overlap;
 /// decomposition: a disjoint bounding-box pair is certainly separated, while an
 /// overlapping pair needs the exact [`Intersects`] test to rule out a true
 /// intersection (gap `0`) before GJK runs.
+///
+/// Proof-backed by `riemann` `Hausdorff/MinDistance` — the *premise* GJK computes
+/// against (not its convergence): the gap equals the origin's closest approach to
+/// the **Minkowski difference** `A ⊖ B` (`gap_eq_minkowski`), the origin lies in
+/// `A ⊖ B` iff the shapes intersect (`zero_mem_sub_iff`, justifying the
+/// `intersects ⇒ Some(0.0)` short-circuit via `gap_eq_zero_of_mem`), and the gap
+/// under-bounds every realised pair distance (`gap_le_dist`) — a disjoint-box
+/// pair is a genuine separation certificate.
 pub(super) fn convex_gap(a: &Geometry, b: &Geometry) -> Option<f64> {
     let (ca, cb) = (convex_shape(a)?, convex_shape(b)?);
     if boxes_overlap(loop_bbox(ca.verts()), loop_bbox(cb.verts())) && a.intersects(b) {

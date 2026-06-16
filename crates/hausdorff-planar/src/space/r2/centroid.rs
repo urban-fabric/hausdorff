@@ -16,6 +16,11 @@ pub trait Centroid {
 /// Area-weighted centroid of a single ring, returning `(centroid, signed_area)`.
 /// `signed_area` is `0` for a degenerate ring, in which case the centroid is the
 /// vertex mean.
+///
+/// Proof-backed by `riemann` `ExactArith/PolygonCentroid` (the shoelace-weighted
+/// `cx`/`cy` accumulators collapse on a triangle to the vertex average over
+/// `3·area` — `centroidX_triangle`/`centroidY_triangle`) and `ExactArith/Centroid`
+/// (`centroid_in_triangle`: the area-weighted centroid lies inside the triangle).
 fn ring_centroid(ring: &[Coord]) -> (Coord, f64) {
     let v = ring_vertices(ring);
     let n = v.len();

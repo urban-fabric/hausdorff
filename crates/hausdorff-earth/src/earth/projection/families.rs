@@ -64,6 +64,11 @@ impl Projection for LambertConformalConic {
         )
     }
 
+    /// Proof-backed by `riemann` `Hausdorff/ConicProjection`: the closed-form
+    /// inverse recovers the radius `ρ` and cone angle `θ` exactly from the forward
+    /// map (`conic_inv_rho`/`conic_inv_theta` via `hypot_rho`/`atan2_rho`), and
+    /// `radius_recover` recovers the conformal parameter — so `inverse` is a true
+    /// left inverse on the conic geometry (the ellipsoid latitude series aside).
     fn inverse(&self, c: Coord) -> GeoPoint {
         let (e, n, f, rho0) = self.constants();
         let x = c.x - self.false_easting;

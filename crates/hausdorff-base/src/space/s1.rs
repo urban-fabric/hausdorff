@@ -100,6 +100,12 @@ impl Angle {
     }
 
     /// Normalized into `(-π, π]`.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/AngleNormalize`: given the `%`
+    /// contract (`r = x − n·2π`, `r ∈ (−2π, 2π)`), the two-branch clamp
+    /// (`clampToPi`) lands in `(-π, π]` (`clampToPi_mem`) and only shifts by a
+    /// whole turn (`clampToPi_sub`), so the result is the **unique representative**
+    /// of the angle in `(-π, π]` (`normalized_canonical`).
     #[must_use]
     pub fn normalized(self) -> Self {
         let mut r = self.0 % std::f64::consts::TAU;

@@ -162,6 +162,7 @@ name = "hausdorff-sphere"
 version = "0.1.0"
 dependencies = [
  "hausdorff-base",
+ "hausdorff-geometry-traits",
  "hausdorff-planar",
  "serde",
 ]

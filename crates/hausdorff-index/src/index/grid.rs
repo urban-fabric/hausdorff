@@ -24,6 +24,12 @@ const DENSE_MIN_CELLS: i128 = 4096;
 
 /// Grid cell `(row, col)` of a point, flooring toward negative infinity so it is
 /// correct for any coordinate sign.
+///
+/// Proof-backed by `riemann` `Hausdorff/GridIndex` (`cell = ⌊x/d⌋`): a cell
+/// contains its points (`gridCell_lower`/`gridCell_upper`, `c·d ≤ x < (c+1)·d`),
+/// and same-cell points differ by `< d` (`same_cell_close`) — the bucketing
+/// resolution that makes the home+adjacent-cell scan sound; monotone in `x`
+/// (`gridCell_mono`).
 #[inline]
 fn cell(lat: f64, lon: f64, cell_deg: f64) -> (i64, i64) {
     (

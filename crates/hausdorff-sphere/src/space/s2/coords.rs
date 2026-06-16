@@ -25,6 +25,11 @@ pub(super) fn clamp_i64(v: i64, lo: i64, hi: i64) -> i64 {
 
 /// The quadratic `s`/`t` → `u`/`v` transform (makes projected cells more
 /// uniform in size).
+///
+/// Proof-backed by `riemann` `Hausdorff/S2Coords.uvToST_stToUV`: `uv_to_st` is
+/// the **exact** left inverse of `st_to_uv` on `[0, 1]` (each branch's radicand
+/// collapses to a perfect square), so any float non-idempotence is pure rounding;
+/// with the corner anchors `stToUV_{zero,half,one}` (`-1`/`0`/`1`).
 pub(super) fn st_to_uv(s: f64) -> f64 {
     if s >= 0.5 {
         (1.0 / 3.0) * (4.0 * s * s - 1.0)

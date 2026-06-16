@@ -21,6 +21,13 @@ pub enum Dimensions {
 }
 
 /// Report a geometry's [`Dimensions`] and emptiness.
+///
+/// Proof-backed by `riemann` `Hausdorff/Dimensions`: `is_empty ⟺ dimensions ==
+/// Empty` is consistent for collections (the overridden all-parts-empty agrees
+/// with the default — `collectionDim_eq_empty_iff`), the collection dimension is
+/// an upper bound on every part (`mem_rank_le`), and the `LineString` degeneracy
+/// is correct — all-equal coordinates are `ZeroDimensional`, not a curve
+/// (`lineStringDim_eq_{zero,one,empty}_iff`).
 pub trait HasDimensions {
     /// The geometry's topological dimension.
     fn dimensions(&self) -> Dimensions;

@@ -78,6 +78,11 @@ impl Cap {
     }
 
     /// The cap height `1 − cos(radius)` (0 for empty, 2 for full).
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/SphereCap`: `capHeight ∈ [0, 2]`
+    /// (`capHeight_mem`, so the `clamp` is a no-op on the true value), `0` at
+    /// `r = 0` (`capHeight_zero`) and `2` at `r = π` (`capHeight_pi`), monotone in
+    /// the radius (`capHeight_mono`).
     #[must_use]
     pub fn height(self) -> f64 {
         if self.is_empty() {
@@ -88,6 +93,11 @@ impl Cap {
     }
 
     /// Surface area in **steradians**: `2π·height`, in `[0, 4π]`.
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/SphereCap`: `capArea = 2π(1 − cos r)`
+    /// (Archimedes' hat-box) is non-negative (`capArea_nonneg`), `0` for the empty
+    /// cap (`capArea_zero`) and `4π` for the full sphere (`capArea_pi`, the
+    /// consistency check), and monotone in the radius (`capArea_mono`).
     #[must_use]
     pub fn area(self) -> f64 {
         2.0 * PI * self.height()
@@ -144,6 +154,11 @@ impl Cap {
     }
 
     /// The cap grown by `distance` (radius increased, clamped to a full sphere).
+    ///
+    /// Proof-backed by `riemann` `Hausdorff/SphereCap`: expanding only grows the
+    /// cap — every point of the original stays in it (`cap_expanded_contains`) —
+    /// and it is a sound `distance`-buffer: any point within `distance` of the cap
+    /// lands inside (`cap_expanded_margin`, the great-circle triangle inequality).
     #[must_use]
     pub fn expanded(self, distance: Angle) -> Cap {
         Cap {
