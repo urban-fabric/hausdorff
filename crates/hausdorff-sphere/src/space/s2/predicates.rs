@@ -39,6 +39,8 @@ pub fn robust_sign(a: S2Point, b: S2Point, c: S2Point) -> i32 {
 /// the generic orientation algorithms (`in_triangle`, …) apply to spherical
 /// triangles. (Its laws are the `riemann` `triple_*` theorems.)
 impl hausdorff_planar::algebra::Orientation for S2Point {
+    type Scalar = f64;
+
     #[inline]
     fn orient(a: Self, b: Self, c: Self) -> f64 {
         a.vector().cross(b.vector()).dot(c.vector())

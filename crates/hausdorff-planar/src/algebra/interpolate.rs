@@ -7,6 +7,8 @@ use hausdorff_geometry_traits::Interpolate;
 use crate::space::r2::Coord;
 
 impl Interpolate for Coord {
+    type Scalar = f64;
+
     /// Planar straight-line `lerp` (riemann `planarInterp`).
     #[inline]
     fn lerp(self, q: Self, t: f64) -> Self {

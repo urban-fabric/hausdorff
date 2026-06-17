@@ -53,3 +53,10 @@ serde_json = "1"
 [workspace.lints.rust]
 unsafe_code = "deny"
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(euler_extract)"] }
+
+# Dev-only redirect to the euclid worktree carrying `numeric::RealScalar` (the
+# real-analysis trait the geometry generalizes over) during the coordinated
+# foundation-consolidation branch work. Ignored when hausdorff is consumed as a
+# dependency; re-pin to a merged commit before merge.
+[patch."ssh://git@github.com/urban-fabric/euclid.git"]
+euclid = { path = "../euclid-project" }

@@ -20,24 +20,30 @@ pub use hausdorff_geometry_traits::{
     is_collinear, left_of_all, sample,
 };
 
+use hausdorff_geometry_traits::Real;
+
 use crate::space::r1::Interval;
 use crate::space::r3::{Aabb, Vector};
 use crate::space::s1::{Angle, Sector};
 
 // ---- R3: the ℝ³ vector — orientation, vector space, interpolation ----
 
-impl Orientation for Vector {
+impl<T: Real> Orientation for Vector<T> {
+    type Scalar = T;
+
     /// Scalar triple product `(a × b) · c` — signed volume of the
     /// parallelepiped; its sign is the right-handed orientation.
     #[inline]
-    fn orient(a: Self, b: Self, c: Self) -> f64 {
+    fn orient(a: Self, b: Self, c: Self) -> T {
         a.cross(b).dot(c)
     }
 }
 
-impl VectorSpace for Vector {
+impl<T: Real> VectorSpace for Vector<T> {
+    type Scalar = T;
+
     fn zero() -> Self {
-        Vector::new(0.0, 0.0, 0.0)
+        Vector::new(T::ZERO, T::ZERO, T::ZERO)
     }
     fn add(self, rhs: Self) -> Self {
         Vector::add(self, rhs)
@@ -45,23 +51,25 @@ impl VectorSpace for Vector {
     fn sub(self, rhs: Self) -> Self {
         Vector::sub(self, rhs)
     }
-    fn scale(self, factor: f64) -> Self {
+    fn scale(self, factor: T) -> Self {
         self.mul(factor)
     }
 }
 
-impl InnerProduct for Vector {
-    fn dot(self, rhs: Self) -> f64 {
+impl<T: Real> InnerProduct for Vector<T> {
+    fn dot(self, rhs: Self) -> T {
         Vector::dot(self, rhs)
     }
 }
 
-impl Norm for Vector {}
+impl<T: Real> Norm for Vector<T> {}
 
-impl Interpolate for Vector {
+impl<T: Real> Interpolate for Vector<T> {
+    type Scalar = T;
+
     /// The R3 chord `lerp` (riemann `chordInterp`).
     #[inline]
-    fn lerp(self, q: Self, t: f64) -> Self {
+    fn lerp(self, q: Self, t: T) -> Self {
         self.add(q.sub(self).mul(t))
     }
 }
@@ -114,11 +122,11 @@ impl Prunable for Sector {
 
 // ---- R3: the axis-aligned bounding box ----
 
-impl PointRegion for Aabb {
-    type Point = Vector;
+impl<T: Real> PointRegion for Aabb<T> {
+    type Point = Vector<T>;
 
     #[inline]
-    fn contains(&self, p: Vector) -> bool {
+    fn contains(&self, p: Vector<T>) -> bool {
         Aabb::contains(*self, p)
     }
 
@@ -129,7 +137,7 @@ impl PointRegion for Aabb {
     }
 }
 
-impl Prunable for Aabb {
+impl<T: Real> Prunable for Aabb<T> {
     #[inline]
     fn intersects(&self, other: &Self) -> bool {
         Aabb::overlaps(*self, *other)
@@ -142,33 +150,33 @@ mod tests {
 
     #[test]
     fn vector_orient_triple_product() {
-        let x = Vector::new(1.0, 0.0, 0.0);
-        let y = Vector::new(0.0, 1.0, 0.0);
-        let z = Vector::new(0.0, 0.0, 1.0);
+        let x = Vector::<f64>::new(1.0, 0.0, 0.0);
+        let y = Vector::<f64>::new(0.0, 1.0, 0.0);
+        let z = Vector::<f64>::new(0.0, 0.0, 1.0);
         assert!(Vector::orient(x, y, z) > 0.0); // right-handed
-        assert!(Vector::degenerate(x, y, Vector::new(1.0, 1.0, 0.0))); // coplanar
+        assert!(Vector::degenerate(x, y, Vector::<f64>::new(1.0, 1.0, 0.0))); // coplanar
     }
 
     #[test]
     fn vector_space_and_norm() {
-        let v = Vector::new(3.0, 4.0, 0.0);
-        assert_eq!(<Vector as VectorSpace>::zero(), Vector::new(0.0, 0.0, 0.0));
+        let v = Vector::<f64>::new(3.0, 4.0, 0.0);
+        assert_eq!(<Vector as VectorSpace>::zero(), Vector::<f64>::new(0.0, 0.0, 0.0));
         assert!((Norm::norm(v) - 5.0).abs() < 1e-12);
         assert!((Norm::norm_squared(v) - 25.0).abs() < 1e-12);
         // `normalized` is a unit vector in the same direction.
         let u = Norm::normalized(v);
         assert!((Norm::norm(u) - 1.0).abs() < 1e-12);
         // The zero vector normalizes to zero (no division by zero).
-        assert_eq!(Norm::normalized(<Vector as VectorSpace>::zero()), Vector::new(0.0, 0.0, 0.0));
+        assert_eq!(Norm::normalized(<Vector as VectorSpace>::zero()), Vector::<f64>::new(0.0, 0.0, 0.0));
     }
 
     #[test]
     fn vector_lerp_endpoints_and_midpoint() {
-        let p = Vector::new(1.0, 2.0, 3.0);
-        let q = Vector::new(4.0, 6.0, 8.0);
+        let p = Vector::<f64>::new(1.0, 2.0, 3.0);
+        let q = Vector::<f64>::new(4.0, 6.0, 8.0);
         assert_eq!(p.lerp(q, 0.0), p);
         assert_eq!(p.lerp(q, 1.0), q);
-        assert_eq!(p.midpoint(q), Vector::new(2.5, 4.0, 5.5));
+        assert_eq!(p.midpoint(q), Vector::<f64>::new(2.5, 4.0, 5.5));
         // The generic `sample` walks the chord inclusively.
         let pts = sample(p, q, 3);
         assert_eq!(pts.len(), 4);
@@ -205,15 +213,15 @@ mod tests {
 
     #[test]
     fn aabb_region_and_pruning() {
-        let a = Aabb::new(Vector::new(0.0, 0.0, 0.0), Vector::new(4.0, 4.0, 4.0));
-        let b = Aabb::new(Vector::new(3.0, 3.0, 3.0), Vector::new(8.0, 8.0, 8.0));
-        let c = Aabb::new(Vector::new(5.0, 5.0, 5.0), Vector::new(9.0, 9.0, 9.0));
-        assert!(a.contains(Vector::new(2.0, 2.0, 2.0)));
+        let a = Aabb::<f64>::new(Vector::<f64>::new(0.0, 0.0, 0.0), Vector::<f64>::new(4.0, 4.0, 4.0));
+        let b = Aabb::<f64>::new(Vector::<f64>::new(3.0, 3.0, 3.0), Vector::<f64>::new(8.0, 8.0, 8.0));
+        let c = Aabb::<f64>::new(Vector::<f64>::new(5.0, 5.0, 5.0), Vector::<f64>::new(9.0, 9.0, 9.0));
+        assert!(a.contains(Vector::<f64>::new(2.0, 2.0, 2.0)));
         assert!(!a.is_empty());
         assert!(!disjoint(&a, &b)); // overlaps_of_mem3
         assert!(disjoint(&a, &c)); // prune_sound3
         // The generic filter works in R3 too.
-        let pts = [Vector::new(1.0, 1.0, 1.0), Vector::new(9.0, 9.0, 9.0)];
+        let pts = [Vector::<f64>::new(1.0, 1.0, 1.0), Vector::<f64>::new(9.0, 9.0, 9.0)];
         assert_eq!(count_contained(&a, &pts), 1);
     }
 }

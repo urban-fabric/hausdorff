@@ -217,6 +217,8 @@ impl Interval {
 /// `mem_hull_of_mem_left/right` (union contains both), `mem_of_subset`
 /// (containment is sound), `clamp_nearest` (the clamp is the nearest point).
 impl ClosedInterval for Interval {
+    type Scalar = f64;
+
     #[inline]
     fn from_bounds(lo: f64, hi: f64) -> Self {
         Self::new(lo, hi)

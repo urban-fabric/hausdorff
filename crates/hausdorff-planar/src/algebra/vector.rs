@@ -8,6 +8,8 @@ use hausdorff_geometry_traits::{InnerProduct, Norm, VectorSpace};
 use crate::space::r2::Coord;
 
 impl VectorSpace for Coord {
+    type Scalar = f64;
+
     fn zero() -> Self {
         Coord::new(0.0, 0.0)
     }

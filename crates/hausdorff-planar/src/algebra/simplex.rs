@@ -17,6 +17,7 @@ use hausdorff_base::space::r3::Vector;
 
 impl Simplex for Triangle {
     type Point = Coord;
+    type Scalar = f64;
 
     /// `triangleBary`: `whole = orient(a,b,c)`; each part swaps `p` into one vertex.
     fn barycentric(&self, p: Coord) -> Barycentric {
@@ -45,6 +46,7 @@ fn orient4(a: Vector, b: Vector, c: Vector, d: Vector) -> f64 {
 
 impl Simplex for Tetrahedron {
     type Point = Vector;
+    type Scalar = f64;
 
     /// `tetraBary`: `whole = orient4(a,b,c,d)`; each part swaps `q` into one vertex.
     fn barycentric(&self, q: Vector) -> Barycentric {

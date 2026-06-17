@@ -9,19 +9,24 @@
 //! instances of one [`Interpolate`] trait, so path sampling, midpoints, and
 //! subdivision are written once and run in every space.
 
+use crate::Real;
+
 /// A space whose points interpolate along a segment by a fraction `t`.
 pub trait Interpolate: Copy {
+    /// The scalar field the interpolation fraction is drawn from.
+    type Scalar: Real;
+
     /// Interpolate from `self` toward `q` by fraction `t`. Obeys the endpoint
     /// laws `lerp(p, q, 0) = p` and `lerp(p, q, 1) = q` (riemann `Interp`).
     #[must_use]
-    fn lerp(self, q: Self, t: f64) -> Self;
+    fn lerp(self, q: Self, t: Self::Scalar) -> Self;
 
     /// The midpoint `lerp(self, q, 0.5)` — the straight-line midpoint in R2/R3,
     /// the great-circle midpoint on `S2`.
     #[inline]
     #[must_use]
     fn midpoint(self, q: Self) -> Self {
-        self.lerp(q, 0.5)
+        self.lerp(q, Self::Scalar::HALF)
     }
 }
 
@@ -35,6 +40,6 @@ pub fn sample<P: Interpolate>(p: P, q: P, segments: usize) -> Vec<P> {
         return vec![p];
     }
     (0..=segments)
-        .map(|i| p.lerp(q, i as f64 / segments as f64))
+        .map(|i| p.lerp(q, P::Scalar::from_f64(i as f64 / segments as f64)))
         .collect()
 }

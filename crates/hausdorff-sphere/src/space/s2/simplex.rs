@@ -89,6 +89,7 @@ impl SphereTriangle {
 
 impl Simplex for SphereTriangle {
     type Point = S2Point;
+    type Scalar = f64;
 
     /// `sphereInTriangle`: `whole = orient(a, b, c)` (the spherical triple
     /// product); each part swaps `p` into one vertex (riemann
