@@ -15,25 +15,33 @@
 //! whose `orient` satisfies them inherits the proved containment/convexity
 //! results.
 
+use euclid::algebra::{HasOne, HasZero};
+use euclid::numeric::LazyReal;
+
+use crate::Real;
+
 /// A space carrying a signed orientation predicate on triples.
 pub trait Orientation: Copy {
+    /// The scalar field the signed orientation is measured in.
+    type Scalar: Real;
+
     /// Signed orientation of `(a, b, c)`: `> 0` a positive turn
     /// (counter-clockwise in R2, right-handed in R3), `< 0` negative,
     /// `0` degenerate (collinear in R2, coplanar in R3).
-    fn orient(a: Self, b: Self, c: Self) -> f64;
+    fn orient(a: Self, b: Self, c: Self) -> Self::Scalar;
 
     /// `true` iff `a, b, c` make a strictly positive turn.
     #[inline]
     #[must_use]
     fn turns_positive(a: Self, b: Self, c: Self) -> bool {
-        Self::orient(a, b, c) > 0.0
+        Self::orient(a, b, c) > Self::Scalar::ZERO
     }
 
     /// `true` iff `a, b, c` are degenerate (collinear / coplanar).
     #[inline]
     #[must_use]
     fn degenerate(a: Self, b: Self, c: Self) -> bool {
-        Self::orient(a, b, c) == 0.0
+        Self::orient(a, b, c) == Self::Scalar::ZERO
     }
 }
 
@@ -47,7 +55,7 @@ pub trait Orientation: Copy {
 /// `interp_locate_of_collinear` — together `cross a b c = 0 ⇔ c` lies on the
 /// line `a–b`.
 #[must_use]
-pub fn is_collinear<O: Orientation>(a: O, b: O, c: O, tol: f64) -> bool {
+pub fn is_collinear<O: Orientation>(a: O, b: O, c: O, tol: O::Scalar) -> bool {
     O::orient(a, b, c).abs() <= tol
 }
 
@@ -59,10 +67,11 @@ pub fn is_collinear<O: Orientation>(a: O, b: O, c: O, tol: f64) -> bool {
 /// (`point_in_triangle_edges`; the spherical mirror `sphereInTriangle`).
 #[must_use]
 pub fn in_triangle<O: Orientation>(a: O, b: O, c: O, p: O) -> bool {
-    if O::orient(a, b, c) > 0.0 {
-        O::orient(a, b, p) > 0.0 && O::orient(b, c, p) > 0.0 && O::orient(c, a, p) > 0.0
+    let zero = O::Scalar::ZERO;
+    if O::orient(a, b, c) > zero {
+        O::orient(a, b, p) > zero && O::orient(b, c, p) > zero && O::orient(c, a, p) > zero
     } else {
-        O::orient(a, b, p) < 0.0 && O::orient(b, c, p) < 0.0 && O::orient(c, a, p) < 0.0
+        O::orient(a, b, p) < zero && O::orient(b, c, p) < zero && O::orient(c, a, p) < zero
     }
 }
 
@@ -79,7 +88,7 @@ pub fn in_triangle<O: Orientation>(a: O, b: O, c: O, p: O) -> bool {
 #[must_use]
 pub fn left_of_all<O: Orientation>(vertices: &[O], p: O) -> bool {
     let n = vertices.len();
-    n >= 3 && (0..n).all(|i| O::orient(vertices[i], vertices[(i + 1) % n], p) > 0.0)
+    n >= 3 && (0..n).all(|i| O::orient(vertices[i], vertices[(i + 1) % n], p) > O::Scalar::ZERO)
 }
 
 /// **Convexity classification** of a closed vertex ring, generic over any
@@ -103,18 +112,19 @@ pub fn left_of_all<O: Orientation>(vertices: &[O], p: O) -> bool {
 /// `n ≤ 4` without a monotone-turning hypothesis). Callers must ensure the ring is
 /// simple; OSM/GeoJSON rings are.
 #[must_use]
-pub fn convex_winding<O: Orientation>(vertices: &[O]) -> Option<f64> {
+pub fn convex_winding<O: Orientation>(vertices: &[O]) -> Option<O::Scalar> {
     let n = vertices.len();
     if n < 3 {
         return None;
     }
+    let zero = O::Scalar::ZERO;
     let mut pos = false;
     let mut neg = false;
     for i in 0..n {
         let turn = O::orient(vertices[i], vertices[(i + 1) % n], vertices[(i + 2) % n]);
-        if turn > 0.0 {
+        if turn > zero {
             pos = true;
-        } else if turn < 0.0 {
+        } else if turn < zero {
             neg = true;
         }
         if pos && neg {
@@ -122,9 +132,9 @@ pub fn convex_winding<O: Orientation>(vertices: &[O]) -> Option<f64> {
         }
     }
     if pos {
-        Some(1.0)
+        Some(O::Scalar::ONE)
     } else if neg {
-        Some(-1.0)
+        Some(-O::Scalar::ONE)
     } else {
         None
     }
@@ -168,21 +178,22 @@ pub fn contains_convex<O: Orientation>(ccw: &[O], p: O) -> bool {
     if n < 3 {
         return false;
     }
+    let zero = O::Scalar::ZERO;
     // Quick reject outside the apex wedge: p must be left of the first edge
     // ccw[0]→ccw[1] and right of the apex ray ccw[0]→ccw[n−1].
-    if O::orient(ccw[0], ccw[1], p) <= 0.0 || O::orient(ccw[0], ccw[n - 1], p) >= 0.0 {
+    if O::orient(ccw[0], ccw[1], p) <= zero || O::orient(ccw[0], ccw[n - 1], p) >= zero {
         return false;
     }
     let mut lo = 1;
     let mut hi = n - 1;
     while hi - lo > 1 {
         let mid = lo.midpoint(hi);
-        if O::orient(ccw[0], ccw[mid], p) > 0.0 {
+        if O::orient(ccw[0], ccw[mid], p) > zero {
             lo = mid;
         } else {
             hi = mid;
         }
     }
     // Inside iff strictly left of the wedge's far edge ccw[lo]→ccw[hi].
-    O::orient(ccw[lo], ccw[hi], p) > 0.0
+    O::orient(ccw[lo], ccw[hi], p) > zero
 }

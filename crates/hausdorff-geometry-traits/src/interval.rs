@@ -7,7 +7,11 @@
 //! containment, intersection, union, expansion, and two-point hull come free —
 //! written once here, the minimal structure the interval algebra actually needs.
 
-/// A closed interval `[lo, hi]` on an `f64` axis, with `lo > hi` the empty
+use euclid::algebra::{HasOne, HasZero};
+
+use crate::Real;
+
+/// A closed interval `[lo, hi]` on a [`Real`] axis, with `lo > hi` the empty
 /// interval (canonical empty `[1, 0]`).
 ///
 /// The laws are machine-checked in `riemann` — `Hausdorff/R1Interval` and
@@ -24,19 +28,22 @@
 /// - `from_point_pair` is the smallest interval through both points
 ///   (`fromPointPair_minimal`, with `fromPointPair_mem_left/right`).
 pub trait ClosedInterval: Copy + Sized {
+    /// The scalar field the endpoints live on.
+    type Scalar: Real;
+
     /// The interval `[lo, hi]`.
-    fn from_bounds(lo: f64, hi: f64) -> Self;
+    fn from_bounds(lo: Self::Scalar, hi: Self::Scalar) -> Self;
 
     /// The low endpoint.
-    fn lo(self) -> f64;
+    fn lo(self) -> Self::Scalar;
 
     /// The high endpoint.
-    fn hi(self) -> f64;
+    fn hi(self) -> Self::Scalar;
 
     /// The canonical empty interval `[1, 0]`.
     #[must_use]
     fn empty() -> Self {
-        Self::from_bounds(1.0, 0.0)
+        Self::from_bounds(Self::Scalar::ONE, Self::Scalar::ZERO)
     }
 
     /// True iff the interval is empty (`lo > hi`).
@@ -47,7 +54,7 @@ pub trait ClosedInterval: Copy + Sized {
 
     /// True iff `p ∈ [lo, hi]` (endpoints included).
     #[must_use]
-    fn contains(self, p: f64) -> bool {
+    fn contains(self, p: Self::Scalar) -> bool {
         self.lo() <= p && p <= self.hi()
     }
 
@@ -80,7 +87,7 @@ pub trait ClosedInterval: Copy + Sized {
     /// `self` grown (negative `margin` shrinks) by `margin` on each side; the
     /// empty interval stays empty.
     #[must_use]
-    fn expanded(self, margin: f64) -> Self {
+    fn expanded(self, margin: Self::Scalar) -> Self {
         if self.is_empty() {
             self
         } else {
@@ -90,7 +97,7 @@ pub trait ClosedInterval: Copy + Sized {
 
     /// The smallest interval containing both points.
     #[must_use]
-    fn from_point_pair(a: f64, b: f64) -> Self {
+    fn from_point_pair(a: Self::Scalar, b: Self::Scalar) -> Self {
         Self::from_bounds(a.min(b), a.max(b))
     }
 }
@@ -105,6 +112,7 @@ mod tests {
         hi: f64,
     }
     impl ClosedInterval for I {
+        type Scalar = f64;
         fn from_bounds(lo: f64, hi: f64) -> Self {
             Self { lo, hi }
         }

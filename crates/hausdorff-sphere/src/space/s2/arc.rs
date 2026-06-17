@@ -36,6 +36,8 @@ pub fn interpolate(a: S2Point, b: S2Point, t: f64) -> S2Point {
 /// theorems (`slerp_zero` / `slerp_angle`), so generic `Interpolate` code
 /// (`midpoint`, `sample`) runs on the sphere with no special case.
 impl hausdorff_planar::algebra::Interpolate for S2Point {
+    type Scalar = f64;
+
     #[inline]
     fn lerp(self, q: Self, t: f64) -> Self {
         interpolate(self, q, t)

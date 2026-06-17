@@ -82,6 +82,8 @@ impl LatInterval {
 /// golang `r1.Interval` ports) — delegating to the inherent methods. Laws cited
 /// on the struct (`riemann` `Hausdorff/SphereRect`).
 impl ClosedInterval for LatInterval {
+    type Scalar = f64;
+
     #[inline]
     fn from_bounds(lo: f64, hi: f64) -> Self {
         Self::new(lo, hi)

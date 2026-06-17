@@ -9,6 +9,8 @@ use hausdorff_geometry_traits::Orientation;
 use crate::space::r2::{Coord, Point};
 
 impl Orientation for Coord {
+    type Scalar = f64;
+
     /// Planar signed area `(b−a) × (c−a)` (twice the triangle area).
     #[inline]
     fn orient(a: Self, b: Self, c: Self) -> f64 {
@@ -17,6 +19,8 @@ impl Orientation for Coord {
 }
 
 impl Orientation for Point {
+    type Scalar = f64;
+
     /// A [`Point`] is a [`Coord`] with geometry semantics, so its orientation is
     /// the same planar signed area `(b−a) × (c−a)`; delegates to `Coord`.
     #[inline]

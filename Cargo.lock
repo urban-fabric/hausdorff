@@ -59,7 +59,7 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 [[package]]
 name = "euclid"
 version = "0.1.0"
-source = "git+ssh://git@github.com/urban-fabric/euclid.git?branch=main#b541d32339ef074a4cfe10d94ef2a722509c0ecc"
+source = "git+ssh://git@github.com/urban-fabric/euclid.git?branch=main#fa2915a10a64fea2cbab86d336da10ba9288ddce"
 dependencies = [
  "bytemuck",
  "serde",
@@ -136,6 +136,9 @@ dependencies = [
 [[package]]
 name = "hausdorff-geometry-traits"
 version = "0.1.0"
+dependencies = [
+ "euclid",
+]
 
 [[package]]
 name = "hausdorff-index"
