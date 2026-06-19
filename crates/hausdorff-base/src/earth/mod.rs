@@ -19,6 +19,7 @@ mod bbox;
 mod bearing;
 mod geodesic;
 mod karney;
+pub mod lazy;
 mod point;
 mod radial_grid;
 mod rhumb;
