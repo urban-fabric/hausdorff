@@ -8,6 +8,10 @@
 //! written once here, the minimal structure the interval algebra actually needs.
 
 use euclid::algebra::{HasOne, HasZero};
+// `min`/`max` are euclid's comparison-free `LazyReal` selectors (current euclid
+// moved them off `Real` onto `LazyReal`, which `Real` extends); bring the trait
+// into scope so `Self::Scalar: Real` can call them.
+use euclid::numeric::LazyReal;
 
 use crate::Real;
 
