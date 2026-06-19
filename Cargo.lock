@@ -109,6 +109,7 @@ dependencies = [
  "bytemuck",
  "euclid",
  "hausdorff-geometry-traits",
+ "hausdorff-kernels",
  "serde",
 ]
 
@@ -146,6 +147,13 @@ dependencies = [
  "euclid",
  "hausdorff-base",
  "hausdorff-planar",
+]
+
+[[package]]
+name = "hausdorff-kernels"
+version = "0.1.0"
+dependencies = [
+ "euclid",
 ]
 
 [[package]]

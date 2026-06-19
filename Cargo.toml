@@ -2,7 +2,7 @@
 resolver = "3"
 # hausdorff: urban-fabric's geometry and spatial indexing domain.
 # Flat layout — every crate lives directly under crates/. The dependency DAG is
-#   hausdorff-geometry-traits → hausdorff-base → hausdorff-planar →
+#   {hausdorff-kernels, hausdorff-geometry-traits} → hausdorff-base → hausdorff-planar →
 #   {hausdorff-sphere, hausdorff-index, hausdorff-format} → hausdorff-earth →
 #   hausdorff (the façade),
 # cut so that thin consumers (GeoPoint / haversine / BBox) can depend on
@@ -25,6 +25,7 @@ rust-version = "1.95"
 # Internal crates (path deps within the workspace; consumers in sibling repos
 # reach them through this repo's git URL with the package name they need).
 hausdorff-geometry-traits = { path = "crates/hausdorff-geometry-traits" }
+hausdorff-kernels = { path = "crates/hausdorff-kernels" }
 hausdorff-base = { path = "crates/hausdorff-base" }
 hausdorff-planar = { path = "crates/hausdorff-planar" }
 hausdorff-sphere = { path = "crates/hausdorff-sphere" }

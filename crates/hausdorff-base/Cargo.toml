@@ -10,6 +10,7 @@ description = "Geospatial foundations: GeoPoint/BBox, haversine and Karney WGS84
 
 [dependencies]
 hausdorff-geometry-traits = { workspace = true }
+hausdorff-kernels = { workspace = true }
 bytemuck = { workspace = true }
 euclid = { workspace = true }
 serde = { workspace = true }

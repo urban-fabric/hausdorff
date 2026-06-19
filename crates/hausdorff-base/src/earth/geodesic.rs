@@ -4,13 +4,9 @@
 //! earth-distance quantities carry units rather than bare `f64`.
 
 use euclid::LengthMeters;
+pub use hausdorff_kernels::earth::EARTH_RADIUS_M;
 
 use super::{Bearing, GeoPoint};
-
-/// Mean Earth radius in metres (WGS84 mean radius R₁). The single source of
-/// truth for the workspace's spherical geodesics — galois and kolmogorov-geo
-/// re-export this rather than redefining it.
-pub const EARTH_RADIUS_M: f64 = 6_371_008.8;
 
 /// Earth diameter (`2·`[`EARTH_RADIUS_M`]), folded once so [`haversine_m`]'s hot
 /// path is a single multiply rather than `2.0 * R * …`.
