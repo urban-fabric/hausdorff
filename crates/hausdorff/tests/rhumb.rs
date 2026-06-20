@@ -6,7 +6,7 @@
 //! point-at-ratio, length = segment sum, and densify path-length preservation,
 //! plus a few golden absolute-scale anchors. No third-party geometry crate.
 
-use euclid::LengthMeters;
+use oresme::LengthMeters;
 use hausdorff::earth::{
     Bearing as CompassBearing, GeoPoint, rhumb_bearing, rhumb_destination, rhumb_destination_m,
     rhumb_distance_m, rhumb_distance_meters, rhumb_point_at_ratio,

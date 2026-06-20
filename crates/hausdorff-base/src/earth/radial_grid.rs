@@ -6,7 +6,7 @@
 //! grid is free and you only pay for the points you query.
 //!
 //! ```
-//! use euclid::LengthMeters;
+//! use oresme::LengthMeters;
 //! use hausdorff_base::earth::{GeoPoint, RadialGrid};
 //!
 //! // 15 rings, +100 m radius per ring, 32 points on each ring.
@@ -26,7 +26,7 @@
 //! ```
 
 use super::{Bearing, GeoPoint, destination_m};
-use euclid::LengthMeters;
+use oresme::LengthMeters;
 
 /// One sampled point on a [`RadialGrid`], carrying its polar coordinates.
 #[derive(Clone, Copy, Debug, PartialEq)]

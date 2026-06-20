@@ -37,6 +37,11 @@ hausdorff-format = { path = "crates/hausdorff-format" }
 # Bundled-TOML config loader (the `hausdorff.toml` tuning parameters).
 cavalieri = { git = "ssh://git@github.com/urban-fabric/cavalieri.git", branch = "main" }
 euclid = { git = "ssh://git@github.com/urban-fabric/euclid.git", branch = "main" }
+# napier (concrete Real/Complex tier) and oresme (units), lifted out of euclid.
+# Path deps for offline dev (no published remote yet); convert to git+patch once pushed.
+# Post-split layout: napier lives in the sibling `math/eager/` tree, oresme under `math/`.
+napier = { path = "../../eager/napier" }
+oresme = { path = "../../oresme" }
 # Optional: in-process profiling (hierarchical span timing of the kernels),
 # gated behind the `profiling` feature (off by default). When the feature is
 # off the span hooks compile to nothing, so normal builds carry zero profiling

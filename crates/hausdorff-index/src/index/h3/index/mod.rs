@@ -16,7 +16,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use euclid::LengthMeters;
+use oresme::LengthMeters;
 
 use super::{base_cells, children, coord, faceijk, grid};
 

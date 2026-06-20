@@ -8,7 +8,7 @@
 //! steradians → m². This is the only place a radius (and hence a physical unit)
 //! enters; the geometry itself stays unit-less and planet-agnostic.
 
-use euclid::{AreaSquareMeters, Factor, LengthMeters};
+use oresme::{AreaSquareMeters, Factor, LengthMeters};
 
 use crate::earth::{Bearing, Ellipsoid, GeoPoint};
 use hausdorff_base::earth::latitude::authalic_q;
@@ -71,12 +71,12 @@ impl Sphere {
     ///
     /// `radius × radius` is euclid's `LengthMeters × LengthMeters =
     /// AreaSquareMeters` algebraic connection — the area subtended by one
-    /// steradian — which [`scalar_mul`](euclid::scalar_mul) then scales by the
+    /// steradian — which [`scalar_mul`](oresme::scalar_mul) then scales by the
     /// dimensionless solid angle, keeping the typed area end to end.
     #[must_use]
     pub fn area(self, steradians: f64) -> AreaSquareMeters {
         let area_per_steradian = self.radius() * self.radius();
-        euclid::scalar_mul(area_per_steradian, steradians)
+        oresme::scalar_mul(area_per_steradian, steradians)
     }
 
     /// Surface area subtended by a solid angle in `steradians` as raw m² — the

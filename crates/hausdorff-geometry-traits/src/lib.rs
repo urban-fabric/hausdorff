@@ -37,7 +37,7 @@ pub use interval::ClosedInterval;
 pub use interpolate::{Interpolate, sample};
 /// The real scalar the geometry is generic over — euclid's foundation trait,
 /// re-exported so the spaces can name it as `hausdorff_geometry_traits::Real`.
-pub use euclid::numeric::Real;
+pub use napier::Real;
 pub use orientation::{
     Orientation, contains_convex, convex_winding, in_triangle, is_collinear, is_convex_ring,
     left_of_all,

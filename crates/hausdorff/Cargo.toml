@@ -28,7 +28,7 @@ profiling = ["dep:huygens", "hausdorff-planar/profiling"]
 [dev-dependencies]
 # The relocated tests/ integration suite names the typed LengthMeters returned
 # across the public API (e.g. RadialGrid construction).
-euclid = { workspace = true }
+oresme = { workspace = true }
 # In-process benchmark harness (statistical per-call timing, TSC fast-clock)
 # for the kernel span-profile example.
 huygens = { workspace = true }

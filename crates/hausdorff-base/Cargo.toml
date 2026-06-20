@@ -13,6 +13,7 @@ hausdorff-geometry-traits = { workspace = true }
 hausdorff-kernels = { workspace = true }
 bytemuck = { workspace = true }
 euclid = { workspace = true }
+oresme = { workspace = true }
 serde = { workspace = true }
 
 [lints]

@@ -20,7 +20,7 @@
 
 use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
-use euclid::LengthMeters;
+use oresme::LengthMeters;
 
 use super::{Bearing, EARTH_RADIUS_M, GeoPoint};
 

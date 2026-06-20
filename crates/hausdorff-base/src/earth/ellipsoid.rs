@@ -4,7 +4,7 @@
 //! ([`Ellipsoid::inverse`] / [`Ellipsoid::direct`]). The spherical counterpart
 //! on the metric side is [`crate::earth::sphere::Sphere`].
 
-use euclid::LengthMeters;
+use oresme::LengthMeters;
 
 use crate::earth::karney::{self, Karney, LineKernel};
 use crate::earth::{Bearing, GeoPoint};

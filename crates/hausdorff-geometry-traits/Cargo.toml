@@ -12,6 +12,7 @@ description = "Abstract, proof-backed geometry traits (Orientation, VectorSpace,
 # The real-analysis foundation: `Real` (the scalar the geometry is generic over)
 # extends `euclid::numeric::RealScalar`.
 euclid = { workspace = true }
+napier = { workspace = true }
 
 [lints]
 workspace = true

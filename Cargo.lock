@@ -59,10 +59,6 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 [[package]]
 name = "euclid"
 version = "0.1.0"
-dependencies = [
- "bytemuck",
- "serde",
-]
 
 [[package]]
 name = "futures-core"
@@ -92,7 +88,6 @@ dependencies = [
 name = "hausdorff"
 version = "0.1.0"
 dependencies = [
- "euclid",
  "hausdorff-base",
  "hausdorff-earth",
  "hausdorff-format",
@@ -100,6 +95,7 @@ dependencies = [
  "hausdorff-planar",
  "hausdorff-sphere",
  "huygens",
+ "oresme",
 ]
 
 [[package]]
@@ -110,6 +106,7 @@ dependencies = [
  "euclid",
  "hausdorff-geometry-traits",
  "hausdorff-kernels",
+ "oresme",
  "serde",
 ]
 
@@ -122,6 +119,7 @@ dependencies = [
  "hausdorff-index",
  "hausdorff-planar",
  "hausdorff-sphere",
+ "oresme",
 ]
 
 [[package]]
@@ -138,6 +136,7 @@ name = "hausdorff-geometry-traits"
 version = "0.1.0"
 dependencies = [
  "euclid",
+ "napier",
 ]
 
 [[package]]
@@ -147,6 +146,7 @@ dependencies = [
  "euclid",
  "hausdorff-base",
  "hausdorff-planar",
+ "oresme",
 ]
 
 [[package]]
@@ -219,10 +219,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b947ae49db0d222b1dbc6b113ce7248a3fc3a6ca21b696717bfc000ba4484d8"
 
 [[package]]
+name = "napier"
+version = "0.1.0"
+dependencies = [
+ "euclid",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+
+[[package]]
+name = "oresme"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "serde",
+]
 
 [[package]]
 name = "pin-project-lite"

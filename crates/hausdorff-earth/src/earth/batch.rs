@@ -8,7 +8,7 @@
 //! parallelism splits the columns into chunks and processes those concurrently
 //! on its own pool.
 
-use euclid::LengthMeters;
+use oresme::LengthMeters;
 
 use crate::earth::{BBox, GeoPoint, haversine_m};
 use hausdorff_index::index::h3::H3Cell;

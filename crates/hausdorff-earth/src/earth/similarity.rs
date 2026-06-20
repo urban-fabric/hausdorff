@@ -17,7 +17,7 @@
 //! [Hausdorff distance]: https://en.wikipedia.org/wiki/Hausdorff_distance
 //! [Fréchet distance]: https://en.wikipedia.org/wiki/Fr%C3%A9chet_distance
 
-use euclid::LengthMeters;
+use oresme::LengthMeters;
 
 use hausdorff_planar::space::r2::Haversine;
 

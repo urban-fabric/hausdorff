@@ -456,7 +456,7 @@ mod tests {
     #[test]
     fn vector_is_generic_over_the_real_scalar_f32_parity() {
         // The ℝ³ `Vector` is no longer `f64`-locked: the same operations run at
-        // `f32` (which also implements `euclid::numeric::Real`) and agree with the
+        // `f32` (which also implements `napier::Real`) and agree with the
         // `f64` reference within single-precision tolerance. This is the proof the
         // geometry is generic over the `Real` scalar trait.
         let a64 = Vector::<f64>::new(1.0, 2.0, 3.0);

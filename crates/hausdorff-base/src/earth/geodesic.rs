@@ -3,7 +3,7 @@
 //! and [`destination`] are the `euclid`-typed forms callers should prefer so
 //! earth-distance quantities carry units rather than bare `f64`.
 
-use euclid::LengthMeters;
+use oresme::LengthMeters;
 pub use hausdorff_kernels::earth::EARTH_RADIUS_M;
 
 use super::{Bearing, GeoPoint};

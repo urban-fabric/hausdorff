@@ -14,6 +14,7 @@ hausdorff-planar = { workspace = true }
 hausdorff-sphere = { workspace = true }
 hausdorff-index = { workspace = true }
 euclid = { workspace = true }
+oresme = { workspace = true }
 
 [lints]
 workspace = true

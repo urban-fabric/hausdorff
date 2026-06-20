@@ -75,7 +75,7 @@ mod geodesic {
 }
 
 mod radial_grid {
-    use euclid::LengthMeters;
+    use oresme::LengthMeters;
     use hausdorff::earth::*;
 
     fn approx(a: f64, b: f64, tol: f64) -> bool {
