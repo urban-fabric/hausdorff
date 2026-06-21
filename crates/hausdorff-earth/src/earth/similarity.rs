@@ -17,11 +17,9 @@
 //! [Hausdorff distance]: https://en.wikipedia.org/wiki/Hausdorff_distance
 //! [Fréchet distance]: https://en.wikipedia.org/wiki/Fr%C3%A9chet_distance
 
-use oresme::LengthMeters;
-
 use hausdorff_planar::space::r2::Haversine;
 
-use super::GeoPoint;
+use super::{GeoPoint, LengthMeters};
 
 /// Directed Hausdorff distance from `a` to `b` in **metres**: the greatest, over
 /// every point of `a`, of the great-circle distance to the nearest point of `b`.

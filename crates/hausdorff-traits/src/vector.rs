@@ -5,18 +5,15 @@
 //! substrate, in `hausdorff-base`) already carry the operations inherently;
 //! these traits give them a shared abstraction so generic code (centroids,
 //! orthogonalization, generic norms) can be written once. The scalar field is the
-//! associated [`Scalar`](VectorSpace::Scalar): any [`Real`] (`f64` by default,
-//! `f32`, a decimal, …).
+//! associated [`Scalar`](VectorSpace::Scalar): any [`LazyReal`] (`f64` by default,
+//! `f32`, a lazy tensor value, …).
 
-use euclid::algebra::HasZero;
 use euclid::numeric::LazyReal;
 
-use crate::Real;
-
-/// A vector space over a [`Real`] scalar: addition and scaling with an identity.
-pub trait VectorSpace: Copy {
+/// A vector space over a [`LazyReal`] scalar: addition and scaling with an identity.
+pub trait VectorSpace: Clone {
     /// The scalar field this vector space is over.
-    type Scalar: Real;
+    type Scalar: LazyReal;
     /// The additive identity (origin / zero vector).
     fn zero() -> Self;
     /// Vector addition.
@@ -37,7 +34,7 @@ pub trait InnerProduct: VectorSpace {
 pub trait Norm: InnerProduct {
     /// Squared norm (`self · self`) — avoids the `sqrt` when only comparing.
     fn norm_squared(self) -> Self::Scalar {
-        self.dot(self)
+        self.clone().dot(self)
     }
     /// Euclidean norm.
     fn norm(self) -> Self::Scalar {
@@ -45,9 +42,12 @@ pub trait Norm: InnerProduct {
     }
     /// A unit vector in the same direction, or [`zero`](VectorSpace::zero) if
     /// `self` is the zero vector.
-    fn normalized(self) -> Self {
-        let n2 = self.norm_squared();
-        if n2 == Self::Scalar::ZERO {
+    fn normalized(self) -> Self
+    where
+        Self::Scalar: PartialEq,
+    {
+        let n2 = self.clone().norm_squared();
+        if n2 == Self::Scalar::zero() {
             Self::zero()
         } else {
             self.scale(n2.sqrt().recip())

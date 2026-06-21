@@ -1,5 +1,5 @@
 //! `format::geojson` — native GeoJSON *geometry* codec over
-//! [`hausdorff_planar::space::r2::Geometry`].
+//! [`crate::space::r2::Geometry`].
 //!
 //! The JSON layer uses `serde_json` (a generic JSON library, not a geo crate);
 //! the GeoJSON geometry schema (Point/LineString/Polygon/Multi*/
@@ -8,7 +8,7 @@
 
 use serde_json::{Map, Value};
 
-use hausdorff_planar::space::r2::{
+use crate::space::r2::{
     Coord, Geometry, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon,
 };
 

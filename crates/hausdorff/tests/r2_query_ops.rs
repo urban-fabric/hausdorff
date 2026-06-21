@@ -185,10 +185,8 @@ fn ref_closest_polygon(
     }
     let ext = closed(exterior);
     let hole_rings: Vec<Vec<(f64, f64)>> = holes.iter().map(|h| closed(h)).collect();
-    let interior =
-        point_in_ring(p, &ext) && !hole_rings.iter().any(|h| point_in_ring(p, h));
-    let boundary =
-        on_ring(p, &ext) || hole_rings.iter().any(|h| on_ring(p, h));
+    let interior = point_in_ring(p, &ext) && !hole_rings.iter().any(|h| point_in_ring(p, h));
+    let boundary = on_ring(p, &ext) || hole_rings.iter().any(|h| on_ring(p, h));
     if interior || boundary {
         return RefClosest::Intersection(p.0, p.1);
     }
@@ -394,13 +392,7 @@ fn closest_point_on_multi_geometries_matches_reference() {
 #[test]
 fn closest_point_on_rect_triangle_and_geometry_matches_reference() {
     let h_rect = Rect::new(Coord::new(1.0, 1.0), Coord::new(5.0, 3.0));
-    let rect_ring = vec![
-        (1.0, 1.0),
-        (5.0, 1.0),
-        (5.0, 3.0),
-        (1.0, 3.0),
-        (1.0, 1.0),
-    ];
+    let rect_ring = vec![(1.0, 1.0), (5.0, 1.0), (5.0, 3.0), (1.0, 3.0), (1.0, 1.0)];
     let h_tri = Triangle::new(
         Coord::new(0.0, 0.0),
         Coord::new(6.0, 0.0),
@@ -545,7 +537,7 @@ fn line_interpolate_point_matches_reference() {
         f64::NAN,
     ];
     let seg = ((-1.0, 0.0), (3.0, 2.0));
-    let h_seg = Line::new(Coord::new(seg.0 .0, seg.0 .1), Coord::new(seg.1 .0, seg.1 .1));
+    let h_seg = Line::new(Coord::new(seg.0.0, seg.0.1), Coord::new(seg.1.0, seg.1.1));
     let paths = [
         vec![(-1.0, 0.0), (0.0, 0.0), (0.0, 1.0)],
         vec![(0.0, 0.0), (3.0, 4.0), (3.0, 10.0), (-2.0, 10.0)],
@@ -583,9 +575,12 @@ fn line_interpolate_point_matches_reference() {
 #[test]
 fn line_locate_point_matches_reference() {
     let seg = ((-1.0, 0.0), (3.0, 2.0));
-    let h_seg = Line::new(Coord::new(seg.0 .0, seg.0 .1), Coord::new(seg.1 .0, seg.1 .1));
+    let h_seg = Line::new(Coord::new(seg.0.0, seg.0.1), Coord::new(seg.1.0, seg.1.1));
     let zero = ((1.0, 1.0), (1.0, 1.0));
-    let h_zero = Line::new(Coord::new(zero.0 .0, zero.0 .1), Coord::new(zero.1 .0, zero.1 .1));
+    let h_zero = Line::new(
+        Coord::new(zero.0.0, zero.0.1),
+        Coord::new(zero.1.0, zero.1.1),
+    );
     let path = vec![(0.0, 0.0), (3.0, 4.0), (3.0, 10.0), (-2.0, 10.0)];
     let h_ls = h_line_string(&path);
 
@@ -669,10 +664,24 @@ struct RefAffine {
 
 impl RefAffine {
     fn identity() -> Self {
-        Self { a: 1.0, b: 0.0, xoff: 0.0, d: 0.0, e: 1.0, yoff: 0.0 }
+        Self {
+            a: 1.0,
+            b: 0.0,
+            xoff: 0.0,
+            d: 0.0,
+            e: 1.0,
+            yoff: 0.0,
+        }
     }
     fn translate(x: f64, y: f64) -> Self {
-        Self { a: 1.0, b: 0.0, xoff: x, d: 0.0, e: 1.0, yoff: y }
+        Self {
+            a: 1.0,
+            b: 0.0,
+            xoff: x,
+            d: 0.0,
+            e: 1.0,
+            yoff: y,
+        }
     }
     fn scale(xf: f64, yf: f64, origin: (f64, f64)) -> Self {
         let (x0, y0) = origin;
@@ -750,12 +759,7 @@ fn assert_line_strings_eq_ref(h: &LineString, r: &[(f64, f64)], ctx: &str) {
     }
 }
 
-fn assert_polygons_eq_ref(
-    h: &Polygon,
-    ext: &[(f64, f64)],
-    holes: &[Vec<(f64, f64)>],
-    ctx: &str,
-) {
+fn assert_polygons_eq_ref(h: &Polygon, ext: &[(f64, f64)], holes: &[Vec<(f64, f64)>], ctx: &str) {
     assert_line_strings_eq_ref(h.exterior(), ext, ctx);
     assert_eq!(h.interiors().len(), holes.len(), "{ctx}: holes");
     for (hr, gr) in h.interiors().iter().zip(holes) {
@@ -777,11 +781,7 @@ fn apply_path(t: &RefAffine, path: &[(f64, f64)]) -> Vec<(f64, f64)> {
 fn poly_fixture() -> (Polygon, Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
     let exterior = vec![(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)];
     let hole = vec![(3.0, 3.0), (5.0, 3.0), (5.0, 5.0), (3.0, 5.0)];
-    (
-        h_polygon(&exterior, &[hole.clone()]),
-        exterior,
-        vec![hole],
-    )
+    (h_polygon(&exterior, &[hole.clone()]), exterior, vec![hole])
 }
 
 fn ls_fixture() -> (LineString, Vec<(f64, f64)>) {
@@ -1019,10 +1019,22 @@ struct RefExtremes {
 fn ref_extremes(coords: &[(f64, f64)]) -> Option<RefExtremes> {
     let &first = coords.first()?;
     let mut out = RefExtremes {
-        x_min: RefExtreme { index: 0, coord: first },
-        y_min: RefExtreme { index: 0, coord: first },
-        x_max: RefExtreme { index: 0, coord: first },
-        y_max: RefExtreme { index: 0, coord: first },
+        x_min: RefExtreme {
+            index: 0,
+            coord: first,
+        },
+        y_min: RefExtreme {
+            index: 0,
+            coord: first,
+        },
+        x_max: RefExtreme {
+            index: 0,
+            coord: first,
+        },
+        y_max: RefExtreme {
+            index: 0,
+            coord: first,
+        },
     };
     for (index, &coord) in coords.iter().enumerate().skip(1) {
         if coord.0 < out.x_min.coord.0 {

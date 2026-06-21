@@ -337,9 +337,13 @@ mod tests {
         assert!(!inner.contains(&outer), "big box not inside small box");
 
         // A box straddling the boundary is not contained.
-        let straddle =
-            ConvexLoop::from_vertices(vec![sp(8.0, 8.0), sp(8.0, 14.0), sp(12.0, 14.0), sp(12.0, 8.0)])
-                .unwrap();
+        let straddle = ConvexLoop::from_vertices(vec![
+            sp(8.0, 8.0),
+            sp(8.0, 14.0),
+            sp(12.0, 14.0),
+            sp(12.0, 8.0),
+        ])
+        .unwrap();
         assert!(!outer.contains(&straddle));
     }
 

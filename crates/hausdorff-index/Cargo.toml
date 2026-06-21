@@ -12,7 +12,6 @@ description = "Discrete spatial indexes: the H3 hexagonal hierarchy (Uber H3 por
 hausdorff-base = { workspace = true }
 hausdorff-planar = { workspace = true }
 euclid = { workspace = true }
-oresme = { workspace = true }
 
 [lints]
 workspace = true

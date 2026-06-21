@@ -1,8 +1,8 @@
 //! Planar [`Interpolate`] instance — straight-line `lerp` on [`Coord`] (riemann
 //! `planarInterp`). The trait, the endpoint laws, and the generic `sample` /
-//! `midpoint` live upstream in [`hausdorff_geometry_traits`].
+//! `midpoint` live upstream in [`hausdorff_traits`].
 
-use hausdorff_geometry_traits::Interpolate;
+use hausdorff_traits::Interpolate;
 
 use crate::space::r2::Coord;
 
@@ -19,7 +19,7 @@ impl Interpolate for Coord {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hausdorff_geometry_traits::sample;
+    use hausdorff_traits::sample;
 
     #[test]
     fn coord_lerp_endpoints_and_midpoint() {

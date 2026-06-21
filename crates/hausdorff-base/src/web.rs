@@ -13,7 +13,7 @@
 //! traits use. ramsey's graph fingerprint ⊕ this spatial fingerprint is the full
 //! web fingerprint.
 
-use crate::earth::{haversine_m, GeoPoint};
+use crate::earth::{GeoPoint, haversine_m};
 
 /// A space a web can be embedded in: a point type plus a distance between points.
 pub trait SpatialMetric {
@@ -208,7 +208,11 @@ mod tests {
         // Every nearest-neighbour distance is exactly 1, every edge length is 1.
         assert!((fp.nn_mean - 1.0).abs() < 1e-9);
         assert!(fp.nn_cv < 1e-9, "grid nn_cv should be ~0, got {}", fp.nn_cv);
-        assert!(fp.edge_cv < 1e-9, "grid edge_cv should be ~0, got {}", fp.edge_cv);
+        assert!(
+            fp.edge_cv < 1e-9,
+            "grid edge_cv should be ~0, got {}",
+            fp.edge_cv
+        );
     }
 
     #[test]
@@ -216,7 +220,11 @@ mod tests {
         let grid = spatial_fingerprint(&grid_web(20)); // 400 nodes, regular
         let rand = spatial_fingerprint(&random_web(400, 19.0, 42)); // Poisson-ish
         assert!(grid.nn_cv < 0.05, "grid nn_cv {}", grid.nn_cv);
-        assert!(rand.nn_cv > 0.2, "random nn_cv {} should be substantial", rand.nn_cv);
+        assert!(
+            rand.nn_cv > 0.2,
+            "random nn_cv {} should be substantial",
+            rand.nn_cv
+        );
         assert!(rand.nn_cv > grid.nn_cv);
     }
 

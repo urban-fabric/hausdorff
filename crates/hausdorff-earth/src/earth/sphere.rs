@@ -8,9 +8,7 @@
 //! steradians → m². This is the only place a radius (and hence a physical unit)
 //! enters; the geometry itself stays unit-less and planet-agnostic.
 
-use oresme::{AreaSquareMeters, Factor, LengthMeters};
-
-use crate::earth::{Bearing, Ellipsoid, GeoPoint};
+use crate::earth::{AreaSquareMeters, Bearing, Ellipsoid, GeoPoint, LengthMeters};
 use hausdorff_base::earth::latitude::authalic_q;
 use hausdorff_base::space::s1::Angle;
 use hausdorff_sphere::space::s2::{S2Point, polygon_signed_area_vos};
@@ -40,7 +38,7 @@ impl Sphere {
     #[must_use]
     pub fn new(radius: LengthMeters) -> Self {
         Self {
-            radius_m: radius.as_meters(),
+            radius_m: radius.value(),
         }
     }
 
@@ -59,24 +57,23 @@ impl Sphere {
     /// Arc length of a central `angle`: `radius × angle`. The general form of a
     /// great-circle distance — `Sphere::EARTH.length(...)` is the Earth case.
     ///
-    /// The radian measure of `angle` is dimensionless, so it scales the radius as
-    /// a [`Factor`] via euclid's `Factor × LengthMeters` algebraic connection.
+    /// The radian measure of `angle` is dimensionless, so it scales the radius
+    /// through `euclid`'s lazy unit algebra.
     #[must_use]
     pub fn length(self, angle: Angle) -> LengthMeters {
-        Factor::new(angle.radians()) * self.radius()
+        self.radius() * angle.radians()
     }
 
     /// Surface area subtended by a solid angle in `steradians`: `radius² ×
     /// steradians` (e.g. a full sphere is `4π` steradians).
     ///
-    /// `radius × radius` is euclid's `LengthMeters × LengthMeters =
+    /// `radius × radius` is `euclid`'s `LengthMeters × LengthMeters =
     /// AreaSquareMeters` algebraic connection — the area subtended by one
-    /// steradian — which [`scalar_mul`](oresme::scalar_mul) then scales by the
-    /// dimensionless solid angle, keeping the typed area end to end.
+    /// steradian — then scaled by the dimensionless solid angle.
     #[must_use]
     pub fn area(self, steradians: f64) -> AreaSquareMeters {
         let area_per_steradian = self.radius() * self.radius();
-        oresme::scalar_mul(area_per_steradian, steradians)
+        area_per_steradian * steradians
     }
 
     /// Surface area subtended by a solid angle in `steradians` as raw m² — the
@@ -84,7 +81,7 @@ impl Sphere {
     /// scalar rather than the typed [`AreaSquareMeters`].
     #[must_use]
     pub fn area_m2(self, steradians: f64) -> f64 {
-        self.area(steradians).as_square_meters()
+        self.area(steradians).value()
     }
 
     /// **Native spherical area (m²) of a WGS84 polygon `ring`** — convert each
@@ -129,7 +126,7 @@ impl Sphere {
         bearing: Bearing,
         distance: LengthMeters,
     ) -> GeoPoint {
-        self.destination_m(origin, bearing, distance.as_meters())
+        self.destination_m(origin, bearing, distance.value())
     }
 
     /// [`destination`](Self::destination) with the distance as raw metres.
@@ -223,7 +220,7 @@ mod tests {
         let pole = GeoPoint::from_lat_lon(90.0, 0.0);
         for sphere in [Sphere::EARTH, Sphere::MARS, Sphere::MOON] {
             let quarter = sphere.distance_m(equator, pole);
-            let expected = FRAC_PI_2 * sphere.radius().as_meters();
+            let expected = FRAC_PI_2 * sphere.radius().value();
             assert!((quarter - expected).abs() < 1e-6, "{quarter} vs {expected}");
         }
     }
@@ -249,7 +246,10 @@ mod tests {
         // Within ~2% of the ellipsoidal (Karney) area — the same geodesic
         // polygon; the gap is the sphere-vs-spheroid flattening.
         let (_, ell) = Ellipsoid::WGS84.ring_perimeter_area_unsigned_m(&bx);
-        assert!((sph - ell).abs() / ell < 0.02, "spherical {sph} vs ellipsoidal {ell}");
+        assert!(
+            (sph - ell).abs() / ell < 0.02,
+            "spherical {sph} vs ellipsoidal {ell}"
+        );
         // A degenerate ring is zero.
         assert_eq!(Sphere::EARTH.polygon_area_m2(&bx[..2]), 0.0);
     }
@@ -258,14 +258,14 @@ mod tests {
     fn authalic_radius_and_total_area() {
         // WGS84 authalic radius ≈ 6 371 007.18 m; 4π Rq² is the total surface area.
         let au = AuthalicSphere::of(Ellipsoid::WGS84);
-        let rq = au.radius().as_meters();
+        let rq = au.radius().value();
         assert!((rq - 6_371_007.181).abs() < 1e-2, "Rq = {rq}");
         let total = Ellipsoid::WGS84.total_area_m2();
         let rel = (4.0 * std::f64::consts::PI * rq * rq - total).abs() / total;
         assert!(rel < 1e-7, "4πRq² vs total area rel = {rel}");
         // A sphere is its own authalic sphere (Rq = a).
         assert_eq!(
-            AuthalicSphere::of(Ellipsoid::SPHERE).radius().as_meters(),
+            AuthalicSphere::of(Ellipsoid::SPHERE).radius().value(),
             Ellipsoid::SPHERE.a
         );
     }

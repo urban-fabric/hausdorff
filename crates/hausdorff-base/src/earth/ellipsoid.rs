@@ -4,10 +4,8 @@
 //! ([`Ellipsoid::inverse`] / [`Ellipsoid::direct`]). The spherical counterpart
 //! on the metric side is [`crate::earth::sphere::Sphere`].
 
-use oresme::LengthMeters;
-
 use crate::earth::karney::{self, Karney, LineKernel};
-use crate::earth::{Bearing, GeoPoint};
+use crate::earth::{Bearing, GeoPoint, LengthMeters};
 
 /// A reference ellipsoid (or sphere) — the datum/planet a projection or
 /// geodesic computation is built on, defined by its semi-major axis and
@@ -138,7 +136,7 @@ impl Ellipsoid {
         bearing: Bearing,
         distance: LengthMeters,
     ) -> GeoPoint {
-        self.destination_m(origin, bearing, distance.as_meters())
+        self.destination_m(origin, bearing, distance.value())
     }
 
     /// The geodesic line from `origin` with initial compass `bearing` — the
@@ -317,7 +315,7 @@ impl GeodesicLine {
     /// [`position_m`](Self::position_m) with a typed length.
     #[must_use]
     pub fn position(&self, distance: LengthMeters) -> GeodesicDirect {
-        self.position_m(distance.as_meters())
+        self.position_m(distance.value())
     }
 }
 
@@ -361,8 +359,10 @@ mod clairaut_tests {
     fn meridian_and_equator_are_degenerate_geodesics() {
         let e = Ellipsoid::WGS84;
         // Due north (α = 0): the meridian is a geodesic with Clairaut constant 0.
-        let north =
-            e.clairaut_constant(GeoPoint::from_lat_lon(20.0, 5.0), Bearing::from_degrees(0.0));
+        let north = e.clairaut_constant(
+            GeoPoint::from_lat_lon(20.0, 5.0),
+            Bearing::from_degrees(0.0),
+        );
         assert!(north.abs() < 1e-9);
         // Due east at the equator (α = 90°, φ = 0): the equator is a geodesic,
         // Clairaut constant = a (ρ = N = a there), and it stays a downrange.
@@ -397,7 +397,10 @@ mod clairaut_tests {
             sampled_max = sampled_max.max(lat);
             assert!(lat <= phi_max + 1e-6, "lat {lat} exceeds vertex {phi_max}");
         }
-        assert!((phi_max - sampled_max).abs() < 0.02, "sampled {sampled_max} vs {phi_max}");
+        assert!(
+            (phi_max - sampled_max).abs() < 0.02,
+            "sampled {sampled_max} vs {phi_max}"
+        );
     }
 
     #[test]

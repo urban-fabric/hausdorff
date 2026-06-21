@@ -106,12 +106,18 @@ impl Crs {
 }
 
 // PROJJSON axis fragments (valid `name`/`direction`/`unit` for any reader).
-const AXIS_LAT: &str = r#"{"name":"Latitude","abbreviation":"lat","direction":"north","unit":"degree"}"#;
-const AXIS_LON: &str = r#"{"name":"Longitude","abbreviation":"lon","direction":"east","unit":"degree"}"#;
-const AXIS_H: &str = r#"{"name":"Ellipsoidal height","abbreviation":"h","direction":"up","unit":"metre"}"#;
-const AXIS_X: &str = r#"{"name":"Geocentric X","abbreviation":"X","direction":"geocentricX","unit":"metre"}"#;
-const AXIS_Y: &str = r#"{"name":"Geocentric Y","abbreviation":"Y","direction":"geocentricY","unit":"metre"}"#;
-const AXIS_Z: &str = r#"{"name":"Geocentric Z","abbreviation":"Z","direction":"geocentricZ","unit":"metre"}"#;
+const AXIS_LAT: &str =
+    r#"{"name":"Latitude","abbreviation":"lat","direction":"north","unit":"degree"}"#;
+const AXIS_LON: &str =
+    r#"{"name":"Longitude","abbreviation":"lon","direction":"east","unit":"degree"}"#;
+const AXIS_H: &str =
+    r#"{"name":"Ellipsoidal height","abbreviation":"h","direction":"up","unit":"metre"}"#;
+const AXIS_X: &str =
+    r#"{"name":"Geocentric X","abbreviation":"X","direction":"geocentricX","unit":"metre"}"#;
+const AXIS_Y: &str =
+    r#"{"name":"Geocentric Y","abbreviation":"Y","direction":"geocentricY","unit":"metre"}"#;
+const AXIS_Z: &str =
+    r#"{"name":"Geocentric Z","abbreviation":"Z","direction":"geocentricZ","unit":"metre"}"#;
 const AXIS_E: &str = r#"{"name":"Easting","abbreviation":"E","direction":"east","unit":"metre"}"#;
 const AXIS_N: &str = r#"{"name":"Northing","abbreviation":"N","direction":"north","unit":"metre"}"#;
 
@@ -121,7 +127,11 @@ fn datum_json(d: Datum) -> String {
     let shape = if e.f == 0.0 {
         format!(r#""semi_major_axis":{},"semi_minor_axis":{}"#, e.a, e.a)
     } else {
-        format!(r#""semi_major_axis":{},"inverse_flattening":{}"#, e.a, 1.0 / e.f)
+        format!(
+            r#""semi_major_axis":{},"inverse_flattening":{}"#,
+            e.a,
+            1.0 / e.f
+        )
     };
     format!(
         r#"{{"type":"GeodeticReferenceFrame","name":"datum","ellipsoid":{{"name":"ellipsoid",{shape}}}}}"#

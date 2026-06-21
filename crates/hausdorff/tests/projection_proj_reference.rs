@@ -49,8 +49,14 @@ fn check<P: Projection>(name: &str, p: &P, refs: &[Ref], fwd_tol_m: f64) {
     eprintln!(
         "{name:12} forward max |ΔE|={max_e:.6} m |ΔN|={max_n:.6} m   inverse max Δ={max_inv:.3e}°"
     );
-    assert!(max_e < fwd_tol_m, "{name}: forward ΔE {max_e} m exceeds {fwd_tol_m} m");
-    assert!(max_n < fwd_tol_m, "{name}: forward ΔN {max_n} m exceeds {fwd_tol_m} m");
+    assert!(
+        max_e < fwd_tol_m,
+        "{name}: forward ΔE {max_e} m exceeds {fwd_tol_m} m"
+    );
+    assert!(
+        max_n < fwd_tol_m,
+        "{name}: forward ΔN {max_n} m exceeds {fwd_tol_m} m"
+    );
     // Inverting PROJ's coordinate must recover the original lat/lon (our forward
     // and inverse are mutually consistent and agree with PROJ's forward).
     assert!(max_inv < 1e-6, "{name}: inverse Δ {max_inv}° too large");
@@ -127,11 +133,39 @@ fn geographic_3d_height_matches_proj() {
     let ecef = Crs::from_epsg(4978).unwrap();
     // (lat, lon, height_m, X, Y, Z) — pyproj 4979→4978.
     let refs: &[(f64, f64, f64, f64, f64, f64)] = &[
-        (45.0, 45.0, 1000.0, 3_194_919.1451, 3_194_919.1451, 4_488_055.5156),
-        (51.5, -0.1, 100.0, 3_978_704.7222, -6944.1568, 4_968_440.7181),
-        (-33.87, 151.21, 50.0, -4_646_053.8387, 2_553_133.8488, -3_534_510.7711),
+        (
+            45.0,
+            45.0,
+            1000.0,
+            3_194_919.1451,
+            3_194_919.1451,
+            4_488_055.5156,
+        ),
+        (
+            51.5,
+            -0.1,
+            100.0,
+            3_978_704.7222,
+            -6944.1568,
+            4_968_440.7181,
+        ),
+        (
+            -33.87,
+            151.21,
+            50.0,
+            -4_646_053.8387,
+            2_553_133.8488,
+            -3_534_510.7711,
+        ),
         (0.0, 0.0, 0.0, 6_378_137.0, 0.0, 0.0),
-        (80.0, -120.0, 8848.0, -556_350.6549, -963_627.6012, 6_268_256.5400),
+        (
+            80.0,
+            -120.0,
+            8848.0,
+            -556_350.6549,
+            -963_627.6012,
+            6_268_256.5400,
+        ),
     ];
     let mut max_m = 0.0_f64;
     for &(lat, lon, h, x, y, z) in refs {
@@ -139,18 +173,29 @@ fn geographic_3d_height_matches_proj() {
         let CrsCoord::Geocentric(got) = transform(g3d, ecef, p) else {
             panic!("expected geocentric")
         };
-        max_m = max_m.max((got.x - x).abs()).max((got.y - y).abs()).max((got.z - z).abs());
+        max_m = max_m
+            .max((got.x - x).abs())
+            .max((got.y - y).abs())
+            .max((got.z - z).abs());
         // Inverse of our own forward recovers lat/lon AND ellipsoidal height
         // exactly (PROJ's reference is only transcribed to 0.1 mm).
-        let CrsCoord::Geographic { point: back, height: hb } =
-            transform(ecef, g3d, CrsCoord::Geocentric(got))
+        let CrsCoord::Geographic {
+            point: back,
+            height: hb,
+        } = transform(ecef, g3d, CrsCoord::Geocentric(got))
         else {
             panic!("expected geographic")
         };
-        assert!((back.lat - lat).abs() < 1e-9 && (hb - h).abs() < 1e-6, "inverse h {h} → {hb}");
+        assert!(
+            (back.lat - lat).abs() < 1e-9 && (hb - h).abs() < 1e-6,
+            "inverse h {h} → {hb}"
+        );
     }
     eprintln!("4979→4978 (3-D height) max Δ = {max_m:.6} m vs PROJ");
-    assert!(max_m < 1e-3, "3-D height transform off by {max_m} m vs PROJ");
+    assert!(
+        max_m < 1e-3,
+        "3-D height transform off by {max_m} m vs PROJ"
+    );
 }
 
 #[test]
@@ -270,8 +315,14 @@ fn datum_shift_pipeline_matches_proj() {
     let osgb = Crs::from_epsg(4277).unwrap();
     let mut max_deg = 0.0_f64;
     for &(lat, lon, rlat, rlon) in to_osgb36 {
-        let out = transform(Crs::wgs84(), osgb, CrsCoord::geographic(GeoPoint::from_lat_lon(lat, lon)));
-        let CrsCoord::Geographic { point: g, .. } = out else { panic!("expected geographic") };
+        let out = transform(
+            Crs::wgs84(),
+            osgb,
+            CrsCoord::geographic(GeoPoint::from_lat_lon(lat, lon)),
+        );
+        let CrsCoord::Geographic { point: g, .. } = out else {
+            panic!("expected geographic")
+        };
         max_deg = max_deg.max((g.lat - rlat).abs()).max((g.lon - rlon).abs());
     }
     eprintln!("WGS84→OSGB36 (4277) max Δ = {max_deg:.3e}° vs PROJ Helmert");
@@ -289,8 +340,14 @@ fn datum_shift_pipeline_matches_proj() {
     let bng = Crs::from_epsg(27_700).unwrap();
     let mut max_m = 0.0_f64;
     for &(lat, lon, re, rn) in to_bng {
-        let out = transform(Crs::wgs84(), bng, CrsCoord::geographic(GeoPoint::from_lat_lon(lat, lon)));
-        let CrsCoord::Projected(c) = out else { panic!("expected projected") };
+        let out = transform(
+            Crs::wgs84(),
+            bng,
+            CrsCoord::geographic(GeoPoint::from_lat_lon(lat, lon)),
+        );
+        let CrsCoord::Projected(c) = out else {
+            panic!("expected projected")
+        };
         max_m = max_m.max((c.x - re).abs()).max((c.y - rn).abs());
     }
     eprintln!("WGS84→BNG (27700) full pipeline max Δ = {max_m:.6} m vs PROJ Helmert");
@@ -310,9 +367,11 @@ fn check_registry(code: u32, refs: &[Ref], fwd_tol_m: f64) {
     };
     let (mut max_e, mut max_n, mut max_inv) = (0.0_f64, 0.0_f64, 0.0_f64);
     for &(lat, lon, e, n) in refs {
-        let CrsCoord::Projected(got) =
-            transform(geo, proj, CrsCoord::geographic(GeoPoint::from_lat_lon(lat, lon)))
-        else {
+        let CrsCoord::Projected(got) = transform(
+            geo,
+            proj,
+            CrsCoord::geographic(GeoPoint::from_lat_lon(lat, lon)),
+        ) else {
             panic!("EPSG:{code} should project")
         };
         max_e = max_e.max((got.x - e).abs());
@@ -322,7 +381,9 @@ fn check_registry(code: u32, refs: &[Ref], fwd_tol_m: f64) {
         else {
             panic!("EPSG:{code} inverse should be geographic")
         };
-        max_inv = max_inv.max((back.lat - lat).abs()).max((back.lon - lon).abs());
+        max_inv = max_inv
+            .max((back.lat - lat).abs())
+            .max((back.lon - lon).abs());
     }
     eprintln!(
         "EPSG:{code:<6} forward max |ΔE|={max_e:.6} m |ΔN|={max_n:.6} m   inverse max Δ={max_inv:.3e}°"
@@ -331,7 +392,10 @@ fn check_registry(code: u32, refs: &[Ref], fwd_tol_m: f64) {
         max_e < fwd_tol_m && max_n < fwd_tol_m,
         "EPSG:{code}: forward ΔE={max_e} ΔN={max_n} exceeds {fwd_tol_m} m"
     );
-    assert!(max_inv < 1e-6, "EPSG:{code}: inverse Δ {max_inv}° too large");
+    assert!(
+        max_inv < 1e-6,
+        "EPSG:{code}: inverse Δ {max_inv}° too large"
+    );
 }
 
 /// The broadened registry's new projected CRSes vs PROJ 9.4.0 (each from its own

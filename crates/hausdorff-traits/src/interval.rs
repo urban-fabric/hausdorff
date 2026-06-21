@@ -7,15 +7,9 @@
 //! containment, intersection, union, expansion, and two-point hull come free —
 //! written once here, the minimal structure the interval algebra actually needs.
 
-use euclid::algebra::{HasOne, HasZero};
-// `min`/`max` are euclid's comparison-free `LazyReal` selectors (current euclid
-// moved them off `Real` onto `LazyReal`, which `Real` extends); bring the trait
-// into scope so `Self::Scalar: Real` can call them.
 use euclid::numeric::LazyReal;
 
-use crate::Real;
-
-/// A closed interval `[lo, hi]` on a [`Real`] axis, with `lo > hi` the empty
+/// A closed interval `[lo, hi]` on a [`LazyReal`] axis, with `lo > hi` the empty
 /// interval (canonical empty `[1, 0]`).
 ///
 /// The laws are machine-checked in `riemann` — `Hausdorff/R1Interval` and
@@ -31,58 +25,58 @@ use crate::Real;
 ///   (`expanded_mem_of_near`);
 /// - `from_point_pair` is the smallest interval through both points
 ///   (`fromPointPair_minimal`, with `fromPointPair_mem_left/right`).
-pub trait ClosedInterval: Copy + Sized {
+pub trait ClosedInterval: Clone + Sized {
     /// The scalar field the endpoints live on.
-    type Scalar: Real;
+    type Scalar: LazyReal + PartialOrd;
 
     /// The interval `[lo, hi]`.
     fn from_bounds(lo: Self::Scalar, hi: Self::Scalar) -> Self;
 
     /// The low endpoint.
-    fn lo(self) -> Self::Scalar;
+    fn lo(&self) -> Self::Scalar;
 
     /// The high endpoint.
-    fn hi(self) -> Self::Scalar;
+    fn hi(&self) -> Self::Scalar;
 
     /// The canonical empty interval `[1, 0]`.
     #[must_use]
     fn empty() -> Self {
-        Self::from_bounds(Self::Scalar::ONE, Self::Scalar::ZERO)
+        Self::from_bounds(Self::Scalar::one(), Self::Scalar::zero())
     }
 
     /// True iff the interval is empty (`lo > hi`).
     #[must_use]
-    fn is_empty(self) -> bool {
+    fn is_empty(&self) -> bool {
         self.lo() > self.hi()
     }
 
     /// True iff `p ∈ [lo, hi]` (endpoints included).
     #[must_use]
-    fn contains(self, p: Self::Scalar) -> bool {
+    fn contains(&self, p: Self::Scalar) -> bool {
         self.lo() <= p && p <= self.hi()
     }
 
     /// True iff `other` is wholly contained in `self` (the empty interval is
     /// contained in everything).
     #[must_use]
-    fn contains_interval(self, other: Self) -> bool {
+    fn contains_interval(&self, other: &Self) -> bool {
         other.is_empty() || (self.lo() <= other.lo() && other.hi() <= self.hi())
     }
 
     /// The intersection of `self` and `other` (empty if they are disjoint).
     #[must_use]
-    fn intersection(self, other: Self) -> Self {
+    fn intersection(&self, other: &Self) -> Self {
         Self::from_bounds(self.lo().max(other.lo()), self.hi().min(other.hi()))
     }
 
     /// The smallest interval containing both `self` and `other` (the other if one
     /// is empty).
     #[must_use]
-    fn union(self, other: Self) -> Self {
+    fn union(&self, other: &Self) -> Self {
         if self.is_empty() {
-            other
+            other.clone()
         } else if other.is_empty() {
-            self
+            self.clone()
         } else {
             Self::from_bounds(self.lo().min(other.lo()), self.hi().max(other.hi()))
         }
@@ -91,18 +85,18 @@ pub trait ClosedInterval: Copy + Sized {
     /// `self` grown (negative `margin` shrinks) by `margin` on each side; the
     /// empty interval stays empty.
     #[must_use]
-    fn expanded(self, margin: Self::Scalar) -> Self {
+    fn expanded(&self, margin: Self::Scalar) -> Self {
         if self.is_empty() {
-            self
+            self.clone()
         } else {
-            Self::from_bounds(self.lo() - margin, self.hi() + margin)
+            Self::from_bounds(self.lo() - margin.clone(), self.hi() + margin)
         }
     }
 
     /// The smallest interval containing both points.
     #[must_use]
     fn from_point_pair(a: Self::Scalar, b: Self::Scalar) -> Self {
-        Self::from_bounds(a.min(b), a.max(b))
+        Self::from_bounds(a.clone().min(b.clone()), a.max(b))
     }
 }
 
@@ -110,7 +104,7 @@ pub trait ClosedInterval: Copy + Sized {
 mod tests {
     use super::*;
 
-    #[derive(Copy, Clone, Debug, PartialEq)]
+    #[derive(Clone, Debug, PartialEq)]
     struct I {
         lo: f64,
         hi: f64,
@@ -120,10 +114,10 @@ mod tests {
         fn from_bounds(lo: f64, hi: f64) -> Self {
             Self { lo, hi }
         }
-        fn lo(self) -> f64 {
+        fn lo(&self) -> f64 {
             self.lo
         }
-        fn hi(self) -> f64 {
+        fn hi(&self) -> f64 {
             self.hi
         }
     }
@@ -133,19 +127,19 @@ mod tests {
         let a = I::from_bounds(0.0, 2.0);
         let b = I::from_bounds(1.0, 3.0);
         // intersection is set intersection
-        let i = a.intersection(b);
+        let i = a.intersection(&b);
         assert_eq!(i, I::from_bounds(1.0, 2.0));
         assert!(i.contains(1.5) && a.contains(1.5) && b.contains(1.5));
         // union contains both, empty-absorbing
-        let u = a.union(b);
+        let u = a.union(&b);
         assert_eq!(u, I::from_bounds(0.0, 3.0));
-        assert_eq!(a.union(I::empty()), a);
+        assert_eq!(a.union(&I::empty()), a);
         assert!(I::empty().is_empty() && !a.is_empty());
         // contains_interval: empty ⊆ everything; soundness
-        assert!(a.contains_interval(I::empty()));
-        assert!(u.contains_interval(a) && u.contains_interval(b));
+        assert!(a.contains_interval(&I::empty()));
+        assert!(u.contains_interval(&a) && u.contains_interval(&b));
         // expanded only grows; from_point_pair is the min/max hull
-        assert!(a.expanded(1.0).contains_interval(a));
+        assert!(a.expanded(1.0).contains_interval(&a));
         assert_eq!(I::from_point_pair(3.0, -1.0), I::from_bounds(-1.0, 3.0));
     }
 }

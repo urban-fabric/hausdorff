@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use hausdorff_geometry_traits::is_convex_ring;
+use hausdorff_traits::is_convex_ring;
 
 use super::util::ring_vertices;
 use super::{LineString, Point};

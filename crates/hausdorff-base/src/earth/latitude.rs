@@ -149,7 +149,8 @@ impl Ellipsoid {
     /// (`‖rφ × rλ‖² = E·G`, the Gram determinant of the first fundamental form).
     #[must_use]
     pub fn area_element(self, lat_deg: f64) -> f64 {
-        self.meridian_radius(lat_deg) * self.prime_vertical_radius(lat_deg)
+        self.meridian_radius(lat_deg)
+            * self.prime_vertical_radius(lat_deg)
             * lat_deg.to_radians().cos()
     }
 
@@ -262,8 +263,7 @@ impl Ellipsoid {
 /// e sinφ)]^{e/2}` (Snyder 15-9) — `t = tan(π/4 − χ/2)`, so `χ = π/2 − 2·arctan t`.
 #[must_use]
 pub fn conformal_t(phi: f64, e: f64) -> f64 {
-    let es = e * phi.sin();
-    (FRAC_PI_4 - phi / 2.0).tan() / ((1.0 - es) / (1.0 + es)).powf(e / 2.0)
+    hausdorff_kernels::projection::conformal_t(phi, e)
 }
 
 /// Invert the conformal `t` back to geodetic latitude `φ` (radians) by Snyder's
@@ -272,46 +272,27 @@ pub fn conformal_t(phi: f64, e: f64) -> f64 {
 /// `Hausdorff/Stereographic.conformalLat_inverse`).
 #[must_use]
 pub fn lat_from_conformal_t(t: f64, e: f64) -> f64 {
-    let mut phi = FRAC_PI_2 - 2.0 * t.atan();
-    for _ in 0..15 {
-        let es = e * phi.sin();
-        let next = FRAC_PI_2 - 2.0 * (t * ((1.0 - es) / (1.0 + es)).powf(e / 2.0)).atan();
-        if (next - phi).abs() < 1e-14 {
-            return next;
-        }
-        phi = next;
-    }
-    phi
+    hausdorff_kernels::projection::lat_from_conformal_t(t, e)
 }
 
 /// The authalic-area function `q` (Snyder 3-12) — the integral `∫cosφ/(1−e²sin²φ)²`
 /// in closed form; the equal-area analogue of the conformal `t`. `sin ξ = q/q(π/2)`.
 #[must_use]
 pub fn authalic_q(phi: f64, e: f64) -> f64 {
-    let es = e * phi.sin();
-    (1.0 - e * e) * (phi.sin() / (1.0 - es * es) - (1.0 / (2.0 * e)) * ((1.0 - es) / (1.0 + es)).ln())
+    hausdorff_kernels::projection::authalic_q(phi, e)
 }
 
 /// Invert the authalic `q` back to geodetic latitude `φ` (radians) by Snyder's
 /// iteration (3-16).
 #[must_use]
 pub fn lat_from_authalic_q(q: f64, e: f64) -> f64 {
+    // The pole clamp stays a scalar branch in this `f64` wrapper; the fixed-point
+    // iteration itself lives in the backend-neutral kernel.
     let q_pole = authalic_q(FRAC_PI_2, e);
     if q.abs() >= q_pole - 1e-12 {
         return FRAC_PI_2.copysign(q);
     }
-    let mut phi = (q / 2.0).asin();
-    for _ in 0..15 {
-        let es = e * phi.sin();
-        let delta = (1.0 - es * es).powi(2) / (2.0 * phi.cos())
-            * (q / (1.0 - e * e) - phi.sin() / (1.0 - es * es)
-                + (1.0 / (2.0 * e)) * ((1.0 - es) / (1.0 + es)).ln());
-        phi += delta;
-        if delta.abs() < 1e-14 {
-            break;
-        }
-    }
-    phi
+    hausdorff_kernels::projection::lat_from_authalic_q(q, e)
 }
 
 /// Meridian arc length from the equator to latitude `phi` (radians) on the
@@ -366,8 +347,16 @@ mod tests {
     fn conversions_round_trip() {
         let e = Ellipsoid::WGS84;
         for &lat in &[0.0, 12.3, 45.0, -60.0, 80.0] {
-            assert!(close(e.geodetic_from_reduced(e.reduced_latitude(lat)), lat, 1e-9));
-            assert!(close(e.geodetic_from_geocentric(e.geocentric_latitude(lat)), lat, 1e-9));
+            assert!(close(
+                e.geodetic_from_reduced(e.reduced_latitude(lat)),
+                lat,
+                1e-9
+            ));
+            assert!(close(
+                e.geodetic_from_geocentric(e.geocentric_latitude(lat)),
+                lat,
+                1e-9
+            ));
         }
     }
 
@@ -468,9 +457,21 @@ mod tests {
     fn auxiliary_latitudes_round_trip() {
         let e = Ellipsoid::WGS84;
         for &lat in &[0.0, 12.3, 45.0, -60.0, 80.0, -88.0] {
-            assert!(close(e.geodetic_from_conformal(e.conformal_latitude(lat)), lat, 1e-9));
-            assert!(close(e.geodetic_from_authalic(e.authalic_latitude(lat)), lat, 1e-9));
-            assert!(close(e.geodetic_from_rectifying(e.rectifying_latitude(lat)), lat, 1e-7));
+            assert!(close(
+                e.geodetic_from_conformal(e.conformal_latitude(lat)),
+                lat,
+                1e-9
+            ));
+            assert!(close(
+                e.geodetic_from_authalic(e.authalic_latitude(lat)),
+                lat,
+                1e-9
+            ));
+            assert!(close(
+                e.geodetic_from_rectifying(e.rectifying_latitude(lat)),
+                lat,
+                1e-7
+            ));
         }
     }
 

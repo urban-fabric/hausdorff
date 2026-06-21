@@ -57,7 +57,9 @@ impl Crs {
                 }
             }
             "PROJCRS" | "PROJECTEDCRS" => {
-                let base = node.child("BASEGEOGCRS").or_else(|| node.child("BASEGEODCRS"))?;
+                let base = node
+                    .child("BASEGEOGCRS")
+                    .or_else(|| node.child("BASEGEODCRS"))?;
                 let datum = datum_of(base)?;
                 let conv = node.child("CONVERSION")?;
                 let projection = projection_of(conv, datum.ellipsoid)?;
@@ -90,13 +92,19 @@ impl Crs {
         match *self {
             Crs::Geographic { datum, epsg, dim } => {
                 let (n, axes) = if dim == GeoDim::D3 {
-                    (3, format!(
-                        r#"AXIS["latitude",north,ORDER[1],{DEG}],AXIS["longitude",east,ORDER[2],{DEG}],AXIS["ellipsoidal height",up,ORDER[3],{METRE}]"#
-                    ))
+                    (
+                        3,
+                        format!(
+                            r#"AXIS["latitude",north,ORDER[1],{DEG}],AXIS["longitude",east,ORDER[2],{DEG}],AXIS["ellipsoidal height",up,ORDER[3],{METRE}]"#
+                        ),
+                    )
                 } else {
-                    (2, format!(
-                        r#"AXIS["latitude",north,ORDER[1],{DEG}],AXIS["longitude",east,ORDER[2],{DEG}]"#
-                    ))
+                    (
+                        2,
+                        format!(
+                            r#"AXIS["latitude",north,ORDER[1],{DEG}],AXIS["longitude",east,ORDER[2],{DEG}]"#
+                        ),
+                    )
                 };
                 format!(
                     r#"GEOGCRS["geographic",{},{PRIMEM},CS[ellipsoidal,{n}],{axes}{}]"#,
@@ -137,7 +145,10 @@ const PRIMEM: &str = r#"PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.01745329251994
 /// `ELLIPSOID["…",a,1/f,LENGTHUNIT["metre",1]]` (inverse flattening; 0 for a sphere).
 fn ellipsoid_node(e: Ellipsoid) -> String {
     let rf = if e.f == 0.0 { 0.0 } else { 1.0 / e.f };
-    format!(r#"ELLIPSOID["ellipsoid",{},{},LENGTHUNIT["metre",1]]"#, e.a, rf)
+    format!(
+        r#"ELLIPSOID["ellipsoid",{},{},LENGTHUNIT["metre",1]]"#,
+        e.a, rf
+    )
 }
 
 /// `DATUM["…",ELLIPSOID[…]]`.
@@ -184,7 +195,9 @@ fn datum_of(node: &WktNode) -> Option<Datum> {
             return Some(crs.datum());
         }
     }
-    let ell = node.find_deep("ELLIPSOID").or_else(|| node.find_deep("SPHEROID"))?;
+    let ell = node
+        .find_deep("ELLIPSOID")
+        .or_else(|| node.find_deep("SPHEROID"))?;
     let a = ell.num_arg(1)?;
     let rf = ell.num_arg(2)?;
     let f = if rf == 0.0 { 0.0 } else { 1.0 / rf };
@@ -196,7 +209,10 @@ fn datum_of(node: &WktNode) -> Option<Datum> {
 
 /// Build the [`ProjectionKind`] from a `CONVERSION` node's `METHOD` + `PARAMETER`s.
 fn projection_of(conv: &WktNode, ellipsoid: Ellipsoid) -> Option<ProjectionKind> {
-    let method = conv.child("METHOD").or_else(|| conv.child("PROJECTION"))?.str_arg(0)?;
+    let method = conv
+        .child("METHOD")
+        .or_else(|| conv.child("PROJECTION"))?
+        .str_arg(0)?;
     method::projection_from_method(method, ellipsoid, |name| {
         conv.children("PARAMETER")
             .find(|p| p.str_arg(0).is_some_and(|n| n.eq_ignore_ascii_case(name)))
@@ -276,7 +292,10 @@ impl WktNode {
     fn epsg(&self) -> Option<u32> {
         self.children("ID")
             .chain(self.children("AUTHORITY"))
-            .find(|id| id.str_arg(0).is_some_and(|a| a.eq_ignore_ascii_case("EPSG")))
+            .find(|id| {
+                id.str_arg(0)
+                    .is_some_and(|a| a.eq_ignore_ascii_case("EPSG"))
+            })
             .and_then(|id| id.num_arg(1))
             .map(|n| n as u32)
     }

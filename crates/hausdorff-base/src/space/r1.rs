@@ -7,7 +7,7 @@
 //! the Euclidean dimensional ladder — the line `r1`, the plane `r2`, the space
 //! `r3` — and carries no physical unit (metres enter only in [`crate::earth`]).
 
-use hausdorff_geometry_traits::ClosedInterval;
+use hausdorff_traits::ClosedInterval;
 use serde::{Deserialize, Serialize};
 
 /// A closed interval `[lo, hi]` on the real line. `lo > hi` denotes the empty
@@ -224,11 +224,11 @@ impl ClosedInterval for Interval {
         Self::new(lo, hi)
     }
     #[inline]
-    fn lo(self) -> f64 {
+    fn lo(&self) -> f64 {
         self.lo
     }
     #[inline]
-    fn hi(self) -> f64 {
+    fn hi(&self) -> f64 {
         self.hi
     }
     #[inline]
@@ -236,27 +236,27 @@ impl ClosedInterval for Interval {
         Interval::empty()
     }
     #[inline]
-    fn is_empty(self) -> bool {
-        Interval::is_empty(self)
+    fn is_empty(&self) -> bool {
+        Interval::is_empty(*self)
     }
     #[inline]
-    fn contains(self, p: f64) -> bool {
-        Interval::contains(self, p)
+    fn contains(&self, p: f64) -> bool {
+        Interval::contains(*self, p)
     }
     #[inline]
-    fn contains_interval(self, other: Self) -> bool {
-        Interval::contains_interval(self, other)
+    fn contains_interval(&self, other: &Self) -> bool {
+        Interval::contains_interval(*self, *other)
     }
     #[inline]
-    fn intersection(self, other: Self) -> Self {
-        Interval::intersection(self, other)
+    fn intersection(&self, other: &Self) -> Self {
+        Interval::intersection(*self, *other)
     }
     #[inline]
-    fn union(self, other: Self) -> Self {
-        Interval::union(self, other)
+    fn union(&self, other: &Self) -> Self {
+        Interval::union(*self, *other)
     }
     #[inline]
-    fn expanded(self, margin: f64) -> Self {
-        Interval::expanded(self, margin)
+    fn expanded(&self, margin: f64) -> Self {
+        Interval::expanded(*self, margin)
     }
 }

@@ -82,11 +82,17 @@ fn conics_round_trip_both_sides_and_hemispheres() {
     // West and east of the central meridian, both hemispheres.
     for &(lat, lon) in &[(40.0, -110.0), (40.0, -82.0), (38.5, -96.0)] {
         let b = north.inverse(north.project(GeoPoint::from_lat_lon(lat, lon)));
-        assert!(approx(b.lat, lat, 1e-8) && approx(b.lon, lon, 1e-8), "LCC {lat},{lon}");
+        assert!(
+            approx(b.lat, lat, 1e-8) && approx(b.lon, lon, 1e-8),
+            "LCC {lat},{lon}"
+        );
     }
     for &(lat, lon) in &[(-40.0, 130.0), (-40.0, 160.0), (-38.5, 145.0)] {
         let b = south.inverse(south.project(GeoPoint::from_lat_lon(lat, lon)));
-        assert!(approx(b.lat, lat, 1e-8) && approx(b.lon, lon, 1e-8), "Albers S {lat},{lon}");
+        assert!(
+            approx(b.lat, lat, 1e-8) && approx(b.lon, lon, 1e-8),
+            "Albers S {lat},{lon}"
+        );
     }
 }
 
@@ -109,7 +115,12 @@ fn polar_stereographic_spherical_limit_and_round_trip() {
     let expect_rho = a * phic.cos() * (PI / 4.0 - phi / 2.0).tan() / (PI / 4.0 - phic / 2.0).tan();
     // At lon = lon0 the point is straight "down" from the pole: x = 0, y = −ρ.
     assert!(approx(c.x, 0.0, 1e-6), "x = {}", c.x);
-    assert!(approx(c.y, -expect_rho, 1.0), "y = {} vs {}", c.y, -expect_rho);
+    assert!(
+        approx(c.y, -expect_rho, 1.0),
+        "y = {} vs {}",
+        c.y,
+        -expect_rho
+    );
 
     // Ellipsoidal round-trips (WGS84), both hemispheres.
     let north = PolarStereographic {
@@ -122,7 +133,10 @@ fn polar_stereographic_spherical_limit_and_round_trip() {
     };
     for &(lat, lon) in &[(85.0, 30.0), (72.0, -120.0), (89.0, 175.0)] {
         let back = north.inverse(north.project(GeoPoint::from_lat_lon(lat, lon)));
-        assert!(approx(back.lat, lat, 1e-7) && approx(back.lon, lon, 1e-6), "N {lat},{lon}");
+        assert!(
+            approx(back.lat, lat, 1e-7) && approx(back.lon, lon, 1e-6),
+            "N {lat},{lon}"
+        );
     }
     let south = PolarStereographic {
         ellipsoid: Ellipsoid::WGS84,
@@ -134,7 +148,10 @@ fn polar_stereographic_spherical_limit_and_round_trip() {
     };
     for &(lat, lon) in &[(-85.0, 30.0), (-72.0, -120.0), (-89.0, 175.0)] {
         let back = south.inverse(south.project(GeoPoint::from_lat_lon(lat, lon)));
-        assert!(approx(back.lat, lat, 1e-7) && approx(back.lon, lon, 1e-6), "S {lat},{lon}");
+        assert!(
+            approx(back.lat, lat, 1e-7) && approx(back.lon, lon, 1e-6),
+            "S {lat},{lon}"
+        );
     }
 }
 
@@ -155,7 +172,10 @@ fn local_tangent_plane_matches_proj_topocentric() {
         // Round-trip back to the ellipsoid surface (the inverse solves for the
         // surface-landing `up`), recovering the original lat/lon.
         let back = ltp.inverse(c);
-        assert!(approx(back.lat, lat, 1e-9) && approx(back.lon, lon, 1e-9), "rt {lat},{lon}");
+        assert!(
+            approx(back.lat, lat, 1e-9) && approx(back.lon, lon, 1e-9),
+            "rt {lat},{lon}"
+        );
     }
     // Planar round-trip project(inverse(c)) = c is exact for any local coord.
     for &(e, n) in &[(0.0, 0.0), (1234.0, -5678.0), (9000.0, 7000.0)] {
@@ -179,7 +199,34 @@ fn assert_conformal<P: ConformalProjection>(p: &P, lat: f64, lon: f64) {
     let b = g(lat, lon - d);
     let dp = [a.x - b.x, a.y - b.y]; // projected parallel direction
     let cos = (dm[0] * dp[0] + dm[1] * dp[1]) / (dm[0].hypot(dm[1]) * dp[0].hypot(dp[1]));
-    assert!(cos.abs() < 1e-6, "not conformal at {lat},{lon}: cos∠ = {cos}");
+    assert!(
+        cos.abs() < 1e-6,
+        "not conformal at {lat},{lon}: cos∠ = {cos}"
+    );
+}
+
+#[test]
+fn utm_wrapper_wires_kernel_parameters() {
+    // Locks the 8-argument delegation to the Transverse Mercator kernel: a
+    // wrong central meridian / false origin / k0 would break these.
+    // On the central meridian at the equator the projection lands on the false
+    // origin (500000, 0) for the northern zone.
+    let zone31 = TransverseMercator::utm(31, true); // central meridian 3°E
+    let o = zone31.project(GeoPoint::from_lat_lon(0.0, 3.0));
+    assert!(approx(o.x, 500_000.0, 1e-6), "easting = {}", o.x);
+    assert!(approx(o.y, 0.0, 1e-6), "northing = {}", o.y);
+    // Southern zone carries the 10 000 000 m false northing at the equator.
+    let south = TransverseMercator::utm(31, false);
+    let os = south.project(GeoPoint::from_lat_lon(0.0, 3.0));
+    assert!(approx(os.y, 10_000_000.0, 1e-6), "S northing = {}", os.y);
+    // Round-trip through the `Utm` convenience across hemispheres/zones.
+    for &(lat, lon) in &[(48.8566, 2.3522), (-33.8688, 151.2093), (64.0, -147.0)] {
+        let back = Utm::from_geo(GeoPoint::from_lat_lon(lat, lon)).to_geo();
+        assert!(
+            approx(back.lat, lat, 1e-7) && approx(back.lon, lon, 1e-7),
+            "rt {lat},{lon}"
+        );
+    }
 }
 
 #[test]

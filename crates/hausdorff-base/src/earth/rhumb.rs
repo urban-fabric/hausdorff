@@ -20,9 +20,7 @@
 
 use std::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
-use oresme::LengthMeters;
-
-use super::{Bearing, EARTH_RADIUS_M, GeoPoint};
+use super::{Bearing, EARTH_RADIUS_M, GeoPoint, LengthMeters};
 
 /// |Δψ| at or below this is an east-west course: the Mercator stretch factor
 /// `Δφ/Δψ` becomes 0/0, so its limit `cos φ₁` is used instead. Matches `geo`.
@@ -161,5 +159,5 @@ pub fn rhumb_distance_meters(a: GeoPoint, b: GeoPoint) -> LengthMeters {
 /// [`rhumb_bearing`].
 #[must_use]
 pub fn rhumb_destination(origin: GeoPoint, bearing: Bearing, distance: LengthMeters) -> GeoPoint {
-    rhumb_destination_m(origin, bearing, distance.as_meters())
+    rhumb_destination_m(origin, bearing, distance.value())
 }

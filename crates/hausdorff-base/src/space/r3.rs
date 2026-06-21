@@ -6,11 +6,11 @@
 //! vector dot/cross products rather than lat/lon, which is what makes them free
 //! of pole and antimeridian singularities.
 
-use hausdorff_geometry_traits::Real;
+use euclid::numeric::LazyReal;
 
 use crate::space::s1::Angle;
 
-/// A vector in ℝ³, generic over the real scalar `T` (defaulting to `f64`).
+/// A vector in ℝ³, generic over the lazy-real scalar `T` (defaulting to `f64`).
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Vector<T = f64> {
     pub x: T,
@@ -34,7 +34,10 @@ impl<T> Vector<T> {
     }
 }
 
-impl<T: Real> Vector<T> {
+impl<T> Vector<T>
+where
+    T: LazyReal + Copy + PartialOrd,
+{
     /// Dot (scalar) product.
     #[inline]
     #[must_use]
@@ -103,10 +106,10 @@ impl<T: Real> Vector<T> {
     #[must_use]
     pub fn normalize(self) -> Self {
         let n2 = self.norm2();
-        if n2 == T::ZERO {
-            return Self::new(T::ZERO, T::ZERO, T::ZERO);
+        if n2 == T::zero() {
+            return Self::new(T::zero(), T::zero(), T::zero());
         }
-        self.mul(T::ONE / n2.sqrt())
+        self.mul(T::one() / n2.sqrt())
     }
 
     /// Componentwise absolute value.
@@ -118,7 +121,7 @@ impl<T: Real> Vector<T> {
     /// True iff the vector is (near) unit length.
     #[must_use]
     pub fn is_unit(self) -> bool {
-        (self.norm2() - T::ONE).abs() <= T::from_f64(1e-14)
+        (self.norm2() - T::one()).abs() <= T::scalar(1e-14)
     }
 
     /// The axis of the largest-magnitude component. Ties resolve toward `Z` then
@@ -165,12 +168,12 @@ impl<T: Real> Vector<T> {
     #[must_use]
     pub fn cos_angle(self, other: Self) -> T {
         let denom = self.norm() * other.norm();
-        if denom == T::ZERO {
-            return T::ZERO;
+        if denom == T::zero() {
+            return T::zero();
         }
         // Cauchy–Schwarz guarantees the ratio is in [-1, 1]; the explicit clamp
         // only guards against f64 rounding nudging it a hair outside.
-        (self.dot(other) / denom).clamp(-T::ONE, T::ONE)
+        (self.dot(other) / denom).clamp(-T::one(), T::one())
     }
 
     /// The **Gram determinant** of the three vectors — the determinant of their
@@ -198,11 +201,11 @@ impl<T: Real> Vector<T> {
     pub fn ortho(self) -> Self {
         let (tx, ty, tz) = (self.x.abs(), self.y.abs(), self.z.abs());
         let other = if tx < ty && tx < tz {
-            Self::new(T::ONE, T::ZERO, T::ZERO)
+            Self::new(T::one(), T::zero(), T::zero())
         } else if ty < tz {
-            Self::new(T::ZERO, T::ONE, T::ZERO)
+            Self::new(T::zero(), T::one(), T::zero())
         } else {
-            Self::new(T::ZERO, T::ZERO, T::ONE)
+            Self::new(T::zero(), T::zero(), T::one())
         };
         self.cross(other).normalize()
     }
@@ -241,7 +244,10 @@ pub struct Aabb<T = f64> {
     max: Vector<T>,
 }
 
-impl<T: Real> Aabb<T> {
+impl<T> Aabb<T>
+where
+    T: LazyReal + Copy + PartialOrd,
+{
     /// The box spanning two opposite corners, given in any order (normalized to
     /// per-axis `min`/`max`).
     #[must_use]
@@ -282,7 +288,7 @@ impl<T: Real> Aabb<T> {
     #[inline]
     #[must_use]
     pub fn center(self) -> Vector<T> {
-        self.min.add(self.max).mul(T::HALF)
+        self.min.add(self.max).mul(T::half())
     }
 
     /// True iff `p` lies in the box (edges inclusive) — the per-axis range test
@@ -372,7 +378,10 @@ pub struct Plane<T = f64> {
     offset: T,
 }
 
-impl<T: Real> Plane<T> {
+impl<T> Plane<T>
+where
+    T: LazyReal + Copy + PartialOrd,
+{
     /// The plane with the given `normal` passing through `point`
     /// (`offset = normal·point`).
     #[must_use]
@@ -432,9 +441,9 @@ impl<T: Real> Plane<T> {
     #[must_use]
     pub fn side_of(self, p: Vector<T>) -> i32 {
         let e = self.eval(p);
-        if e > T::ZERO {
+        if e > T::zero() {
             1
-        } else if e < T::ZERO {
+        } else if e < T::zero() {
             -1
         } else {
             0
@@ -456,9 +465,9 @@ mod tests {
     #[test]
     fn vector_is_generic_over_the_real_scalar_f32_parity() {
         // The ℝ³ `Vector` is no longer `f64`-locked: the same operations run at
-        // `f32` (which also implements `napier::Real`) and agree with the
-        // `f64` reference within single-precision tolerance. This is the proof the
-        // geometry is generic over the `Real` scalar trait.
+        // `f32` and agree with the `f64` reference within single-precision
+        // tolerance. This is the proof the geometry is generic over the
+        // `LazyReal` scalar trait.
         let a64 = Vector::<f64>::new(1.0, 2.0, 3.0);
         let b64 = Vector::<f64>::new(-4.0, 0.5, 6.0);
         let c64 = Vector::<f64>::new(0.0, -1.0, 2.0);
@@ -598,7 +607,10 @@ mod tests {
     #[test]
     fn aabb_contains_overlaps_and_nesting() {
         // Corners accepted in any order and normalized.
-        let b = Aabb::<f64>::new(Vector::<f64>::new(4.0, 0.0, 6.0), Vector::<f64>::new(0.0, 4.0, 2.0));
+        let b = Aabb::<f64>::new(
+            Vector::<f64>::new(4.0, 0.0, 6.0),
+            Vector::<f64>::new(0.0, 4.0, 2.0),
+        );
         assert_eq!(b.min(), Vector::<f64>::new(0.0, 0.0, 2.0));
         assert_eq!(b.max(), Vector::<f64>::new(4.0, 4.0, 6.0));
         assert_eq!(b.center(), Vector::<f64>::new(2.0, 2.0, 4.0));
@@ -607,18 +619,30 @@ mod tests {
         assert!(b.contains(Vector::<f64>::new(0.0, 4.0, 6.0))); // corner, inclusive
         assert!(!b.contains(Vector::<f64>::new(2.0, 2.0, 7.0))); // past max z
         // Overlap (overlaps_of_mem3) vs. a disjoint box (prune_sound3).
-        let touching = Aabb::<f64>::new(Vector::<f64>::new(4.0, 4.0, 6.0), Vector::<f64>::new(6.0, 6.0, 8.0));
-        let far = Aabb::<f64>::new(Vector::<f64>::new(10.0, 10.0, 10.0), Vector::<f64>::new(12.0, 12.0, 12.0));
+        let touching = Aabb::<f64>::new(
+            Vector::<f64>::new(4.0, 4.0, 6.0),
+            Vector::<f64>::new(6.0, 6.0, 8.0),
+        );
+        let far = Aabb::<f64>::new(
+            Vector::<f64>::new(10.0, 10.0, 10.0),
+            Vector::<f64>::new(12.0, 12.0, 12.0),
+        );
         assert!(b.overlaps(touching)); // shares the corner
         assert!(!b.overlaps(far));
         // Nesting (contains_of_subset3) and its transitive union.
-        let inner = Aabb::<f64>::new(Vector::<f64>::new(1.0, 1.0, 3.0), Vector::<f64>::new(3.0, 3.0, 5.0));
+        let inner = Aabb::<f64>::new(
+            Vector::<f64>::new(1.0, 1.0, 3.0),
+            Vector::<f64>::new(3.0, 3.0, 5.0),
+        );
         assert!(b.contains_box(inner));
         assert!(!inner.contains_box(b));
         assert!(b.union(far).contains_box(b));
         assert!(b.union(far).contains_box(far));
         // Expansion grows every face.
-        assert!(b.expanded(1.0).contains(Vector::<f64>::new(-0.5, -0.5, 1.5)));
+        assert!(
+            b.expanded(1.0)
+                .contains(Vector::<f64>::new(-0.5, -0.5, 1.5))
+        );
     }
 
     #[test]
@@ -653,7 +677,10 @@ mod tests {
 
     #[test]
     fn plane_from_point_normal_and_straddle() {
-        let plane = Plane::from_point_normal(Vector::<f64>::new(0.0, 0.0, 1.0), Vector::<f64>::new(0.0, 0.0, 2.0));
+        let plane = Plane::from_point_normal(
+            Vector::<f64>::new(0.0, 0.0, 1.0),
+            Vector::<f64>::new(0.0, 0.0, 2.0),
+        );
         // Offset = normal·point = 2; the plane is z = 1.
         assert_eq!(plane.offset(), 2.0);
         assert_eq!(plane.side_of(Vector::<f64>::new(0.0, 0.0, 5.0)), 1);

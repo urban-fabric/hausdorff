@@ -90,12 +90,10 @@ version = "0.1.0"
 dependencies = [
  "hausdorff-base",
  "hausdorff-earth",
- "hausdorff-format",
  "hausdorff-index",
  "hausdorff-planar",
  "hausdorff-sphere",
  "huygens",
- "oresme",
 ]
 
 [[package]]
@@ -104,9 +102,8 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "euclid",
- "hausdorff-geometry-traits",
  "hausdorff-kernels",
- "oresme",
+ "hausdorff-traits",
  "serde",
 ]
 
@@ -117,26 +114,9 @@ dependencies = [
  "euclid",
  "hausdorff-base",
  "hausdorff-index",
+ "hausdorff-kernels",
  "hausdorff-planar",
  "hausdorff-sphere",
- "oresme",
-]
-
-[[package]]
-name = "hausdorff-format"
-version = "0.1.0"
-dependencies = [
- "hausdorff-planar",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "hausdorff-geometry-traits"
-version = "0.1.0"
-dependencies = [
- "euclid",
- "napier",
 ]
 
 [[package]]
@@ -146,7 +126,6 @@ dependencies = [
  "euclid",
  "hausdorff-base",
  "hausdorff-planar",
- "oresme",
 ]
 
 [[package]]
@@ -162,9 +141,10 @@ version = "0.1.0"
 dependencies = [
  "cavalieri",
  "hausdorff-base",
- "hausdorff-geometry-traits",
+ "hausdorff-traits",
  "huygens",
  "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -172,15 +152,22 @@ name = "hausdorff-sphere"
 version = "0.1.0"
 dependencies = [
  "hausdorff-base",
- "hausdorff-geometry-traits",
  "hausdorff-planar",
+ "hausdorff-traits",
  "serde",
+]
+
+[[package]]
+name = "hausdorff-traits"
+version = "0.1.0"
+dependencies = [
+ "euclid",
 ]
 
 [[package]]
 name = "huygens"
 version = "0.1.0"
-source = "git+ssh://git@github.com/urban-fabric/huygens.git?branch=main#e422cf44588e27849483632b764930d922ed82aa"
+source = "git+ssh://git@github.com/urban-fabric/huygens.git?branch=main#20c3604ed9887c308e70edd3ef5ddfb6c46e7cfa"
 dependencies = [
  "euclid",
  "quanta",
@@ -219,25 +206,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b947ae49db0d222b1dbc6b113ce7248a3fc3a6ca21b696717bfc000ba4484d8"
 
 [[package]]
-name = "napier"
-version = "0.1.0"
-dependencies = [
- "euclid",
-]
-
-[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
-
-[[package]]
-name = "oresme"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "serde",
-]
 
 [[package]]
 name = "pin-project-lite"

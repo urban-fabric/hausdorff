@@ -36,33 +36,99 @@ fn check(a: &Geometry, b: &Geometry) {
 
     // (1) Independent anchor: the relate intersects-bit must equal the dedicated
     // Intersects kernel (a separate implementation), and ⟺ ¬disjoint.
-    assert_eq!(m.is_intersects(), a.intersects(b), "{}", ctx("intersects vs kernel"));
-    assert_eq!(m.is_intersects(), !m.is_disjoint(), "{}", ctx("intersects == !disjoint"));
+    assert_eq!(
+        m.is_intersects(),
+        a.intersects(b),
+        "{}",
+        ctx("intersects vs kernel")
+    );
+    assert_eq!(
+        m.is_intersects(),
+        !m.is_disjoint(),
+        "{}",
+        ctx("intersects == !disjoint")
+    );
 
     // (2) Symmetry of symmetric predicates under reordering.
-    assert_eq!(mr.is_intersects(), m.is_intersects(), "{}", ctx("intersects symmetric"));
-    assert_eq!(mr.is_disjoint(), m.is_disjoint(), "{}", ctx("disjoint symmetric"));
-    assert_eq!(mr.is_equal_topo(), m.is_equal_topo(), "{}", ctx("equals symmetric"));
-    assert_eq!(mr.is_touches(), m.is_touches(), "{}", ctx("touches symmetric"));
-    assert_eq!(mr.is_overlaps(db, da), m.is_overlaps(da, db), "{}", ctx("overlaps symmetric"));
-    assert_eq!(mr.is_crosses(db, da), m.is_crosses(da, db), "{}", ctx("crosses symmetric"));
+    assert_eq!(
+        mr.is_intersects(),
+        m.is_intersects(),
+        "{}",
+        ctx("intersects symmetric")
+    );
+    assert_eq!(
+        mr.is_disjoint(),
+        m.is_disjoint(),
+        "{}",
+        ctx("disjoint symmetric")
+    );
+    assert_eq!(
+        mr.is_equal_topo(),
+        m.is_equal_topo(),
+        "{}",
+        ctx("equals symmetric")
+    );
+    assert_eq!(
+        mr.is_touches(),
+        m.is_touches(),
+        "{}",
+        ctx("touches symmetric")
+    );
+    assert_eq!(
+        mr.is_overlaps(db, da),
+        m.is_overlaps(da, db),
+        "{}",
+        ctx("overlaps symmetric")
+    );
+    assert_eq!(
+        mr.is_crosses(db, da),
+        m.is_crosses(da, db),
+        "{}",
+        ctx("crosses symmetric")
+    );
 
     // (3) within/contains and coveredby/covers are duals across the ordering.
-    assert_eq!(m.is_within(), mr.is_contains(), "{}", ctx("within(a,b) == contains(b,a)"));
-    assert_eq!(m.is_coveredby(), mr.is_covers(), "{}", ctx("coveredby(a,b) == covers(b,a)"));
+    assert_eq!(
+        m.is_within(),
+        mr.is_contains(),
+        "{}",
+        ctx("within(a,b) == contains(b,a)")
+    );
+    assert_eq!(
+        m.is_coveredby(),
+        mr.is_covers(),
+        "{}",
+        ctx("coveredby(a,b) == covers(b,a)")
+    );
 
     // (4) The predicate implication web.
     if m.is_contains() {
-        assert!(m.is_intersects() && m.is_covers(), "{}", ctx("contains ⟹ intersects ∧ covers"));
+        assert!(
+            m.is_intersects() && m.is_covers(),
+            "{}",
+            ctx("contains ⟹ intersects ∧ covers")
+        );
     }
     if m.is_within() {
-        assert!(m.is_intersects() && m.is_coveredby(), "{}", ctx("within ⟹ intersects ∧ coveredby"));
+        assert!(
+            m.is_intersects() && m.is_coveredby(),
+            "{}",
+            ctx("within ⟹ intersects ∧ coveredby")
+        );
     }
     if m.is_covers() || m.is_coveredby() || m.is_crosses(da, db) {
-        assert!(m.is_intersects(), "{}", ctx("covers/coveredby/crosses ⟹ intersects"));
+        assert!(
+            m.is_intersects(),
+            "{}",
+            ctx("covers/coveredby/crosses ⟹ intersects")
+        );
     }
     if m.is_equal_topo() {
-        assert!(m.is_contains() && m.is_within(), "{}", ctx("equals ⟹ contains ∧ within"));
+        assert!(
+            m.is_contains() && m.is_within(),
+            "{}",
+            ctx("equals ⟹ contains ∧ within")
+        );
         assert!(
             !m.is_touches() && !m.is_crosses(da, db) && !m.is_overlaps(da, db),
             "{}",
@@ -92,7 +158,10 @@ fn check(a: &Geometry, b: &Geometry) {
             ctx("disjoint ⟹ no containment")
         );
         assert!(
-            !m.is_touches() && !m.is_crosses(da, db) && !m.is_overlaps(da, db) && !m.is_equal_topo(),
+            !m.is_touches()
+                && !m.is_crosses(da, db)
+                && !m.is_overlaps(da, db)
+                && !m.is_equal_topo(),
             "{}",
             ctx("disjoint ⟹ no touch/cross/overlap/equal")
         );

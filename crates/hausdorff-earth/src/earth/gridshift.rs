@@ -130,7 +130,12 @@ impl SubGrid {
         let c0 = (fc.floor() as usize).min(self.n_cols - 2);
         let (tr, tc) = (fr - r0 as f64, fc - c0 as f64);
         let at = |r: usize, c: usize| self.shifts[r * self.n_cols + c];
-        let (s00, s01, s10, s11) = (at(r0, c0), at(r0, c0 + 1), at(r0 + 1, c0), at(r0 + 1, c0 + 1));
+        let (s00, s01, s10, s11) = (
+            at(r0, c0),
+            at(r0, c0 + 1),
+            at(r0 + 1, c0),
+            at(r0 + 1, c0 + 1),
+        );
         let bilerp = |a: f32, b: f32, c: f32, d: f32| {
             let south = f64::from(a) * (1.0 - tc) + f64::from(b) * tc;
             let north = f64::from(c) * (1.0 - tc) + f64::from(d) * tc;
@@ -281,9 +286,15 @@ mod tests {
         rec(&mut b, b"MAJOR_T ", &6_378_137.0f64.to_le_bytes());
         rec(&mut b, b"MINOR_T ", &6_356_752.0f64.to_le_bytes());
         // One subgrid: header (11 records) + `gs_count` constant nodes.
-        let subgrid = |b: &mut Vec<u8>, name: &[u8; 8], parent: &[u8; 8],
-                           s_lat: f64, n_lat: f64, e_long: f64, w_long: f64,
-                           inc: f64, lat_shift: f32| {
+        let subgrid = |b: &mut Vec<u8>,
+                       name: &[u8; 8],
+                       parent: &[u8; 8],
+                       s_lat: f64,
+                       n_lat: f64,
+                       e_long: f64,
+                       w_long: f64,
+                       inc: f64,
+                       lat_shift: f32| {
             let gs = (((n_lat - s_lat) / inc).round() as i32 + 1)
                 * (((w_long - e_long) / inc).round() as i32 + 1);
             rec(b, b"SUB_NAME", name);
@@ -305,9 +316,29 @@ mod tests {
             }
         };
         // Parent (0–2°E in positive-west seconds: E edge 2°E = −7200, W edge 0).
-        subgrid(&mut b, b"PARENT00", b"NONE    ", 180_000.0, 187_200.0, -7200.0, 0.0, 3600.0, 10.0);
+        subgrid(
+            &mut b,
+            b"PARENT00",
+            b"NONE    ",
+            180_000.0,
+            187_200.0,
+            -7200.0,
+            0.0,
+            3600.0,
+            10.0,
+        );
         // Child nested inside (0.5–1°E: E edge −3600, W edge −1800).
-        subgrid(&mut b, b"CHILD000", b"PARENT00", 181_800.0, 183_600.0, -3600.0, -1800.0, 900.0, 20.0);
+        subgrid(
+            &mut b,
+            b"CHILD000",
+            b"PARENT00",
+            181_800.0,
+            183_600.0,
+            -3600.0,
+            -1800.0,
+            900.0,
+            20.0,
+        );
         b
     }
 
@@ -317,12 +348,23 @@ mod tests {
         assert_eq!(g.subgrids.len(), 2);
         // Inside the child (and the parent): the finer child's +20″ shift wins.
         let child = g.forward(GeoPoint::from_lat_lon(50.7, 0.7));
-        assert!((child.lat - (50.7 + 20.0 / 3600.0)).abs() < 1e-9, "child shift: {}", child.lat);
+        assert!(
+            (child.lat - (50.7 + 20.0 / 3600.0)).abs() < 1e-9,
+            "child shift: {}",
+            child.lat
+        );
         // Inside the parent only: the parent's +10″ shift.
         let parent = g.forward(GeoPoint::from_lat_lon(50.1, 0.1));
-        assert!((parent.lat - (50.1 + 10.0 / 3600.0)).abs() < 1e-9, "parent shift: {}", parent.lat);
+        assert!(
+            (parent.lat - (50.1 + 10.0 / 3600.0)).abs() < 1e-9,
+            "parent shift: {}",
+            parent.lat
+        );
         // Outside both subgrids: unchanged.
-        assert_eq!(g.forward(GeoPoint::from_lat_lon(40.0, 0.5)), GeoPoint::from_lat_lon(40.0, 0.5));
+        assert_eq!(
+            g.forward(GeoPoint::from_lat_lon(40.0, 0.5)),
+            GeoPoint::from_lat_lon(40.0, 0.5)
+        );
     }
 
     #[test]

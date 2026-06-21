@@ -3,7 +3,7 @@
 //! between centers (`great_circle_distance*`), and the resolution-indexed H3
 //! reference tables (`max_grid_disk_size`, `average_hexagon_*`, `num_cells`).
 
-use oresme::{AreaSquareMeters, LengthMeters};
+use hausdorff_base::earth::{AreaSquareMeters, LengthMeters};
 
 use super::*;
 

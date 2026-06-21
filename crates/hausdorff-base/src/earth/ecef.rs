@@ -197,7 +197,11 @@ mod tests {
             }
         }
         // The geocentre is well inside.
-        assert!(e.ecef_contains(EcefPoint { x: 0.0, y: 0.0, z: 0.0 }));
+        assert!(e.ecef_contains(EcefPoint {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0
+        }));
     }
 
     #[test]

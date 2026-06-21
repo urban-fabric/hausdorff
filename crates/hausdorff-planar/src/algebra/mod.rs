@@ -2,7 +2,7 @@
 //! organized after `spire`'s `algebra` package.
 //!
 //! The abstract trait surface and the generic algorithms over it live upstream
-//! in [`hausdorff_geometry_traits`] — [`Orientation`] (+ [`in_triangle`],
+//! in [`hausdorff_traits`] — [`Orientation`] (+ [`in_triangle`],
 //! [`left_of_all`], [`is_collinear`]), the [`VectorSpace`] / [`InnerProduct`] /
 //! [`Norm`] hierarchy, [`Simplex`] / [`Barycentric`], [`Interpolate`] (+
 //! [`sample`]), and [`PointRegion`] / [`Prunable`] (+ [`filter_contained`],
@@ -32,10 +32,10 @@ mod region;
 mod simplex;
 mod vector;
 
-pub use hausdorff_geometry_traits::{
+pub use hausdorff_traits::{
     Barycentric, InnerProduct, Interpolate, Norm, Orientation, PointRegion, Prunable, Simplex,
     VectorSpace, any_contained, contains_convex, convex_winding, count_contained, disjoint,
-    filter_contained, in_triangle, is_collinear, is_convex_ring, left_of_all, sample,
+    filter_contained, in_triangle, is_collinear, is_convex_ring, left_of_all, sample, sample_at,
 };
 pub use metric::{
     FrechetWorkspace, HausdorffWitness, MetricSpace, directed_hausdorff,

@@ -25,6 +25,8 @@
 //!   soundness), `SphereCap.caps_disjoint_of_far`, `Circular.arcs_disjoint_of_far`
 //!   (far-apart centres share no point — exactly `!intersects`).
 
+use euclid::numeric::LazyNatural;
+
 /// A spatial region: a set of points of type [`Point`](Self::Point) with
 /// constant-time membership. The cross-space generalization of every
 /// `contains_*` primitive (`contains_coord`, `contains_point`, `contains_angle`,
@@ -61,23 +63,30 @@ pub trait Prunable: PointRegion {
 pub fn filter_contained<R>(region: &R, points: &[R::Point]) -> Vec<R::Point>
 where
     R: PointRegion,
-    R::Point: Copy,
+    R::Point: Clone,
 {
     points
         .iter()
-        .copied()
-        .filter(|&p| region.contains(p))
+        .filter(|p| region.contains((*p).clone()))
+        .cloned()
         .collect()
 }
 
 /// How many of `points` lie in `region`.
 #[must_use]
-pub fn count_contained<R>(region: &R, points: &[R::Point]) -> usize
+pub fn count_contained<R, N>(region: &R, points: &[R::Point]) -> N
 where
     R: PointRegion,
-    R::Point: Copy,
+    R::Point: Clone,
+    N: LazyNatural,
 {
-    points.iter().copied().filter(|&p| region.contains(p)).count()
+    points.iter().fold(N::zero(), |count, p| {
+        if region.contains((*p).clone()) {
+            count + N::one()
+        } else {
+            count
+        }
+    })
 }
 
 /// True iff any of `points` lies in `region` (`false` for an empty region or no
@@ -86,9 +95,9 @@ where
 pub fn any_contained<R>(region: &R, points: &[R::Point]) -> bool
 where
     R: PointRegion,
-    R::Point: Copy,
+    R::Point: Clone,
 {
-    !region.is_empty() && points.iter().copied().any(|p| region.contains(p))
+    !region.is_empty() && points.iter().any(|p| region.contains(p.clone()))
 }
 
 /// True iff `a` and `b` provably share no point, so an index may prune the pair.

@@ -10,13 +10,20 @@ use hausdorff::{
     Area, BoundingRect, Centroid, ChamberlainDuquetteArea, Contains, ConvexHull, CoordsIter,
     Simplify,
 };
-use hausdorff::{Bearing as _, Destination as _, Distance as _, InterpolatePoint as _, Length as _};
+use hausdorff::{
+    Bearing as _, Destination as _, Distance as _, InterpolatePoint as _, Length as _,
+};
 
 const EPS: f64 = 1e-9;
 
 fn h_poly(coords: &[(f64, f64)]) -> hausdorff::Polygon {
     hausdorff::Polygon::new(
-        hausdorff::LineString::new(coords.iter().map(|&(x, y)| hausdorff::Coord::new(x, y)).collect()),
+        hausdorff::LineString::new(
+            coords
+                .iter()
+                .map(|&(x, y)| hausdorff::Coord::new(x, y))
+                .collect(),
+        ),
         vec![],
     )
 }
@@ -26,8 +33,21 @@ fn fixtures() -> Vec<Vec<(f64, f64)>> {
         vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
         vec![(0.0, 0.0), (0.0, 4.0), (4.0, 4.0), (4.0, 0.0)],
         vec![(0.0, 0.0), (6.0, 0.0), (0.0, 3.0)],
-        vec![(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 2.0), (2.0, 4.0), (0.0, 4.0)],
-        vec![(1.0, -3.1), (3.7, 2.7), (0.9, 7.6), (-4.8, 6.7), (-7.5, 0.9)],
+        vec![
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (4.0, 2.0),
+            (2.0, 2.0),
+            (2.0, 4.0),
+            (0.0, 4.0),
+        ],
+        vec![
+            (1.0, -3.1),
+            (3.7, 2.7),
+            (0.9, 7.6),
+            (-4.8, 6.7),
+            (-7.5, 0.9),
+        ],
     ]
 }
 
@@ -64,8 +84,14 @@ fn area_matches_shoelace() {
     for f in fixtures() {
         let hp = h_poly(&f);
         let signed = shoelace(&f);
-        assert!((hp.signed_area() - signed).abs() < EPS, "signed_area on {f:?}");
-        assert!((hp.unsigned_area() - signed.abs()).abs() < EPS, "unsigned_area on {f:?}");
+        assert!(
+            (hp.signed_area() - signed).abs() < EPS,
+            "signed_area on {f:?}"
+        );
+        assert!(
+            (hp.unsigned_area() - signed.abs()).abs() < EPS,
+            "unsigned_area on {f:?}"
+        );
     }
 }
 
@@ -80,7 +106,10 @@ fn centroid_matches_golden() {
     ];
     for (f, &(gx, gy)) in fixtures().iter().zip(GOLDEN.iter()) {
         let c = h_poly(f).centroid().unwrap();
-        assert!((c.x() - gx).abs() < EPS && (c.y() - gy).abs() < EPS, "centroid on {f:?}");
+        assert!(
+            (c.x() - gx).abs() < EPS && (c.y() - gy).abs() < EPS,
+            "centroid on {f:?}"
+        );
     }
 }
 
@@ -122,13 +151,33 @@ fn contains_matches_ray_cast() {
 fn convex_hull_area_matches_golden() {
     let point_sets = vec![
         vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0), (2.0, 2.0)],
-        vec![(0.0, 0.0), (1.0, 0.5), (2.0, 0.0), (2.0, 2.0), (1.0, 1.5), (0.0, 2.0), (1.0, 1.0)],
-        vec![(-3.0, -1.0), (5.0, 0.0), (3.0, 6.0), (-2.0, 4.0), (0.0, 0.0), (1.0, 2.0)],
+        vec![
+            (0.0, 0.0),
+            (1.0, 0.5),
+            (2.0, 0.0),
+            (2.0, 2.0),
+            (1.0, 1.5),
+            (0.0, 2.0),
+            (1.0, 1.0),
+        ],
+        vec![
+            (-3.0, -1.0),
+            (5.0, 0.0),
+            (3.0, 6.0),
+            (-2.0, 4.0),
+            (0.0, 0.0),
+            (1.0, 2.0),
+        ],
     ];
     const GOLDEN: [f64; 3] = [16.0, 4.0, 36.5];
     for (pts, &want) in point_sets.iter().zip(GOLDEN.iter()) {
-        let a = hausdorff::MultiPoint::from(pts.clone()).convex_hull().unsigned_area();
-        assert!((a - want).abs() < 1e-9, "convex hull area on {pts:?}: {a} vs {want}");
+        let a = hausdorff::MultiPoint::from(pts.clone())
+            .convex_hull()
+            .unsigned_area();
+        assert!(
+            (a - want).abs() < 1e-9,
+            "convex hull area on {pts:?}: {a} vs {want}"
+        );
     }
 }
 
@@ -141,10 +190,21 @@ fn haversine_distance_matches_golden() {
         ((0.0, 0.0), (0.0, 1.0)),
         ((-33.87, 151.21), (35.68, 139.69)),
     ];
-    const GOLDEN: [f64; 4] = [877464.5379215094, 3941829.06891843, 111195.0802335329, 7825755.604165367];
+    const GOLDEN: [f64; 4] = [
+        877464.5379215094,
+        3941829.06891843,
+        111195.0802335329,
+        7825755.604165367,
+    ];
     for (((lat1, lon1), (lat2, lon2)), &want) in samples.iter().zip(GOLDEN.iter()) {
-        let ours = haversine_m(GeoPoint::from_lat_lon(*lat1, *lon1), GeoPoint::from_lat_lon(*lat2, *lon2));
-        assert!((ours - want).abs() <= 1e-9 * want, "haversine: {ours} vs {want}");
+        let ours = haversine_m(
+            GeoPoint::from_lat_lon(*lat1, *lon1),
+            GeoPoint::from_lat_lon(*lat2, *lon2),
+        );
+        assert!(
+            (ours - want).abs() <= 1e-9 * want,
+            "haversine: {ours} vs {want}"
+        );
     }
 }
 
@@ -182,38 +242,73 @@ fn is_near_boundary(coords: &[(f64, f64)], x: f64, y: f64, tol: f64) -> bool {
 }
 
 fn h_line(coords: &[(f64, f64)]) -> hausdorff::LineString {
-    hausdorff::LineString::new(coords.iter().map(|&(x, y)| hausdorff::Coord::new(x, y)).collect())
+    hausdorff::LineString::new(
+        coords
+            .iter()
+            .map(|&(x, y)| hausdorff::Coord::new(x, y))
+            .collect(),
+    )
 }
 
 #[test]
 fn coords_count_closes_the_ring() {
     // hausdorff's polygon iterator yields the closing coordinate (len + 1).
     for f in fixtures() {
-        assert_eq!(h_poly(&f).coords_count(), f.len() + 1, "coords_count on {f:?}");
+        assert_eq!(
+            h_poly(&f).coords_count(),
+            f.len() + 1,
+            "coords_count on {f:?}"
+        );
     }
 }
 
 #[test]
 fn simplify_satisfies_rdp_postconditions() {
     let wiggly = vec![
-        (0.0, 0.0), (1.0, 0.1), (2.0, -0.1), (3.0, 5.0), (4.0, 0.05),
-        (5.0, -0.02), (6.0, 0.0), (7.0, 8.0), (8.0, 0.0),
+        (0.0, 0.0),
+        (1.0, 0.1),
+        (2.0, -0.1),
+        (3.0, 5.0),
+        (4.0, 0.05),
+        (5.0, -0.02),
+        (6.0, 0.0),
+        (7.0, 8.0),
+        (8.0, 0.0),
     ];
     let mut prev_len = wiggly.len() + 1;
     for eps in [0.2_f64, 1.0, 3.0] {
-        let s: Vec<(f64, f64)> = h_line(&wiggly).simplify(eps).0.iter().map(|c| (c.x, c.y)).collect();
+        let s: Vec<(f64, f64)> = h_line(&wiggly)
+            .simplify(eps)
+            .0
+            .iter()
+            .map(|c| (c.x, c.y))
+            .collect();
         // Endpoints preserved, subset of the original, monotone in eps.
         assert_eq!(s[0], wiggly[0], "first endpoint kept at eps={eps}");
-        assert_eq!(*s.last().unwrap(), *wiggly.last().unwrap(), "last endpoint kept at eps={eps}");
-        assert!(s.len() >= 2 && s.len() <= prev_len, "monotone vertex count at eps={eps}");
+        assert_eq!(
+            *s.last().unwrap(),
+            *wiggly.last().unwrap(),
+            "last endpoint kept at eps={eps}"
+        );
+        assert!(
+            s.len() >= 2 && s.len() <= prev_len,
+            "monotone vertex count at eps={eps}"
+        );
         prev_len = s.len();
         for &c in &s {
-            assert!(wiggly.contains(&c), "kept point {c:?} is an original at eps={eps}");
+            assert!(
+                wiggly.contains(&c),
+                "kept point {c:?} is an original at eps={eps}"
+            );
         }
         // Every original point is within eps of the simplified polyline.
         let max_dev = wiggly
             .iter()
-            .map(|&p| s.windows(2).map(|w| seg_dist(p, w[0], w[1])).fold(f64::INFINITY, f64::min))
+            .map(|&p| {
+                s.windows(2)
+                    .map(|w| seg_dist(p, w[0], w[1]))
+                    .fold(f64::INFINITY, f64::min)
+            })
             .fold(0.0_f64, f64::max);
         assert!(max_dev <= eps + 1e-9, "deviation {max_dev} > eps {eps}");
     }
@@ -230,15 +325,27 @@ fn chamberlain_duquette_area_matches_golden() {
     ];
     for (f, &want) in fixtures().iter().zip(GOLDEN.iter()) {
         let h = h_poly(f).chamberlain_duquette_unsigned_area();
-        assert!((h - want).abs() <= 1e-9 * want.max(1.0), "CD area on {f:?}: {h} vs {want}");
+        assert!(
+            (h - want).abs() <= 1e-9 * want.max(1.0),
+            "CD area on {f:?}: {h} vs {want}"
+        );
     }
 
     let o2 = [
-        (0.00388383, 51.501574), (0.00538587, 51.502278), (0.00553607, 51.503299),
-        (0.00467777, 51.504181), (0.00327229, 51.504435), (0.00187754, 51.504168),
-        (0.00087976, 51.503380), (0.00107288, 51.502324), (0.00185608, 51.501770),
+        (0.00388383, 51.501574),
+        (0.00538587, 51.502278),
+        (0.00553607, 51.503299),
+        (0.00467777, 51.504181),
+        (0.00327229, 51.504435),
+        (0.00187754, 51.504168),
+        (0.00087976, 51.503380),
+        (0.00107288, 51.502324),
+        (0.00185608, 51.501770),
     ];
-    assert_eq!(h_poly(&o2).chamberlain_duquette_unsigned_area().round(), 78_478.0);
+    assert_eq!(
+        h_poly(&o2).chamberlain_duquette_unsigned_area().round(),
+        78_478.0
+    );
 }
 
 #[test]
@@ -261,7 +368,10 @@ fn haversine_distance_and_bearing_match_golden() {
         let d = hausdorff::Haversine.distance(a, b);
         assert!((d - wd).abs() <= 1e-9 * wd, "distance {d} vs {wd}");
         let br = hausdorff::Haversine.bearing(a, b);
-        assert!(((br - wb + 540.0) % 360.0 - 180.0).abs() < 1e-9, "bearing {br} vs {wb}");
+        assert!(
+            ((br - wb + 540.0) % 360.0 - 180.0).abs() < 1e-9,
+            "bearing {br} vs {wb}"
+        );
     }
 }
 
@@ -273,15 +383,26 @@ fn lengths_match_reference() {
         .windows(2)
         .map(|w| ((w[1].0 - w[0].0).powi(2) + (w[1].1 - w[0].1).powi(2)).sqrt())
         .sum();
-    assert!((hausdorff::Euclidean.length(&h_line(&coords)) - euclid_sum).abs() < EPS, "euclidean length");
+    assert!(
+        (hausdorff::Euclidean.length(&h_line(&coords)) - euclid_sum).abs() < EPS,
+        "euclidean length"
+    );
     // Haversine length: golden.
-    assert!((hausdorff::Haversine.length(&h_line(&coords)) - 730594.5476435976).abs() <= 1e-6, "haversine length");
+    assert!(
+        (hausdorff::Haversine.length(&h_line(&coords)) - 730594.5476435976).abs() <= 1e-6,
+        "haversine length"
+    );
 }
 
 #[test]
 fn haversine_destination_matches_golden() {
     let origin = hausdorff::Point::new(13.405, 52.52);
-    let courses = [(0.0, 1000.0), (90.0, 5000.0), (215.0, 250.0), (359.0, 12000.0)];
+    let courses = [
+        (0.0, 1000.0),
+        (90.0, 5000.0),
+        (215.0, 250.0),
+        (359.0, 12000.0),
+    ];
     const GOLDEN: [(f64, f64); 4] = [
         (13.404999999999973, 52.52899320363725),
         (13.478898358112474, 52.519976988255365),
@@ -290,7 +411,10 @@ fn haversine_destination_matches_golden() {
     ];
     for (&(bearing, dist), &(gx, gy)) in courses.iter().zip(GOLDEN.iter()) {
         let d = hausdorff::Haversine.destination(origin, bearing, dist);
-        assert!((d.x() - gx).abs() < 1e-9 && (d.y() - gy).abs() < 1e-9, "destination {bearing}/{dist}");
+        assert!(
+            (d.x() - gx).abs() < 1e-9 && (d.y() - gy).abs() < 1e-9,
+            "destination {bearing}/{dist}"
+        );
     }
 }
 
@@ -330,40 +454,74 @@ fn real_wkt_fixtures_conformance() {
 
     // Golden convex-hull areas captured from the validated implementation.
     for (name, wkt, hull_golden) in [
-        ("poly1", include_str!("fixtures/poly1.wkt"), 154873.47276695012_f64),
-        ("poly2", include_str!("fixtures/poly2.wkt"), 481365.4849054594_f64),
+        (
+            "poly1",
+            include_str!("fixtures/poly1.wkt"),
+            154873.47276695012_f64,
+        ),
+        (
+            "poly2",
+            include_str!("fixtures/poly2.wkt"),
+            481365.4849054594_f64,
+        ),
     ] {
         let g = from_wkt(wkt).unwrap_or_else(|e| panic!("parse {name}: {e:?}"));
         let coords: Vec<(f64, f64)> = match &g {
             hausdorff::Geometry::LineString(ls) => ls.0.iter().map(|c| (c.x, c.y)).collect(),
             other => panic!("{name}: expected LineString, got {other:?}"),
         };
-        assert!(coords.len() > 50, "{name}: real shape ({} pts)", coords.len());
+        assert!(
+            coords.len() > 50,
+            "{name}: real shape ({} pts)",
+            coords.len()
+        );
 
         match from_wkt(&to_wkt(&g)).expect("re-parse") {
             hausdorff::Geometry::LineString(ls) => assert_eq!(ls.0.len(), coords.len()),
             other => panic!("{name}: round-trip changed type to {other:?}"),
         }
 
-        let ha = hausdorff::MultiPoint::from(coords.clone()).convex_hull().unsigned_area();
-        assert!((ha - hull_golden).abs() <= hull_golden.abs() * 1e-9, "{name}: hull area {ha} vs {hull_golden}");
+        let ha = hausdorff::MultiPoint::from(coords.clone())
+            .convex_hull()
+            .unsigned_area();
+        assert!(
+            (ha - hull_golden).abs() <= hull_golden.abs() * 1e-9,
+            "{name}: hull area {ha} vs {hull_golden}"
+        );
 
         let hls = hausdorff::LineString::from(coords.clone());
         let mut prev_len = coords.len();
         for eps in [0.5_f64, 2.0, 10.0] {
             let s: Vec<(f64, f64)> = hls.simplify(eps).0.iter().map(|c| (c.x, c.y)).collect();
-            assert!(s.len() >= 2 && s.len() <= prev_len, "{name}: monotone at eps={eps}");
+            assert!(
+                s.len() >= 2 && s.len() <= prev_len,
+                "{name}: monotone at eps={eps}"
+            );
             prev_len = s.len();
             assert_eq!(s[0], coords[0], "{name}: first endpoint kept");
-            assert_eq!(*s.last().unwrap(), *coords.last().unwrap(), "{name}: last endpoint kept");
+            assert_eq!(
+                *s.last().unwrap(),
+                *coords.last().unwrap(),
+                "{name}: last endpoint kept"
+            );
             for &c in &s {
-                assert!(coords.contains(&c), "{name}: kept point {c:?} is an original");
+                assert!(
+                    coords.contains(&c),
+                    "{name}: kept point {c:?} is an original"
+                );
             }
             let max_dev = coords
                 .iter()
-                .map(|&p| s.windows(2).map(|w| seg_dist(p, w[0], w[1])).fold(f64::INFINITY, f64::min))
+                .map(|&p| {
+                    s.windows(2)
+                        .map(|w| seg_dist(p, w[0], w[1]))
+                        .fold(f64::INFINITY, f64::min)
+                })
                 .fold(0.0_f64, f64::max);
-            assert!(max_dev <= eps + 1e-9, "{name}: simplify deviation {max_dev} > eps {eps}");
+            assert!(
+                max_dev <= eps + 1e-9,
+                "{name}: simplify deviation {max_dev} > eps {eps}"
+            );
         }
     }
 }

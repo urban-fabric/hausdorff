@@ -124,7 +124,10 @@ mod tests {
         // Total area of a torus is the closed form 4π²Rr.
         let exact = 4.0 * std::f64::consts::PI.powi(2) * t.major * t.minor;
         let area = t.total_area(20_000);
-        assert!((area - exact).abs() / exact < 1e-7, "area {area} vs {exact}");
+        assert!(
+            (area - exact).abs() / exact < 1e-7,
+            "area {area} vs {exact}"
+        );
         // The parallel circumference at the outer equator (t=0): 2π·4.
         assert!((t.parallel_circumference(0.0) - std::f64::consts::TAU * 4.0).abs() < 1e-12);
     }

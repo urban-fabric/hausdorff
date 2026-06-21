@@ -1,4 +1,4 @@
-//! `wkt` — native Well-Known Text reader/writer over [`hausdorff_planar::space::r2::Geometry`].
+//! `wkt` — native Well-Known Text reader/writer over [`crate::space::r2::Geometry`].
 //!
 //! A self-contained codec for the OGC WKT geometry grammar (POINT, LINESTRING,
 //! POLYGON, MULTIPOINT, MULTILINESTRING, MULTIPOLYGON, GEOMETRYCOLLECTION, and
@@ -12,7 +12,7 @@
 //! `POLYGON`, the `MULTI*` types, `GEOMETRYCOLLECTION`) round-trips with its own
 //! type preserved.
 
-use hausdorff_planar::space::r2::{
+use crate::space::r2::{
     Coord, Geometry, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon,
 };
 

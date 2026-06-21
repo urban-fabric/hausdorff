@@ -81,7 +81,8 @@ fn convex_intersection_area(subject: &[(f64, f64)], clip: &[(f64, f64)]) -> f64 
         let a = clip[i];
         let b = clip[(i + 1) % n];
         // For CCW `clip`, "inside" is left of (or on) the directed edge a->b.
-        let inside = |p: (f64, f64)| (b.0 - a.0) * (p.1 - a.1) - (b.1 - a.1) * (p.0 - a.0) >= -1e-12;
+        let inside =
+            |p: (f64, f64)| (b.0 - a.0) * (p.1 - a.1) - (b.1 - a.1) * (p.0 - a.0) >= -1e-12;
         let isect = |p: (f64, f64), q: (f64, f64)| {
             let r = (q.0 - p.0, q.1 - p.1);
             let d = (b.0 - a.0, b.1 - a.1);
@@ -476,7 +477,9 @@ mod unary_union_conformance {
     fn matches_linear_pairwise_fold() {
         let mut rng = Lcg(0x5151_5151_5151_5151);
         for _ in 0..20 {
-            let polys: Vec<Polygon> = (0..8).map(|_| hpoly(&[&sq2(&rand_rect(&mut rng, 10))])).collect();
+            let polys: Vec<Polygon> = (0..8)
+                .map(|_| hpoly(&[&sq2(&rand_rect(&mut rng, 10))]))
+                .collect();
             let cascaded = unary_union(&polys);
             assert!(
                 (ha(&cascaded) - ha(&linear_fold(&polys))).abs() < EPS,

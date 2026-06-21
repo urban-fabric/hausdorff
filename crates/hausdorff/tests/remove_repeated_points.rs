@@ -75,7 +75,13 @@ fn matches_expected_across_fixtures() {
             "polygon with duplicated ring points",
             Geometry::Polygon(Polygon::new(
                 dup_ring.clone(),
-                vec![ls(&[(1.0, 1.0), (2.0, 1.0), (2.0, 1.0), (2.0, 2.0), (1.0, 1.0)])],
+                vec![ls(&[
+                    (1.0, 1.0),
+                    (2.0, 1.0),
+                    (2.0, 1.0),
+                    (2.0, 2.0),
+                    (1.0, 1.0),
+                ])],
             )),
             Geometry::Polygon(Polygon::new(
                 dedup_ring.clone(),

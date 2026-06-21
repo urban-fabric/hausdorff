@@ -8,12 +8,15 @@
 //!   the blanket `MetricSpace` impl is over `r2`'s `Distance`, and `r2`'s
 //!   set-distances lift the generic `algebra` kernels.
 //! - [`config`] — the `hausdorff.toml` machine-tunable kernel parameters.
+//! - [`format`] — native WKB/WKT/GeoJSON/shapefile codecs over the planar
+//!   geometry model.
 //!
 //! The geographic metrics (`Haversine`, `Rhumb`, `Geodesic`) delegate to the
 //! validated kernels in `hausdorff-base`'s `earth` layer.
 
 pub mod algebra;
 pub mod config;
+pub mod format;
 pub mod space;
 
 /// Internal hierarchical-profiling hooks (the `profiling` feature); no-ops when

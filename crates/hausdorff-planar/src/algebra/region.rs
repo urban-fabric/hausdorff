@@ -5,12 +5,12 @@
 //!
 //! The traits and the generic spatial filters (`filter_contained`,
 //! `count_contained`, `any_contained`, `disjoint`) live upstream in
-//! [`hausdorff_geometry_traits`]; the line / circle / ℝ³ regions (`Interval`,
+//! [`hausdorff_traits`]; the line / circle / ℝ³ regions (`Interval`,
 //! `Sector`, `Aabb`) implement them in `hausdorff-base`, and `Cap` in
 //! `hausdorff-sphere`. Each membership/overlap law is machine-checked in
 //! `riemann` (cited per impl).
 
-use hausdorff_geometry_traits::{PointRegion, Prunable};
+use hausdorff_traits::{PointRegion, Prunable};
 
 use crate::space::r2::{ConfidenceEllipse, Coord, Ellipse, Rect};
 
@@ -78,7 +78,7 @@ impl PointRegion for ConfidenceEllipse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hausdorff_geometry_traits::{any_contained, count_contained, disjoint, filter_contained};
+    use hausdorff_traits::{any_contained, count_contained, disjoint, filter_contained};
 
     #[test]
     fn rect_region_and_overlap() {
@@ -112,7 +112,8 @@ mod tests {
             Coord::new(11.0, 1.0), // outside
             Coord::new(-1.0, 5.0), // outside
         ];
-        assert_eq!(count_contained(&region, &pts), 2);
+        let contained: u64 = count_contained(&region, &pts);
+        assert_eq!(contained, 2);
         assert_eq!(filter_contained(&region, &pts).len(), 2);
         assert!(any_contained(&region, &pts));
     }

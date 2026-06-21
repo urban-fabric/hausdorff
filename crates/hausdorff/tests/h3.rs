@@ -158,10 +158,18 @@ fn sample_cells() -> Vec<u64> {
 fn input_generators_are_pinned() {
     let s = sample_cells();
     assert_eq!(s.len(), golden::SAMPLE_LEN, "sample_cells length drifted");
-    assert_eq!(chk_u64s(&s), golden::SAMPLE_CHK, "sample_cells content drifted");
+    assert_eq!(
+        chk_u64s(&s),
+        golden::SAMPLE_CHK,
+        "sample_cells content drifted"
+    );
     let sm = small_sample();
     assert_eq!(sm.len(), golden::SMALL_LEN, "small_sample length drifted");
-    assert_eq!(chk_u64s(&sm), golden::SMALL_CHK, "small_sample content drifted");
+    assert_eq!(
+        chk_u64s(&sm),
+        golden::SMALL_CHK,
+        "small_sample content drifted"
+    );
 }
 
 #[test]
@@ -227,11 +235,11 @@ fn resolution_metadata_matches_h3_reference_constants() {
     assert_eq!(H3Cell::average_hexagon_edge_length_km(16), None);
 
     assert_eq!(
-        H3Cell::average_hexagon_edge_length(9).map(|l| l.as_meters()),
+        H3Cell::average_hexagon_edge_length(9).map(|l| l.value()),
         H3Cell::average_hexagon_edge_length_m(9),
     );
     assert_eq!(
-        H3Cell::average_hexagon_area(15).map(|a| a.as_square_meters()),
+        H3Cell::average_hexagon_area(15).map(|a| a.value()),
         H3Cell::average_hexagon_area_m2(15),
     );
     assert_eq!(H3Cell::average_hexagon_area(16), None);
@@ -258,9 +266,12 @@ fn validity_matches_golden_on_random_bits() {
         let valid = H3Cell::try_new(state).is_some();
         // Verdict must match the golden at every position: an input is valid
         // iff it is the next expected hit, otherwise it must be rejected.
-        let expected_valid = hit_idx < golden::VALIDITY_HITS.len()
-            && golden::VALIDITY_HITS[hit_idx] == (i, state);
-        assert_eq!(valid, expected_valid, "validity verdict at index {i} for {state:#x}");
+        let expected_valid =
+            hit_idx < golden::VALIDITY_HITS.len() && golden::VALIDITY_HITS[hit_idx] == (i, state);
+        assert_eq!(
+            valid, expected_valid,
+            "validity verdict at index {i} for {state:#x}"
+        );
         if valid {
             count += 1;
             xorfold ^= state;
@@ -281,7 +292,10 @@ fn validity_matches_golden_on_random_bits() {
     // Sanity: each golden hit really is a well-formed cell, and the raws are
     // distinct (guards against a degenerate all-accepting codec).
     for (_, raw) in golden::VALIDITY_HITS {
-        assert!(H3Cell::try_new(raw).is_some(), "golden hit {raw:#x} must be valid");
+        assert!(
+            H3Cell::try_new(raw).is_some(),
+            "golden hit {raw:#x} must be valid"
+        );
     }
 }
 
@@ -324,7 +338,12 @@ fn for_point_matches_golden() {
             for res in [0u8, 1, 2, 5, 7, 9, 10, 12, 15] {
                 let ours = H3Cell::for_point(f64::from(lat), f64::from(lon), res).expect("ours");
                 // The cell really contains the query point at its resolution.
-                assert_eq!(ours.resolution(), res, "for_point res {raw_res}", raw_res = res);
+                assert_eq!(
+                    ours.resolution(),
+                    res,
+                    "for_point res {raw_res}",
+                    raw_res = res
+                );
                 f.u64(ours.as_u64());
             }
             lon += 13;
@@ -435,7 +454,10 @@ fn child_position_and_child_at_match_golden() {
                 child.as_u64()
             );
             f.u64(child.as_u64());
-            f.opt_u64(ours.child_at(position as u64, target_res).map(H3Cell::as_u64));
+            f.opt_u64(
+                ours.child_at(position as u64, target_res)
+                    .map(H3Cell::as_u64),
+            );
             f.opt_u64(child.child_position(parent_res));
         }
 
@@ -513,7 +535,11 @@ fn grid_disk_matches_golden() {
                 d.dedup();
                 d.len()
             };
-            assert_eq!(dedup_len, m.len(), "grid_disk {raw:#x} k={k} has duplicates");
+            assert_eq!(
+                dedup_len,
+                m.len(),
+                "grid_disk {raw:#x} k={k} has duplicates"
+            );
             for x in m {
                 f.u64(x);
             }
@@ -612,7 +638,7 @@ fn directed_edge_geometry_matches_golden() {
             f.f64q(edge.length_km());
             f.f64q(edge.length_m());
             // Self-consistency between the typed length and the m accessor.
-            assert_eq!(edge.length().as_meters(), edge.length_m());
+            assert_eq!(edge.length().value(), edge.length_m());
         }
     }
     assert_eq!(f.finish(), golden::EDGE_GEOM, "edge geometry golden");
@@ -696,7 +722,10 @@ fn grid_distance_matches_golden() {
             // Metamorphic: anything inside grid_disk(3) is at distance <= 3, and
             // the distance to self is 0.
             if let Some(d) = got {
-                assert!((0..=3).contains(&d), "grid_distance {raw:#x} out of disk: {d}");
+                assert!(
+                    (0..=3).contains(&d),
+                    "grid_distance {raw:#x} out of disk: {d}"
+                );
             }
             assert_eq!(ours.grid_distance(ours), Some(0));
             f.opt_u64(got.map(|x| x as u32 as u64));
@@ -786,7 +815,10 @@ fn boundary_bbox_matches_golden() {
         }
 
         // The bounding box is well-formed (min <= max) before pinning it.
-        assert!(m_min_lat <= m_max_lat && m_min_lon <= m_max_lon, "bbox {raw:#x}");
+        assert!(
+            m_min_lat <= m_max_lat && m_min_lon <= m_max_lon,
+            "bbox {raw:#x}"
+        );
         f.f64q(m_min_lat);
         f.f64q(m_min_lon);
         f.f64q(m_max_lat);
@@ -801,8 +833,11 @@ fn exact_cell_area_matches_golden() {
     for raw in sample_cells() {
         let ours = H3Cell::try_new(raw).expect("ours");
         // Self-consistency among the area accessors.
-        assert!(ours.area_rads2() > 0.0 && ours.area_m2() > 0.0, "area sign {raw:#x}");
-        assert_eq!(ours.area().as_square_meters(), ours.area_m2());
+        assert!(
+            ours.area_rads2() > 0.0 && ours.area_m2() > 0.0,
+            "area sign {raw:#x}"
+        );
+        assert_eq!(ours.area().value(), ours.area_m2());
         f.f64q(ours.area_rads2());
         f.f64q(ours.area_km2());
         f.f64q(ours.area_m2());
@@ -1208,7 +1243,11 @@ fn local_ij_to_cell_round_trips_and_matches_golden() {
             }
         }
     }
-    assert_eq!(f.finish(), golden::LOCAL_IJ_TO_CELL, "local_ij_to_cell golden");
+    assert_eq!(
+        f.finish(),
+        golden::LOCAL_IJ_TO_CELL,
+        "local_ij_to_cell golden"
+    );
 }
 
 #[test]
@@ -1222,7 +1261,7 @@ fn great_circle_distance_matches_golden() {
         // Self-consistency: typed accessor agrees with the m accessor, distance
         // to self is zero, and the metric is symmetric.
         assert_eq!(
-            a.great_circle_distance(b).as_meters(),
+            a.great_circle_distance(b).value(),
             a.great_circle_distance_m(b)
         );
         assert_eq!(a.great_circle_distance_rads(a), 0.0);

@@ -1,7 +1,7 @@
 //! `LatInterval` — the closed latitude interval (in radians) used as the
 //! latitude coordinate of an `s2::Rect`. Ported from golang/geo's `r1.Interval`.
 
-use hausdorff_geometry_traits::ClosedInterval;
+use hausdorff_traits::ClosedInterval;
 
 /// A closed latitude interval in radians; `lo > hi` is the empty interval.
 ///
@@ -89,11 +89,11 @@ impl ClosedInterval for LatInterval {
         Self::new(lo, hi)
     }
     #[inline]
-    fn lo(self) -> f64 {
+    fn lo(&self) -> f64 {
         self.lo
     }
     #[inline]
-    fn hi(self) -> f64 {
+    fn hi(&self) -> f64 {
         self.hi
     }
     #[inline]
@@ -101,28 +101,28 @@ impl ClosedInterval for LatInterval {
         LatInterval::empty()
     }
     #[inline]
-    fn is_empty(self) -> bool {
-        LatInterval::is_empty(self)
+    fn is_empty(&self) -> bool {
+        LatInterval::is_empty(*self)
     }
     #[inline]
-    fn contains(self, p: f64) -> bool {
-        LatInterval::contains(self, p)
+    fn contains(&self, p: f64) -> bool {
+        LatInterval::contains(*self, p)
     }
     #[inline]
-    fn contains_interval(self, other: Self) -> bool {
-        LatInterval::contains_interval(self, other)
+    fn contains_interval(&self, other: &Self) -> bool {
+        LatInterval::contains_interval(*self, *other)
     }
     #[inline]
-    fn intersection(self, other: Self) -> Self {
-        LatInterval::intersection(self, other)
+    fn intersection(&self, other: &Self) -> Self {
+        LatInterval::intersection(*self, *other)
     }
     #[inline]
-    fn union(self, other: Self) -> Self {
-        LatInterval::union(self, other)
+    fn union(&self, other: &Self) -> Self {
+        LatInterval::union(*self, *other)
     }
     #[inline]
-    fn expanded(self, margin: f64) -> Self {
-        LatInterval::expanded(self, margin)
+    fn expanded(&self, margin: f64) -> Self {
+        LatInterval::expanded(*self, margin)
     }
     #[inline]
     fn from_point_pair(a: f64, b: f64) -> Self {

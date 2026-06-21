@@ -11,7 +11,7 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::path::Path;
 
-use hausdorff_planar::space::r2::{
+use crate::space::r2::{
     Coord, Geometry, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon, Rect,
 };
 

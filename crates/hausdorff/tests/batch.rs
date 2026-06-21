@@ -40,7 +40,7 @@ fn lonlat_batch_haversine_matches_scalar() {
     let fan = b.haversine_to(target);
     assert_eq!(fan.len(), pts.len());
     for (i, p) in pts.iter().enumerate() {
-        assert_eq!(fan[i].as_meters(), haversine_m(*p, target));
+        assert_eq!(fan[i].clone().value(), haversine_m(*p, target));
     }
 }
 

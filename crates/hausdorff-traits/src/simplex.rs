@@ -12,7 +12,7 @@
 //! impls (in `hausdorff-planar`) and `SphereTriangle` (in `hausdorff-sphere`)
 //! mirror those instances, so the inside-test is written once over [`Simplex`].
 
-use crate::Real;
+use euclid::numeric::LazyReal;
 
 /// A barycentric (orientation) partition of a query point against a simplex: the
 /// simplex's signed `whole` orientation and the per-vertex `parts` (the query
@@ -27,23 +27,30 @@ pub struct Barycentric<T = f64> {
     pub parts: Vec<T>,
 }
 
-impl<T: Real> Barycentric<T> {
+impl<T> Barycentric<T>
+where
+    T: LazyReal + PartialOrd,
+{
     /// `true` iff the query point is **strictly inside** — `whole` and every part
     /// share one nonzero sign. Then the weights `partᵢ/whole` are all positive
     /// and sum to one (riemann `Barycentric.weights_pos_sum_one`); a degenerate
     /// simplex (`whole == 0`) contains nothing.
     #[must_use]
     pub fn strictly_inside(&self) -> bool {
-        let zero = T::ZERO;
-        (self.whole > zero && self.parts.iter().all(|&x| x > zero))
-            || (self.whole < zero && self.parts.iter().all(|&x| x < zero))
+        let zero = T::zero();
+        (&self.whole > &zero && self.parts.iter().all(|x| x > &zero))
+            || (&self.whole < &zero && self.parts.iter().all(|x| x < &zero))
     }
 
     /// The barycentric weights `partᵢ / whole` — the convex coordinates of the
     /// query point. Inside the simplex they are all positive and sum to one.
     #[must_use]
     pub fn weights(&self) -> Vec<T> {
-        self.parts.iter().map(|&p| p / self.whole).collect()
+        self.parts
+            .iter()
+            .cloned()
+            .map(|p| p / self.whole.clone())
+            .collect()
     }
 }
 
@@ -51,10 +58,10 @@ impl<T: Real> Barycentric<T> {
 /// partition — point-in-triangle (R2) and point-in-tetrahedron (R3) as one test.
 pub trait Simplex {
     /// The point type of the ambient space.
-    type Point: Copy;
+    type Point: Clone;
 
     /// The scalar field the orientation partition is measured in.
-    type Scalar: Real;
+    type Scalar: LazyReal + PartialOrd;
 
     /// The barycentric decomposition of `p` against this simplex (riemann
     /// `triangleBary` / `tetraBary`).

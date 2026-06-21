@@ -14,7 +14,6 @@ hausdorff-planar = { workspace = true }
 hausdorff-sphere = { workspace = true }
 hausdorff-index = { workspace = true }
 hausdorff-earth = { workspace = true }
-hausdorff-format = { workspace = true }
 # Re-exported as `hausdorff::huygens` when the `profiling` feature is on so
 # callers can drive collection (set `ProfileMode`, open a `PerfReport` root).
 huygens = { workspace = true, optional = true }
@@ -25,16 +24,12 @@ huygens = { workspace = true, optional = true }
 # instrumented subcrates.
 profiling = ["dep:huygens", "hausdorff-planar/profiling"]
 
-[dev-dependencies]
-# The relocated tests/ integration suite names the typed LengthMeters returned
-# across the public API (e.g. RadialGrid construction).
-oresme = { workspace = true }
-# In-process benchmark harness (statistical per-call timing, TSC fast-clock)
-# for the kernel span-profile example.
-huygens = { workspace = true }
-
 # Hierarchical span profile of the instrumented kernels (needs the profiling
-# feature). Run: `cargo run --release --example profile_kernels --features profiling`.
+# feature). The example reaches huygens through `hausdorff::huygens` (the
+# re-export the `profiling` feature turns on via the optional dependency above),
+# so it needs no separate unconditional huygens dev-dependency — keeping huygens
+# off the default `cargo test`/`cargo build` path.
+# Run: `cargo run --release --example profile_kernels --features profiling`.
 [[example]]
 name = "profile_kernels"
 required-features = ["profiling"]

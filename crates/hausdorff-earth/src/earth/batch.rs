@@ -8,9 +8,7 @@
 //! parallelism splits the columns into chunks and processes those concurrently
 //! on its own pool.
 
-use oresme::LengthMeters;
-
-use crate::earth::{BBox, GeoPoint, haversine_m};
+use crate::earth::{BBox, GeoPoint, LengthMeters, haversine_m};
 use hausdorff_index::index::h3::H3Cell;
 
 /// A batch of geographic points stored column-wise (`lons`, `lats`, equal length)

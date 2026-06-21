@@ -17,15 +17,14 @@
 //! - [`index`] — discrete spatial indexes ([`index::h3`], [`index::geohash`];
 //!   the S2 cell index lives with its geometry in [`space::s2`]) — in
 //!   `hausdorff-index`.
-//! - [`format`](mod@crate::format) — WKB/WKT/GeoJSON codecs, in
-//!   `hausdorff-format`.
+//! - [`format`](mod@crate::format) — WKB/WKT/GeoJSON/shapefile codecs, with
+//!   planar geometry in `hausdorff-planar`.
 //! - [`convert`] bridges the planar and spherical sides.
 
 pub use hausdorff_base::web;
 pub use hausdorff_earth::{convert, earth};
-pub use hausdorff_format::format;
 pub use hausdorff_index::index;
-pub use hausdorff_planar::{algebra, config};
+pub use hausdorff_planar::{algebra, config, format};
 
 pub mod space {
     //! `space` — the unit-less **continuous** geometry spaces, organized after

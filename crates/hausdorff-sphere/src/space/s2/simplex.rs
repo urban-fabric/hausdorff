@@ -69,7 +69,11 @@ impl SphereTriangle {
             return None; // degenerate — chords are parallel (a coincident pair)
         }
         // Orient to the triangle's side so the circumscribed cap is the minor cap.
-        let pole = if pole.dot(va) >= 0.0 { pole } else { pole.mul(-1.0) };
+        let pole = if pole.dot(va) >= 0.0 {
+            pole
+        } else {
+            pole.mul(-1.0)
+        };
         Some(S2Point::from_direction(pole))
     }
 

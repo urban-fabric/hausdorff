@@ -15,7 +15,7 @@
 //! (`Geometry/Orientation.OrientGeom.leftOfAll_convex`, planar
 //! `ExactArith/ConvexPolygon.leftOfAllStrict_convex`).
 
-use hausdorff_geometry_traits::{contains_convex, convex_winding};
+use hausdorff_traits::{contains_convex, convex_winding};
 
 use super::util::{orient, signed_area2};
 use super::{Coord, LineString, Polygon};
@@ -219,7 +219,7 @@ fn dedup_cycle(ring: &mut Vec<Coord>) {
 mod tests {
     use super::*;
     use crate::space::r2::util::point_in_ring;
-    use hausdorff_geometry_traits::Orientation;
+    use hausdorff_traits::Orientation;
 
     fn c(x: f64, y: f64) -> Coord {
         Coord::new(x, y)
@@ -265,7 +265,10 @@ mod tests {
         let solid = Polygon::new(LineString::new(square(3.0)), Vec::new());
         assert!(ConvexPolygon::from_polygon(&solid).is_some());
 
-        let holed = Polygon::new(LineString::new(square(3.0)), vec![LineString::new(square(1.0))]);
+        let holed = Polygon::new(
+            LineString::new(square(3.0)),
+            vec![LineString::new(square(1.0))],
+        );
         assert!(ConvexPolygon::from_polygon(&holed).is_none());
     }
 
@@ -312,13 +315,9 @@ mod tests {
         assert!(!inner.contains_polygon(&outer));
 
         // A box poking outside is not contained.
-        let poke = ConvexPolygon::from_vertices(vec![
-            c(4.0, 4.0),
-            c(7.0, 4.0),
-            c(7.0, 7.0),
-            c(4.0, 7.0),
-        ])
-        .unwrap();
+        let poke =
+            ConvexPolygon::from_vertices(vec![c(4.0, 4.0), c(7.0, 4.0), c(7.0, 7.0), c(4.0, 7.0)])
+                .unwrap();
         assert!(!outer.contains_polygon(&poke));
     }
 
@@ -377,8 +376,8 @@ mod tests {
     fn intersection_triangle_clips_square() {
         // A triangle overlapping a square clips to a convex polygon inside both.
         let sq = ConvexPolygon::from_vertices(square(3.0)).unwrap();
-        let tri = ConvexPolygon::from_vertices(vec![c(-4.0, -4.0), c(4.0, -4.0), c(0.0, 4.0)])
-            .unwrap();
+        let tri =
+            ConvexPolygon::from_vertices(vec![c(-4.0, -4.0), c(4.0, -4.0), c(0.0, 4.0)]).unwrap();
         let inter = sq.intersection(&tri).expect("non-empty");
         // Every vertex of the intersection lies in both parents.
         for &v in inter.vertices() {
@@ -417,13 +416,9 @@ mod tests {
         assert!(!a.intersects(&far));
 
         // Disjoint along a diagonal separating axis (corner-to-corner gap).
-        let diag = ConvexPolygon::from_vertices(vec![
-            c(3.0, 3.0),
-            c(5.0, 3.0),
-            c(5.0, 5.0),
-            c(3.0, 5.0),
-        ])
-        .unwrap();
+        let diag =
+            ConvexPolygon::from_vertices(vec![c(3.0, 3.0), c(5.0, 3.0), c(5.0, 5.0), c(3.0, 5.0)])
+                .unwrap();
         assert!(a.disjoint(&diag));
 
         // Consistency with `intersection`: disjoint ⟺ no (non-degenerate) overlap.
@@ -438,12 +433,12 @@ mod tests {
     fn sat_triangle_vs_square() {
         let sq = ConvexPolygon::from_vertices(square(1.0)).unwrap();
         // Triangle poking into the square.
-        let tri = ConvexPolygon::from_vertices(vec![c(0.0, 0.0), c(3.0, 0.5), c(0.5, 3.0)])
-            .unwrap();
+        let tri =
+            ConvexPolygon::from_vertices(vec![c(0.0, 0.0), c(3.0, 0.5), c(0.5, 3.0)]).unwrap();
         assert!(sq.intersects(&tri));
         // Triangle entirely clear of the square.
-        let away = ConvexPolygon::from_vertices(vec![c(5.0, 5.0), c(7.0, 5.0), c(6.0, 7.0)])
-            .unwrap();
+        let away =
+            ConvexPolygon::from_vertices(vec![c(5.0, 5.0), c(7.0, 5.0), c(6.0, 7.0)]).unwrap();
         assert!(sq.disjoint(&away));
     }
 }

@@ -678,7 +678,10 @@ mod tests {
         // The inscribed n-gon's area converges to π·a·b = 6π as n grows.
         let exact = std::f64::consts::PI * 6.0;
         let area = e.to_polygon(4000).unsigned_area();
-        assert!((area - exact).abs() / exact < 1e-5, "area {area} vs {exact}");
+        assert!(
+            (area - exact).abs() / exact < 1e-5,
+            "area {area} vs {exact}"
+        );
         // `n` is clamped to ≥ 3 — no panic, still a valid positive-area polygon.
         assert!(e.to_polygon(0).unsigned_area() > 0.0);
     }

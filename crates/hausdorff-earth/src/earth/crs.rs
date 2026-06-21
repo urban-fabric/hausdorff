@@ -355,11 +355,26 @@ impl Crs {
                 dim: GeoDim::D2,
             }),
             // ETRS89 / UTM zones 28N..=38N (GRS80) — Europe.
-            25_828..=25_838 => Some(Self::utm_on(Datum::GRS80, (code - 25_800) as u8, true, code)),
+            25_828..=25_838 => Some(Self::utm_on(
+                Datum::GRS80,
+                (code - 25_800) as u8,
+                true,
+                code,
+            )),
             // NAD83 / UTM zones 1N..=23N (GRS80) — North America.
-            26_901..=26_923 => Some(Self::utm_on(Datum::GRS80, (code - 26_900) as u8, true, code)),
+            26_901..=26_923 => Some(Self::utm_on(
+                Datum::GRS80,
+                (code - 26_900) as u8,
+                true,
+                code,
+            )),
             // GDA94 / MGA zones 48..=58 (south, GRS80) — Australia.
-            28_348..=28_358 => Some(Self::utm_on(Datum::GRS80, (code - 28_300) as u8, false, code)),
+            28_348..=28_358 => Some(Self::utm_on(
+                Datum::GRS80,
+                (code - 28_300) as u8,
+                false,
+                code,
+            )),
             // NZGD2000 / New Zealand Transverse Mercator 2000.
             2193 => Some(Crs::Projected {
                 datum: Datum::GRS80,
@@ -575,9 +590,7 @@ impl Crs {
                 };
                 CrsCoord::Geographic { point: geo, height }
             }
-            Crs::Geocentric { datum, .. } => {
-                CrsCoord::Geocentric(datum.decode_wgs84_ecef(e))
-            }
+            Crs::Geocentric { datum, .. } => CrsCoord::Geocentric(datum.decode_wgs84_ecef(e)),
             Crs::Projected {
                 datum, projection, ..
             } => {
@@ -676,4 +689,3 @@ fn utm_band(zone: u8, north: bool) -> BBox {
 
 #[cfg(test)]
 mod tests;
-

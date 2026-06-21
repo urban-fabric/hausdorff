@@ -1,4 +1,4 @@
-//! `wkb` — native Well-Known Binary reader/writer over [`hausdorff_planar::space::r2::Geometry`].
+//! `wkb` — native Well-Known Binary reader/writer over [`crate::space::r2::Geometry`].
 //!
 //! A self-contained codec for 2-D OGC/ISO WKB (geometry types 1–7), tolerant of
 //! either byte order on read and of the ISO `Z`/`M` type offsets and the EWKB
@@ -8,7 +8,7 @@
 //! `r2::Rect`/`r2::Triangle`/`r2::Line` have no WKB type, so they encode as the
 //! equivalent POLYGON / LINESTRING.
 
-use hausdorff_planar::space::r2::{
+use crate::space::r2::{
     Coord, Geometry, LineString, MultiLineString, MultiPoint, MultiPolygon, Point, Polygon,
 };
 

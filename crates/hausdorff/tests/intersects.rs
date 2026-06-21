@@ -20,13 +20,22 @@ fn intersects_matches_golden() {
     let sq_a = hpoly(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]);
     // (geometry, whether it intersects the 4×4 square at the origin)
     let cases: Vec<(Geometry, bool)> = vec![
-        (hpoly(&[(2.0, 2.0), (6.0, 2.0), (6.0, 6.0), (2.0, 6.0)]), true), // overlapping
-        (hpoly(&[(9.0, 9.0), (10.0, 9.0), (10.0, 10.0), (9.0, 10.0)]), false), // disjoint
-        (hpoly(&[(4.0, 0.0), (8.0, 0.0), (8.0, 4.0), (4.0, 4.0)]), true), // shared edge
-        (hpt(2.0, 2.0), true),                                            // interior point
-        (hpt(9.0, 9.0), false),                                           // exterior point
-        (hline(&[(2.0, -1.0), (2.0, 5.0)]), true),                        // crossing line
-        (hline(&[(-5.0, -5.0), (-1.0, -1.0)]), false),                    // disjoint line
+        (
+            hpoly(&[(2.0, 2.0), (6.0, 2.0), (6.0, 6.0), (2.0, 6.0)]),
+            true,
+        ), // overlapping
+        (
+            hpoly(&[(9.0, 9.0), (10.0, 9.0), (10.0, 10.0), (9.0, 10.0)]),
+            false,
+        ), // disjoint
+        (
+            hpoly(&[(4.0, 0.0), (8.0, 0.0), (8.0, 4.0), (4.0, 4.0)]),
+            true,
+        ), // shared edge
+        (hpt(2.0, 2.0), true),                         // interior point
+        (hpt(9.0, 9.0), false),                        // exterior point
+        (hline(&[(2.0, -1.0), (2.0, 5.0)]), true),     // crossing line
+        (hline(&[(-5.0, -5.0), (-1.0, -1.0)]), false), // disjoint line
     ];
     for (hb, want) in cases {
         let ours = sq_a.intersects(&hb);
