@@ -1,7 +1,7 @@
 //! Spherical geodesics over [`EARTH_RADIUS_M`]. The raw `f64`-metre primitives
 //! ([`haversine_m`], [`destination_m`]) are thin `GeoPoint`-typed wrappers over
 //! the backend-neutral [`hausdorff_kernels::earth`] kernels — written once over
-//! any [`euclid::numeric::LazyReal`], so the same formula runs on `f64`, `f32`,
+//! any [`euclid::numeric::Real`], so the same formula runs on `f64`, `f32`,
 //! and tensors. [`haversine_meters`] and [`destination`] are the `euclid`-typed
 //! forms callers should prefer so earth-distance quantities carry units rather
 //! than bare `f64`.

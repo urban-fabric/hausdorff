@@ -160,7 +160,7 @@ pub struct PointGrid<P> {
     buckets: Buckets,
 }
 
-impl<P: Copy> PointGrid<P> {
+impl<P> PointGrid<P> {
     /// Index `(latitude, longitude, payload)` points into a `cell_deg`-degree
     /// grid. Returns `None` unless `cell_deg` is finite and positive (a zero,
     /// negative, or `NaN` cell size would produce nonsense buckets).
@@ -192,7 +192,9 @@ impl<P: Copy> PointGrid<P> {
     pub fn is_empty(&self) -> bool {
         self.points.is_empty()
     }
+}
 
+impl<P: Clone> PointGrid<P> {
     /// `(probe_payload, point_payload)` for every probe point within `meters`
     /// (great-circle) of an indexed point. Each probe scans the block of cells the
     /// radius can reach — `ceil(radius / cell)` rings in latitude, widened by
@@ -207,7 +209,7 @@ impl<P: Copy> PointGrid<P> {
     /// one just scans more cells). For data crossing the seam, split or shift
     /// longitudes before indexing.
     #[must_use]
-    pub fn within<Q: Copy>(
+    pub fn within<Q: Clone>(
         &self,
         probe: impl IntoIterator<Item = (f64, f64, Q)>,
         meters: f64,
@@ -230,7 +232,7 @@ impl<P: Copy> PointGrid<P> {
                     for &i in self.buckets.get(cy + dy, cx + dx) {
                         let p = &self.points[i as usize];
                         if distance_m(lat, lon, p.lat, p.lon) <= meters {
-                            out.push((q, p.payload));
+                            out.push((q.clone(), p.payload.clone()));
                         }
                     }
                 }
@@ -252,15 +254,15 @@ pub fn k_nearest<P, Q>(
     k: usize,
 ) -> Vec<(Q, P, f64)>
 where
-    P: Copy,
-    Q: Copy,
+    P: Clone,
+    Q: Clone,
 {
     let mut out = Vec::new();
     let mut candidates: Vec<(f64, P)> = Vec::with_capacity(points.len());
     for (lat, lon, q) in probe {
         candidates.clear();
-        for &(plat, plon, payload) in points {
-            candidates.push((distance_m(lat, lon, plat, plon), payload));
+        for &(plat, plon, ref payload) in points {
+            candidates.push((distance_m(lat, lon, plat, plon), payload.clone()));
         }
         let keep = k.min(candidates.len());
         if keep == 0 {
@@ -270,8 +272,8 @@ where
             candidates.select_nth_unstable_by(keep, |a, b| a.0.total_cmp(&b.0));
         }
         candidates[..keep].sort_by(|a, b| a.0.total_cmp(&b.0));
-        for &(d, payload) in candidates.iter().take(keep) {
-            out.push((q, payload, d));
+        for (d, payload) in candidates.iter().take(keep) {
+            out.push((q.clone(), payload.clone(), *d));
         }
     }
     out
@@ -331,7 +333,6 @@ mod tests {
             "expected dense path"
         );
         assert_eq!(within_pairs(&grid, &l, meters), brute(&l, &r, meters));
-
         let r = pts(&[0.0, 0.001, 70.0, 70.001], &[0.0, 0.001, 170.0, 170.001]);
         let l = pts(&[0.0005, 70.0005], &[0.0005, 170.0005]);
         let grid = PointGrid::build(r.iter().copied(), cell_deg).expect("valid cell_deg");
@@ -351,6 +352,32 @@ mod tests {
         assert_eq!((knn[0].0, knn[0].1), (0, 0));
         assert_eq!((knn[1].0, knn[1].1), (0, 1));
         assert!(knn[0].2 <= knn[1].2);
+    }
+
+    #[test]
+    fn queries_accept_clone_only_payloads() {
+        let points = vec![
+            (0.0, 0.0, String::from("a")),
+            (0.1, 0.0, String::from("b")),
+            (5.0, 0.0, String::from("c")),
+        ];
+        let probes = vec![(0.0, 0.0, String::from("probe"))];
+        let grid = PointGrid::build(points.clone(), 1.0).expect("valid cell_deg");
+
+        let mut within = grid.within(probes.clone(), 20_000.0);
+        within.sort();
+        assert_eq!(
+            within,
+            vec![
+                (String::from("probe"), String::from("a")),
+                (String::from("probe"), String::from("b")),
+            ]
+        );
+
+        let nearest = k_nearest(probes, &points, 1);
+        assert_eq!(nearest.len(), 1);
+        assert_eq!(nearest[0].0, "probe");
+        assert_eq!(nearest[0].1, "a");
     }
 
     #[test]

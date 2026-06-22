@@ -14,6 +14,8 @@
 //!   [`earth::sphere`] generalizes the metric to any planet radius and
 //!   [`earth::projection`] holds map projections. (Core in `hausdorff-base`,
 //!   the integrated layers in `hausdorff-earth`.)
+//! - [`kernels`] — backend-neutral numeric kernels over `euclid::Real`, intended
+//!   for tensor/expression backends as well as scalar `f32`/`f64`.
 //! - [`index`] — discrete spatial indexes ([`index::h3`], [`index::geohash`];
 //!   the S2 cell index lives with its geometry in [`space::s2`]) — in
 //!   `hausdorff-index`.
@@ -24,6 +26,7 @@
 pub use hausdorff_base::web;
 pub use hausdorff_earth::{convert, earth};
 pub use hausdorff_index::index;
+pub use hausdorff_kernels as kernels;
 pub use hausdorff_planar::{algebra, config, format};
 
 pub mod space {
@@ -51,13 +54,6 @@ pub mod space {
 /// keep using `hausdorff::geo::…` while they migrate to `hausdorff::earth::…`.
 #[doc(hidden)]
 pub use self::earth as geo;
-
-/// The profiling substrate, re-exported when the `profiling` feature is on so
-/// callers can drive collection: set `ProfileMode`, open a `PerfReport` root,
-/// and read the resulting span tree. The kernel span hooks live in the
-/// instrumented subcrates (the feature forwards to them).
-#[cfg(feature = "profiling")]
-pub use huygens;
 
 // The `coord!` / `point!` / `line_string!` / `polygon!` construction macros,
 // `#[macro_export]`ed by `hausdorff-planar`, re-exported here so call sites

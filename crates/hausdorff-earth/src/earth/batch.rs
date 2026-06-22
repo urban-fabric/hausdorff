@@ -8,8 +8,9 @@
 //! parallelism splits the columns into chunks and processes those concurrently
 //! on its own pool.
 
-use crate::earth::{BBox, GeoPoint, LengthMeters, haversine_m};
+use crate::earth::{BBox, GeoPoint, LengthMeters};
 use hausdorff_index::index::h3::H3Cell;
+use hausdorff_kernels::earth as earth_kernels;
 
 /// A batch of geographic points stored column-wise (`lons`, `lats`, equal length)
 /// for bulk kernels. Convert to/from `&[GeoPoint]` at the edges.
@@ -70,8 +71,88 @@ impl LonLatBatch {
     /// one-to-many "distance fan" behind nearest-point queries.
     #[must_use]
     pub fn haversine_to(&self, target: GeoPoint) -> Vec<LengthMeters> {
-        (0..self.len())
-            .map(|i| LengthMeters::new(haversine_m(self.point(i), target)))
+        self.haversine_to_m(target)
+            .into_iter()
+            .map(LengthMeters::new)
+            .collect()
+    }
+
+    /// Great-circle distance in raw metres from every point to a fixed `target`.
+    #[must_use]
+    pub fn haversine_to_m(&self, target: GeoPoint) -> Vec<f64> {
+        self.lats
+            .iter()
+            .zip(&self.lons)
+            .map(|(&lat, &lon)| earth_kernels::haversine_m(lat, lon, target.lat, target.lon))
+            .collect()
+    }
+
+    /// Mask for rows that are finite, in-range WGS84 latitude/longitude points.
+    #[must_use]
+    pub fn valid_lonlat_mask(&self) -> Vec<bool> {
+        self.lats
+            .iter()
+            .zip(&self.lons)
+            .map(|(&lat, &lon)| earth_kernels::valid_latlon_degrees(lat, lon))
+            .collect()
+    }
+
+    /// Mask for rows inside `bbox`, using inclusive latitude/longitude bounds.
+    #[must_use]
+    pub fn bbox_contains_mask(&self, bbox: BBox) -> Vec<bool> {
+        self.lats
+            .iter()
+            .zip(&self.lons)
+            .map(|(&lat, &lon)| {
+                earth_kernels::bbox_contains_latlon(
+                    bbox.min_lat,
+                    bbox.min_lon,
+                    bbox.max_lat,
+                    bbox.max_lon,
+                    lat,
+                    lon,
+                )
+            })
+            .collect()
+    }
+
+    /// Mask for rows within `radius_m` metres of `target`.
+    #[must_use]
+    pub fn within_radius_m(&self, target: GeoPoint, radius_m: f64) -> Vec<bool> {
+        self.lats
+            .iter()
+            .zip(&self.lons)
+            .map(|(&lat, &lon)| {
+                earth_kernels::valid_haversine_within_radius_m(
+                    lat, lon, target.lat, target.lon, radius_m,
+                )
+            })
+            .collect()
+    }
+
+    /// Mask for rows within `radius` of `target`.
+    #[must_use]
+    pub fn within_radius(&self, target: GeoPoint, radius: LengthMeters) -> Vec<bool> {
+        self.within_radius_m(target, radius.value())
+    }
+
+    /// Mask for rows within `radius_m` metres of a target latitude/longitude
+    /// pair without constructing a [`GeoPoint`].
+    #[must_use]
+    pub fn within_radius_latlon_m(
+        &self,
+        target_lat: f64,
+        target_lon: f64,
+        radius_m: f64,
+    ) -> Vec<bool> {
+        self.lats
+            .iter()
+            .zip(&self.lons)
+            .map(|(&lat, &lon)| {
+                earth_kernels::valid_haversine_within_radius_m(
+                    lat, lon, target_lat, target_lon, radius_m,
+                )
+            })
             .collect()
     }
 

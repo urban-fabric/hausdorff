@@ -274,7 +274,7 @@ impl Utm {
 /// conformal/equal-area auxiliary-latitude kernels (`taupf`/`tauf`,
 /// `conformal_t`/`authalic_q`, the projection families) all now live in
 /// [`hausdorff_kernels::projection`], generic over any
-/// [`euclid::numeric::LazyReal`], so they run on `f64`, `f32`, and tensors alike.
+/// [`euclid::numeric::Real`], so they run on `f64`, `f32`, and tensors alike.
 fn m_factor(phi: f64, e: f64) -> f64 {
     hausdorff_kernels::projection::m_factor(phi, e)
 }

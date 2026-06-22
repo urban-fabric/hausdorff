@@ -32,7 +32,7 @@ impl Orientation for Point {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hausdorff_traits::{in_triangle, is_collinear, left_of_all};
+    use hausdorff_traits::{convex_winding_masks, in_triangle, is_collinear, left_of_all};
 
     #[test]
     fn coord_orient_sign() {
@@ -106,5 +106,31 @@ mod tests {
         assert!(left_of_all(&square[..3], Coord::new(1.5, 0.25)));
         // Degenerate: fewer than three vertices bound no region.
         assert!(!left_of_all(&square[..2], Coord::new(1.0, 1.0)));
+    }
+
+    #[test]
+    fn convex_winding_masks_are_mask_valued() {
+        let square = [
+            Coord::new(0.0, 0.0),
+            Coord::new(1.0, 0.0),
+            Coord::new(1.0, 1.0),
+            Coord::new(0.0, 1.0),
+        ];
+        let masks = convex_winding_masks(&square);
+        assert!(masks.ccw);
+        assert!(!masks.cw);
+        assert!(masks.convex);
+
+        let reflex = [
+            Coord::new(0.0, 0.0),
+            Coord::new(2.0, 0.0),
+            Coord::new(1.0, 0.5),
+            Coord::new(2.0, 2.0),
+            Coord::new(0.0, 2.0),
+        ];
+        let masks = convex_winding_masks(&reflex);
+        assert!(!masks.ccw);
+        assert!(!masks.cw);
+        assert!(!masks.convex);
     }
 }

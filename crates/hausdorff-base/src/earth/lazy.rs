@@ -1,9 +1,15 @@
 //! Backend-neutral Earth kernels plus adapters for Hausdorff's eager records.
 
 pub use hausdorff_kernels::earth::{
-    BearingDegrees, LatLon, destination_from_m, destination_m, destination_on_m,
-    haversine_between_m, haversine_diameter_m, haversine_m, haversine_on_m,
-    initial_bearing_between_degrees, initial_bearing_degrees,
+    BearingDegrees, GeospatialConstants, LatLon, Sphere, bbox_center_latlon, bbox_contains_bbox,
+    bbox_contains_latlon, bbox_is_empty, bboxes_intersect, destination_from_m,
+    destination_from_on_sphere_m, destination_m, destination_on_m, haversine_between_m,
+    haversine_between_on_sphere_m, haversine_between_within_radius_m, haversine_diameter_m,
+    haversine_m, haversine_on_m, haversine_within_radius_m, haversine_within_radius_on_m,
+    haversine_within_radius_on_sphere_m, initial_bearing_between_degrees, initial_bearing_degrees,
+    normalize_bearing_degrees, normalize_longitude_degrees,
+    valid_haversine_between_within_radius_m, valid_haversine_within_radius_m,
+    valid_latitude_degrees, valid_latlon_degrees, valid_longitude_degrees,
 };
 
 use super::{Bearing, GeoPoint};

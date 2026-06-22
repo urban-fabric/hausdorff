@@ -7,8 +7,8 @@
 //! (`hausdorff-planar`); `Aabb` in ℝ³ (`hausdorff-base`); and `Cap` on the sphere
 //! (`hausdorff-sphere`). They differ only in their point type, so [`PointRegion`]
 //! factors out membership once and the generic spatial filters
-//! ([`filter_contained`], [`count_contained`], [`any_contained`]) are written
-//! against the trait rather than per space.
+//! ([`containment_masks`], [`filter_contained`], [`count_contained`],
+//! [`any_contained`]) are written against the trait rather than per space.
 //!
 //! [`Prunable`] adds the second indexing operation — a pairwise
 //! [`intersects`](Prunable::intersects) test with **no false negatives**, so a
@@ -25,7 +25,27 @@
 //!   soundness), `SphereCap.caps_disjoint_of_far`, `Circular.arcs_disjoint_of_far`
 //!   (far-apart centres share no point — exactly `!intersects`).
 
-use euclid::numeric::LazyNatural;
+use euclid::numeric::{Boolean as BooleanMask, Element, Natural};
+
+#[inline]
+fn mask_false<M: BooleanMask>() -> M {
+    <M as Element>::zero()
+}
+
+#[inline]
+fn mask_and<M: BooleanMask>(a: M, b: M) -> M {
+    a.and(&b)
+}
+
+#[inline]
+fn mask_or<M: BooleanMask>(a: M, b: M) -> M {
+    a.or(&b)
+}
+
+#[inline]
+fn mask_not<M: BooleanMask>(a: M) -> M {
+    a.not()
+}
 
 /// A spatial region: a set of points of type [`Point`](Self::Point) with
 /// constant-time membership. The cross-space generalization of every
@@ -37,11 +57,14 @@ pub trait PointRegion {
     /// `Angle` for a sector, `Coord` for the planar regions, `S2Point` for a cap).
     type Point;
 
+    /// The Boolean mask type returned by membership tests.
+    type Boolean: BooleanMask;
+
     /// True iff `p` lies in the region (boundary inclusive).
-    fn contains(&self, p: Self::Point) -> bool;
+    fn contains(&self, p: Self::Point) -> Self::Boolean;
 
     /// True iff the region contains no points.
-    fn is_empty(&self) -> bool;
+    fn is_empty(&self) -> Self::Boolean;
 }
 
 /// A [`PointRegion`] that supports a pairwise **intersection** test — the
@@ -54,15 +77,33 @@ pub trait PointRegion {
 /// `caps_disjoint_of_far`, `arcs_disjoint_of_far`).
 pub trait Prunable: PointRegion {
     /// True iff `self` and `other` may share a point.
-    fn intersects(&self, other: &Self) -> bool;
+    fn intersects(&self, other: &Self) -> Self::Boolean;
+}
+
+/// Per-point containment masks for `points` in `region`.
+///
+/// Unlike [`filter_contained`] and [`count_contained`], this does not require
+/// `Boolean = bool`, so tensor/lazy backends can keep predicate values in the
+/// backend instead of collapsing them on the host.
+#[must_use]
+pub fn containment_masks<R>(region: &R, points: &[R::Point]) -> Vec<R::Boolean>
+where
+    R: PointRegion,
+    R::Point: Clone,
+{
+    points
+        .iter()
+        .map(|p| region.contains((*p).clone()))
+        .collect()
 }
 
 /// The points of `points` that lie in `region` — a generic spatial filter over
-/// any [`PointRegion`], written once for every space.
+/// any host-Boolean [`PointRegion`], written once for every space. Use
+/// [`containment_masks`] when the region returns lazy/tensor masks.
 #[must_use]
 pub fn filter_contained<R>(region: &R, points: &[R::Point]) -> Vec<R::Point>
 where
-    R: PointRegion,
+    R: PointRegion<Boolean = bool>,
     R::Point: Clone,
 {
     points
@@ -76,9 +117,9 @@ where
 #[must_use]
 pub fn count_contained<R, N>(region: &R, points: &[R::Point]) -> N
 where
-    R: PointRegion,
+    R: PointRegion<Boolean = bool>,
     R::Point: Clone,
-    N: LazyNatural,
+    N: Natural,
 {
     points.iter().fold(N::zero(), |count, p| {
         if region.contains((*p).clone()) {
@@ -92,18 +133,22 @@ where
 /// True iff any of `points` lies in `region` (`false` for an empty region or no
 /// points).
 #[must_use]
-pub fn any_contained<R>(region: &R, points: &[R::Point]) -> bool
+pub fn any_contained<R>(region: &R, points: &[R::Point]) -> R::Boolean
 where
     R: PointRegion,
     R::Point: Clone,
 {
-    !region.is_empty() && points.iter().any(|p| region.contains(p.clone()))
+    let mut any = mask_false::<R::Boolean>();
+    for p in points {
+        any = mask_or(any, region.contains(p.clone()));
+    }
+    mask_and(mask_not(region.is_empty()), any)
 }
 
 /// True iff `a` and `b` provably share no point, so an index may prune the pair.
 /// The certified contrapositive of [`Prunable::intersects`] — the `riemann`
 /// `*_disjoint_of_far` / `prune_sound` soundness.
 #[must_use]
-pub fn disjoint<R: Prunable>(a: &R, b: &R) -> bool {
-    !a.intersects(b)
+pub fn disjoint<R: Prunable>(a: &R, b: &R) -> R::Boolean {
+    mask_not(a.intersects(b))
 }

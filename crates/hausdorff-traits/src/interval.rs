@@ -2,14 +2,27 @@
 //! (the real line) and `s2::LatInterval` (the `Rect` latitude coordinate), both
 //! ports of golang/geo's `r1.Interval`.
 //!
-//! A type provides only the constructor [`from_bounds`](ClosedInterval::from_bounds)
-//! and the [`lo`](ClosedInterval::lo) / [`hi`](ClosedInterval::hi) accessors; the
-//! containment, intersection, union, expansion, and two-point hull come free —
-//! written once here, the minimal structure the interval algebra actually needs.
+//! A type provides the constructor [`from_bounds`](ClosedInterval::from_bounds),
+//! the [`lo`](ClosedInterval::lo) / [`hi`](ClosedInterval::hi) accessors, and
+//! mask-driven selection; the containment, intersection, union, expansion, and
+//! two-point hull come free — written once here, the minimal structure the
+//! interval algebra actually needs.
 
-use euclid::numeric::LazyReal;
+use euclid::numeric::{Boolean as BooleanMask, Compare, Element, Real};
 
-/// A closed interval `[lo, hi]` on a [`LazyReal`] axis, with `lo > hi` the empty
+use crate::orientation::Boolean;
+
+#[inline]
+fn mask_and<M: BooleanMask>(a: M, b: M) -> M {
+    a.and(&b)
+}
+
+#[inline]
+fn mask_or<M: BooleanMask>(a: M, b: M) -> M {
+    a.or(&b)
+}
+
+/// A closed interval `[lo, hi]` on a [`Real`] axis, with `lo > hi` the empty
 /// interval (canonical empty `[1, 0]`).
 ///
 /// The laws are machine-checked in `riemann` — `Hausdorff/R1Interval` and
@@ -27,7 +40,7 @@ use euclid::numeric::LazyReal;
 ///   (`fromPointPair_minimal`, with `fromPointPair_mem_left/right`).
 pub trait ClosedInterval: Clone + Sized {
     /// The scalar field the endpoints live on.
-    type Scalar: LazyReal + PartialOrd;
+    type Scalar: Real;
 
     /// The interval `[lo, hi]`.
     fn from_bounds(lo: Self::Scalar, hi: Self::Scalar) -> Self;
@@ -38,6 +51,9 @@ pub trait ClosedInterval: Clone + Sized {
     /// The high endpoint.
     fn hi(&self) -> Self::Scalar;
 
+    /// Branchless interval selection driven by a scalar comparison mask.
+    fn select(mask: &Boolean<Self::Scalar>, on_true: Self, on_false: Self) -> Self;
+
     /// The canonical empty interval `[1, 0]`.
     #[must_use]
     fn empty() -> Self {
@@ -46,21 +62,24 @@ pub trait ClosedInterval: Clone + Sized {
 
     /// True iff the interval is empty (`lo > hi`).
     #[must_use]
-    fn is_empty(&self) -> bool {
-        self.lo() > self.hi()
+    fn is_empty(&self) -> Boolean<Self::Scalar> {
+        self.lo().gt(&self.hi())
     }
 
     /// True iff `p ∈ [lo, hi]` (endpoints included).
     #[must_use]
-    fn contains(&self, p: Self::Scalar) -> bool {
-        self.lo() <= p && p <= self.hi()
+    fn contains(&self, p: Self::Scalar) -> Boolean<Self::Scalar> {
+        mask_and(self.lo().le(&p), p.le(&self.hi()))
     }
 
     /// True iff `other` is wholly contained in `self` (the empty interval is
     /// contained in everything).
     #[must_use]
-    fn contains_interval(&self, other: &Self) -> bool {
-        other.is_empty() || (self.lo() <= other.lo() && other.hi() <= self.hi())
+    fn contains_interval(&self, other: &Self) -> Boolean<Self::Scalar> {
+        mask_or(
+            other.is_empty(),
+            mask_and(self.lo().le(&other.lo()), other.hi().le(&self.hi())),
+        )
     }
 
     /// The intersection of `self` and `other` (empty if they are disjoint).
@@ -73,24 +92,19 @@ pub trait ClosedInterval: Clone + Sized {
     /// is empty).
     #[must_use]
     fn union(&self, other: &Self) -> Self {
-        if self.is_empty() {
-            other.clone()
-        } else if other.is_empty() {
-            self.clone()
-        } else {
-            Self::from_bounds(self.lo().min(other.lo()), self.hi().max(other.hi()))
-        }
+        let self_empty = self.is_empty();
+        let other_empty = other.is_empty();
+        let hull = Self::from_bounds(self.lo().min(other.lo()), self.hi().max(other.hi()));
+        let when_self_nonempty = Self::select(&other_empty, self.clone(), hull);
+        Self::select(&self_empty, other.clone(), when_self_nonempty)
     }
 
     /// `self` grown (negative `margin` shrinks) by `margin` on each side; the
     /// empty interval stays empty.
     #[must_use]
     fn expanded(&self, margin: Self::Scalar) -> Self {
-        if self.is_empty() {
-            self.clone()
-        } else {
-            Self::from_bounds(self.lo() - margin.clone(), self.hi() + margin)
-        }
+        let expanded = Self::from_bounds(self.lo() - margin.clone(), self.hi() + margin);
+        Self::select(&self.is_empty(), self.clone(), expanded)
     }
 
     /// The smallest interval containing both points.
@@ -119,6 +133,9 @@ mod tests {
         }
         fn hi(&self) -> f64 {
             self.hi
+        }
+        fn select(mask: &bool, on_true: Self, on_false: Self) -> Self {
+            if *mask { on_true } else { on_false }
         }
     }
 

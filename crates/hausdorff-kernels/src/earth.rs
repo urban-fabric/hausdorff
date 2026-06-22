@@ -1,16 +1,83 @@
-//! Earth and spherical geodesic kernels over any [`LazyReal`] scalar.
+//! Earth and spherical geodesic kernels over any [`Real`] scalar.
 
-use euclid::numeric::LazyReal;
+use euclid::numeric::{Real, RealConstants};
+
+mod bbox;
+mod proximity;
+pub use bbox::{
+    bbox_center_latlon, bbox_contains_bbox, bbox_contains_latlon, bbox_is_empty, bboxes_intersect,
+};
+pub use proximity::{
+    haversine_between_within_radius_m, haversine_within_radius_m, haversine_within_radius_on_m,
+    haversine_within_radius_on_sphere_m, normalize_bearing_degrees, normalize_longitude_degrees,
+    valid_haversine_between_within_radius_m, valid_haversine_within_radius_m,
+    valid_latitude_degrees, valid_latlon_degrees, valid_longitude_degrees,
+};
 
 /// Mean Earth radius in metres (WGS84 mean radius R1).
 pub const EARTH_RADIUS_M: f64 = 6_371_008.8;
+
+/// Geospatial constants that are not part of ordinary real analysis.
+///
+/// These are required methods so dataframe/tensor/expression backends can
+/// represent domain constants natively instead of inheriting a default
+/// `T::scalar(...)` lift in the generic kernels.
+pub trait GeospatialConstants: Real {
+    /// Mean Earth radius in metres (WGS84 mean radius R1).
+    fn mean_earth_radius_m() -> Self;
+}
+
+impl GeospatialConstants for f64 {
+    #[inline]
+    fn mean_earth_radius_m() -> Self {
+        EARTH_RADIUS_M
+    }
+}
+
+impl GeospatialConstants for f32 {
+    #[inline]
+    fn mean_earth_radius_m() -> Self {
+        EARTH_RADIUS_M as f32
+    }
+}
+
+/// Backend-typed spherical Earth constants.
+///
+/// Build this once for a backend and reuse it across point batches instead of
+/// lifting `EARTH_RADIUS_M` inside every distance/destination call.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Sphere<T> {
+    /// Sphere radius in metres.
+    pub radius_m: T,
+    /// Sphere diameter in metres.
+    pub diameter_m: T,
+}
+
+impl<T: Real> Sphere<T> {
+    /// Build spherical constants from a backend-typed radius.
+    #[must_use]
+    pub fn from_radius_m(radius_m: T) -> Self {
+        Self {
+            radius_m: radius_m.clone(),
+            diameter_m: radius_m * T::two(),
+        }
+    }
+}
+
+impl<T: GeospatialConstants> Sphere<T> {
+    /// Mean Earth sphere (WGS84 mean radius R1), using `T`'s native constant.
+    #[must_use]
+    pub fn mean_earth() -> Self {
+        Self::from_radius_m(T::mean_earth_radius_m())
+    }
+}
 
 /// A latitude/longitude input whose coordinates are decimal degrees.
 ///
 /// Backend adapters can implement this for expression columns, tensor handles,
 /// or small wrapper structs without depending on Hausdorff's concrete `GeoPoint`
 /// storage contract.
-pub trait LatLon<T: LazyReal> {
+pub trait LatLon<T: Real> {
     /// Latitude in decimal degrees.
     fn lat_deg(&self) -> T;
 
@@ -19,12 +86,12 @@ pub trait LatLon<T: LazyReal> {
 }
 
 /// A bearing input whose value is decimal degrees clockwise from north.
-pub trait BearingDegrees<T: LazyReal> {
+pub trait BearingDegrees<T: Real> {
     /// Bearing in decimal degrees.
     fn degrees(&self) -> T;
 }
 
-impl<T: LazyReal> LatLon<T> for (T, T) {
+impl<T: Real> LatLon<T> for (T, T) {
     fn lat_deg(&self) -> T {
         self.0.clone()
     }
@@ -34,7 +101,7 @@ impl<T: LazyReal> LatLon<T> for (T, T) {
     }
 }
 
-impl<T: LazyReal> BearingDegrees<T> for T {
+impl<T: Real> BearingDegrees<T> for T {
     fn degrees(&self) -> T {
         self.clone()
     }
@@ -44,16 +111,16 @@ impl<T: LazyReal> BearingDegrees<T> for T {
 ///
 /// Coordinate arguments are latitude/longitude in decimal degrees.
 #[must_use]
-pub fn haversine_diameter_m<T: LazyReal>(
+pub fn haversine_diameter_m<T: Real>(
     from_lat_deg: T,
     from_lon_deg: T,
     to_lat_deg: T,
     to_lon_deg: T,
     diameter_m: T,
 ) -> T {
-    let half = from_lat_deg.scalar_like(0.5);
-    let zero = from_lat_deg.scalar_like(0.0);
-    let one = from_lat_deg.scalar_like(1.0);
+    let half = T::half();
+    let zero = T::zero();
+    let one = T::one();
 
     let lat1 = from_lat_deg.to_radians();
     let lat2 = to_lat_deg.to_radians();
@@ -68,14 +135,14 @@ pub fn haversine_diameter_m<T: LazyReal>(
 ///
 /// Coordinate arguments are latitude/longitude in decimal degrees.
 #[must_use]
-pub fn haversine_on_m<T: LazyReal>(
+pub fn haversine_on_m<T: Real>(
     from_lat_deg: T,
     from_lon_deg: T,
     to_lat_deg: T,
     to_lon_deg: T,
     radius_m: T,
 ) -> T {
-    let two = from_lat_deg.scalar_like(2.0);
+    let two = T::two();
     haversine_diameter_m(
         from_lat_deg,
         from_lon_deg,
@@ -89,13 +156,13 @@ pub fn haversine_on_m<T: LazyReal>(
 ///
 /// Coordinate arguments are latitude/longitude in decimal degrees.
 #[must_use]
-pub fn haversine_m<T: LazyReal>(
+pub fn haversine_m<T: GeospatialConstants>(
     from_lat_deg: T,
     from_lon_deg: T,
     to_lat_deg: T,
     to_lon_deg: T,
 ) -> T {
-    let diameter_m = from_lat_deg.scalar_like(2.0 * EARTH_RADIUS_M);
+    let diameter_m = T::mean_earth_radius_m() * T::two();
     haversine_diameter_m(
         from_lat_deg,
         from_lon_deg,
@@ -109,24 +176,42 @@ pub fn haversine_m<T: LazyReal>(
 #[must_use]
 pub fn haversine_between_m<T, A, B>(from: &A, to: &B) -> T
 where
-    T: LazyReal,
+    T: GeospatialConstants,
     A: LatLon<T>,
     B: LatLon<T>,
 {
     haversine_m(from.lat_deg(), from.lon_deg(), to.lat_deg(), to.lon_deg())
 }
 
+/// Great-circle distance between two latitude/longitude inputs on a typed
+/// sphere, reusing pre-lifted spherical constants.
+#[must_use]
+pub fn haversine_between_on_sphere_m<T, A, B>(from: &A, to: &B, sphere: &Sphere<T>) -> T
+where
+    T: Real,
+    A: LatLon<T>,
+    B: LatLon<T>,
+{
+    haversine_diameter_m(
+        from.lat_deg(),
+        from.lon_deg(),
+        to.lat_deg(),
+        to.lon_deg(),
+        sphere.diameter_m.clone(),
+    )
+}
+
 /// Initial great-circle compass bearing in degrees, normalized into `[0, 360)`.
 ///
 /// Coordinate arguments are latitude/longitude in decimal degrees.
 #[must_use]
-pub fn initial_bearing_degrees<T: LazyReal>(
+pub fn initial_bearing_degrees<T: Real + RealConstants>(
     from_lat_deg: T,
     from_lon_deg: T,
     to_lat_deg: T,
     to_lon_deg: T,
 ) -> T {
-    let full_turn = from_lat_deg.scalar_like(360.0);
+    let full_turn = T::full_turn_degrees();
 
     let lat1 = from_lat_deg.to_radians();
     let lat2 = to_lat_deg.to_radians();
@@ -141,7 +226,7 @@ pub fn initial_bearing_degrees<T: LazyReal>(
 #[must_use]
 pub fn initial_bearing_between_degrees<T, A, B>(from: &A, to: &B) -> T
 where
-    T: LazyReal,
+    T: Real + RealConstants,
     A: LatLon<T>,
     B: LatLon<T>,
 {
@@ -151,18 +236,18 @@ where
 /// Destination latitude/longitude in decimal degrees after travelling
 /// `distance_m` on a sphere of `radius_m` from an origin along `bearing_deg`.
 #[must_use]
-pub fn destination_on_m<T: LazyReal>(
+pub fn destination_on_m<T: Real + RealConstants>(
     origin_lat_deg: T,
     origin_lon_deg: T,
     bearing_deg: T,
     distance_m: T,
     radius_m: T,
 ) -> (T, T) {
-    let minus_one = origin_lat_deg.scalar_like(-1.0);
-    let one = origin_lat_deg.scalar_like(1.0);
-    let lon_wrap_offset = origin_lat_deg.scalar_like(540.0);
-    let full_turn = origin_lat_deg.scalar_like(360.0);
-    let half_turn = origin_lat_deg.scalar_like(180.0);
+    let minus_one = T::neg_one();
+    let one = T::one();
+    let lon_wrap_offset = T::three_half_turn_degrees();
+    let full_turn = T::full_turn_degrees();
+    let half_turn = T::half_turn_degrees();
 
     let lat1 = origin_lat_deg.to_radians();
     let lon1 = origin_lon_deg.to_radians();
@@ -184,13 +269,13 @@ pub fn destination_on_m<T: LazyReal>(
 /// Destination latitude/longitude in decimal degrees after travelling
 /// `distance_m` on Earth from an origin along `bearing_deg`.
 #[must_use]
-pub fn destination_m<T: LazyReal>(
+pub fn destination_m<T: GeospatialConstants + RealConstants>(
     origin_lat_deg: T,
     origin_lon_deg: T,
     bearing_deg: T,
     distance_m: T,
 ) -> (T, T) {
-    let radius_m = origin_lat_deg.scalar_like(EARTH_RADIUS_M);
+    let radius_m = T::mean_earth_radius_m();
     destination_on_m(
         origin_lat_deg,
         origin_lon_deg,
@@ -205,7 +290,7 @@ pub fn destination_m<T: LazyReal>(
 #[must_use]
 pub fn destination_from_m<T, P, B>(origin: &P, bearing: &B, distance_m: T) -> (T, T)
 where
-    T: LazyReal,
+    T: GeospatialConstants + RealConstants,
     P: LatLon<T>,
     B: BearingDegrees<T>,
 {
@@ -217,52 +302,28 @@ where
     )
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn assert_close(actual: f64, expected: f64, tolerance: f64) {
-        assert!(
-            (actual - expected).abs() <= tolerance,
-            "actual {actual} != expected {expected} within {tolerance}"
-        );
-    }
-
-    #[test]
-    fn haversine_scalar_matches_reference_distance() {
-        let distance_m = haversine_m(37.7749_f64, -122.4194, 40.7128, -74.0060);
-
-        assert_close(distance_m, 4_129_091.868_394_031, 1.0e-6);
-    }
-
-    #[test]
-    fn haversine_runs_for_f32() {
-        let distance_m = haversine_m(37.7749_f32, -122.4194, 40.7128, -74.0060);
-
-        assert!(distance_m.is_finite());
-    }
-
-    #[test]
-    fn lat_lon_trait_matches_scalar_haversine() {
-        let from = (37.7749_f64, -122.4194_f64);
-        let to = (40.7128_f64, -74.0060_f64);
-
-        let actual: f64 = haversine_between_m(&from, &to);
-        let expected = haversine_m(from.0, from.1, to.0, to.1);
-
-        assert_close(actual, expected, 1.0e-12);
-    }
-
-    #[test]
-    fn bearing_trait_matches_scalar_destination() {
-        let origin = (37.7749_f64, -122.4194_f64);
-        let bearing = 73.0_f64;
-        let distance_m = 42_000.0_f64;
-
-        let actual = destination_from_m(&origin, &bearing, distance_m);
-        let expected = destination_m(origin.0, origin.1, bearing, distance_m);
-
-        assert_close(actual.0, expected.0, 1.0e-12);
-        assert_close(actual.1, expected.1, 1.0e-12);
-    }
+/// Destination latitude/longitude after travelling from a latitude/longitude
+/// input along a bearing input on a typed sphere.
+#[must_use]
+pub fn destination_from_on_sphere_m<T, P, B>(
+    origin: &P,
+    bearing: &B,
+    distance_m: T,
+    sphere: &Sphere<T>,
+) -> (T, T)
+where
+    T: Real + RealConstants,
+    P: LatLon<T>,
+    B: BearingDegrees<T>,
+{
+    destination_on_m(
+        origin.lat_deg(),
+        origin.lon_deg(),
+        bearing.degrees(),
+        distance_m,
+        sphere.radius_m.clone(),
+    )
 }
+
+#[cfg(test)]
+mod tests;

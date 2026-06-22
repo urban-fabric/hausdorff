@@ -6,113 +6,22 @@
 //! level is fixed by the position of the lowest set bit). Sequentially
 //! increasing ids trace a continuous space-filling curve over the sphere.
 
-use std::fmt::{self, Write as _};
-use std::sync::LazyLock;
-
 use serde::{Deserialize, Serialize};
 
 use super::coords::{self, MAX_LEVEL, MAX_SIZE, NUM_FACES};
 use super::point::S2Point;
 use hausdorff_base::earth::GeoPoint;
 
+mod lookup;
+mod neighbors;
+mod token;
+
+use lookup::{INVERT_MASK, LOOKUP, LOOKUP_BITS, SWAP_MASK};
+
 /// Bits used to encode the face number.
 const FACE_BITS: u32 = 3;
 /// Total number of position bits (`2*MAX_LEVEL + 1`).
 const POS_BITS: u32 = 2 * MAX_LEVEL + 1;
-
-const LOOKUP_BITS: u32 = 4;
-const SWAP_MASK: i64 = 0x01;
-const INVERT_MASK: i64 = 0x02;
-const LOOKUP_LEN: usize = 1 << (2 * LOOKUP_BITS + 2);
-
-const POS_TO_IJ: [[i64; 4]; 4] = [[0, 1, 3, 2], [0, 2, 3, 1], [3, 2, 0, 1], [3, 1, 0, 2]];
-const POS_TO_ORIENTATION: [i64; 4] = [SWAP_MASK, 0, 0, INVERT_MASK | SWAP_MASK];
-
-struct LookupTables {
-    pos: [i64; LOOKUP_LEN],
-    ij: [i64; LOOKUP_LEN],
-}
-
-/// `lookup_pos` maps `(i, j, orientation)` to the Hilbert curve position;
-/// `lookup_ij` is the inverse. Built once, on first use.
-static LOOKUP: LazyLock<LookupTables> = LazyLock::new(|| {
-    let mut t = LookupTables {
-        pos: [0; LOOKUP_LEN],
-        ij: [0; LOOKUP_LEN],
-    };
-    init_lookup_cell(0, 0, 0, 0, 0, 0, &mut t);
-    init_lookup_cell(0, 0, 0, SWAP_MASK, 0, SWAP_MASK, &mut t);
-    init_lookup_cell(0, 0, 0, INVERT_MASK, 0, INVERT_MASK, &mut t);
-    init_lookup_cell(
-        0,
-        0,
-        0,
-        SWAP_MASK | INVERT_MASK,
-        0,
-        SWAP_MASK | INVERT_MASK,
-        &mut t,
-    );
-    t
-});
-
-#[allow(clippy::too_many_arguments)]
-fn init_lookup_cell(
-    level: u32,
-    i: i64,
-    j: i64,
-    orig_orientation: i64,
-    pos: i64,
-    orientation: i64,
-    t: &mut LookupTables,
-) {
-    if level == LOOKUP_BITS {
-        let ij = (i << LOOKUP_BITS) + j;
-        t.pos[((ij << 2) + orig_orientation) as usize] = (pos << 2) + orientation;
-        t.ij[((pos << 2) + orig_orientation) as usize] = (ij << 2) + orientation;
-        return;
-    }
-    let level = level + 1;
-    let i = i << 1;
-    let j = j << 1;
-    let pos = pos << 2;
-    let r = POS_TO_IJ[orientation as usize];
-    init_lookup_cell(
-        level,
-        i + (r[0] >> 1),
-        j + (r[0] & 1),
-        orig_orientation,
-        pos,
-        orientation ^ POS_TO_ORIENTATION[0],
-        t,
-    );
-    init_lookup_cell(
-        level,
-        i + (r[1] >> 1),
-        j + (r[1] & 1),
-        orig_orientation,
-        pos + 1,
-        orientation ^ POS_TO_ORIENTATION[1],
-        t,
-    );
-    init_lookup_cell(
-        level,
-        i + (r[2] >> 1),
-        j + (r[2] & 1),
-        orig_orientation,
-        pos + 2,
-        orientation ^ POS_TO_ORIENTATION[2],
-        t,
-    );
-    init_lookup_cell(
-        level,
-        i + (r[3] >> 1),
-        j + (r[3] & 1),
-        orig_orientation,
-        pos + 3,
-        orientation ^ POS_TO_ORIENTATION[3],
-        t,
-    );
-}
 
 /// A 64-bit S2 cell identifier. The zero value and `u64::MAX` are invalid.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Serialize, Deserialize)]
@@ -390,103 +299,6 @@ impl S2CellId {
         (f as u8, bound(i), bound(j))
     }
 
-    /// The four cells adjacent across this cell's edges (down, right, up,
-    /// left), all at this cell's level and all distinct.
-    #[must_use]
-    pub fn edge_neighbors(self) -> [Self; 4] {
-        let level = self.level();
-        let size = size_ij(level);
-        let (f, i, j, _) = self.face_ij_orientation();
-        [
-            Self::from_face_ij_wrap(f, i, j - size).parent(level),
-            Self::from_face_ij_wrap(f, i + size, j).parent(level),
-            Self::from_face_ij_wrap(f, i, j + size).parent(level),
-            Self::from_face_ij_wrap(f, i - size, j).parent(level),
-        ]
-    }
-
-    /// The neighbors of the closest vertex to this cell at `level` (normally
-    /// four, but three at the 8 cube vertices), including this cell's ancestor.
-    #[must_use]
-    pub fn vertex_neighbors(self, level: u32) -> Vec<Self> {
-        let half_size = size_ij(level + 1);
-        let size = half_size << 1;
-        let (f, i, j, _) = self.face_ij_orientation();
-
-        let (ioffset, isame) = if i & half_size != 0 {
-            (size, i + size < MAX_SIZE)
-        } else {
-            (-size, i - size >= 0)
-        };
-        let (joffset, jsame) = if j & half_size != 0 {
-            (size, j + size < MAX_SIZE)
-        } else {
-            (-size, j - size >= 0)
-        };
-
-        let mut results = vec![
-            self.parent(level),
-            Self::from_face_ij_same(f, i + ioffset, j, isame).parent(level),
-            Self::from_face_ij_same(f, i, j + joffset, jsame).parent(level),
-        ];
-        if isame || jsame {
-            results.push(
-                Self::from_face_ij_same(f, i + ioffset, j + joffset, isame && jsame).parent(level),
-            );
-        }
-        results
-    }
-
-    /// All neighbors of this cell at `level` (cells whose boundary intersects
-    /// this cell's but whose interior does not). Returns empty if
-    /// `level < self.level()` or `level > MAX_LEVEL`.
-    #[must_use]
-    pub fn all_neighbors(self, level: u32) -> Vec<Self> {
-        let mut neighbors = Vec::new();
-        if level < self.level() || level > MAX_LEVEL {
-            return neighbors;
-        }
-
-        let (face, mut i, mut j, _) = self.face_ij_orientation();
-        let size = size_ij(self.level());
-        i &= -size;
-        j &= -size;
-
-        let nbr_size = size_ij(level);
-        let mut k = -nbr_size;
-        loop {
-            let same_face;
-            if k < 0 {
-                same_face = j + k >= 0;
-            } else if k >= size {
-                same_face = j + k < MAX_SIZE;
-            } else {
-                same_face = true;
-                neighbors.push(
-                    Self::from_face_ij_same(face, i + k, j - nbr_size, j - size >= 0).parent(level),
-                );
-                neighbors.push(
-                    Self::from_face_ij_same(face, i + k, j + size, j + size < MAX_SIZE)
-                        .parent(level),
-                );
-            }
-            neighbors.push(
-                Self::from_face_ij_same(face, i - nbr_size, j + k, same_face && i - size >= 0)
-                    .parent(level),
-            );
-            neighbors.push(
-                Self::from_face_ij_same(face, i + size, j + k, same_face && i + size < MAX_SIZE)
-                    .parent(level),
-            );
-
-            if k >= size {
-                break;
-            }
-            k += nbr_size;
-        }
-        neighbors
-    }
-
     fn face_ij_orientation(self) -> (i64, i64, i64, i64) {
         let lookup = &*LOOKUP;
         let f = i64::from(self.face());
@@ -555,33 +367,6 @@ impl S2CellId {
             Self::from_face_ij_wrap(f, i, j)
         }
     }
-
-    /// A hex token of the id with leading zeros kept and trailing zeros
-    /// stripped (e.g. the level-0 face cells are `"1"`, `"3"`, …, `"b"`).
-    #[must_use]
-    pub fn to_token(self) -> String {
-        let s = format!("{:016x}", self.0);
-        let trimmed = s.trim_end_matches('0');
-        if trimmed.is_empty() {
-            "X".to_string()
-        } else {
-            trimmed.to_string()
-        }
-    }
-
-    /// Parses a hex token produced by [`S2CellId::to_token`]. Returns `None` if
-    /// the token is malformed.
-    #[must_use]
-    pub fn from_token(s: &str) -> Option<Self> {
-        if s.is_empty() || s.len() > 16 {
-            return None;
-        }
-        let mut n = u64::from_str_radix(s, 16).ok()?;
-        if s.len() < 16 {
-            n <<= 4 * (16 - s.len() as u32);
-        }
-        Some(Self(n))
-    }
 }
 
 /// The lowest-numbered set bit for a cell at `level`.
@@ -592,19 +377,4 @@ const fn lsb_for_level(level: u32) -> u64 {
 /// Edge length, in leaf-cell `(i,j)` units, of a cell at `level`.
 const fn size_ij(level: u32) -> i64 {
     1 << (MAX_LEVEL - level)
-}
-
-impl fmt::Display for S2CellId {
-    /// Renders as `"<face>/<child positions>"`, e.g. `"1/3210"`.
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if !self.is_valid() {
-            return write!(f, "Invalid:{:x}", self.0);
-        }
-        write!(f, "{}", self.face())?;
-        f.write_char('/')?;
-        for level in 1..=self.level() {
-            write!(f, "{}", self.child_position(level))?;
-        }
-        Ok(())
-    }
 }

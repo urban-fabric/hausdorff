@@ -25,9 +25,9 @@ mod radial_grid;
 mod rhumb;
 
 /// Length in metres, backed by `euclid`'s lazy dimensioned unit.
-pub type LengthMeters<T = f64> = euclid::LazyMeters<T>;
+pub type LengthMeters<T = f64> = euclid::Meters<T>;
 /// Area in square metres, backed by `euclid`'s lazy dimensioned unit.
-pub type AreaSquareMeters<T = f64> = euclid::LazySquareMeters<T>;
+pub type AreaSquareMeters<T = f64> = euclid::SquareMeters<T>;
 
 /// Geocentric (ECEF) coordinates and local east/north/up frames.
 pub mod ecef;

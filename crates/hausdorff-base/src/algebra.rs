@@ -16,11 +16,11 @@
 
 pub use hausdorff_traits::{
     Barycentric, InnerProduct, Interpolate, Norm, Orientation, PointRegion, Prunable, Simplex,
-    VectorSpace, any_contained, count_contained, disjoint, filter_contained, in_triangle,
-    is_collinear, left_of_all, sample, sample_at,
+    VectorSpace, any_contained, containment_masks, count_contained, disjoint, filter_contained,
+    in_triangle, is_collinear, left_of_all, sample, sample_at,
 };
 
-use euclid::numeric::LazyReal;
+use euclid::numeric::{Compare, Element, Real};
 
 use crate::space::r1::Interval;
 use crate::space::r3::{Aabb, Vector};
@@ -30,7 +30,7 @@ use crate::space::s1::{Angle, Sector};
 
 impl<T> Orientation for Vector<T>
 where
-    T: LazyReal + Copy + PartialOrd,
+    T: Real,
 {
     type Scalar = T;
 
@@ -44,7 +44,7 @@ where
 
 impl<T> VectorSpace for Vector<T>
 where
-    T: LazyReal + Copy + PartialOrd,
+    T: Real,
 {
     type Scalar = T;
 
@@ -60,29 +60,37 @@ where
     fn scale(self, factor: T) -> Self {
         self.mul(factor)
     }
+    fn select(mask: &<T as Compare>::Mask, on_true: Self, on_false: Self) -> Self {
+        Vector::select(mask, on_true, on_false)
+    }
 }
 
 impl<T> InnerProduct for Vector<T>
 where
-    T: LazyReal + Copy + PartialOrd,
+    T: Real,
 {
     fn dot(self, rhs: Self) -> T {
         Vector::dot(self, rhs)
     }
 }
 
-impl<T> Norm for Vector<T> where T: LazyReal + Copy + PartialOrd {}
+impl<T> Norm for Vector<T> where T: Real {}
 
 impl<T> Interpolate for Vector<T>
 where
-    T: LazyReal + Copy + PartialOrd,
+    T: Real,
 {
     type Scalar = T;
 
     /// The R3 chord `lerp` (riemann `chordInterp`).
     #[inline]
     fn lerp(self, q: Self, t: T) -> Self {
-        self.add(q.sub(self).mul(t))
+        self.clone().add(q.sub(self).mul(t))
+    }
+
+    #[inline]
+    fn midpoint(self, q: Self) -> Self {
+        self.clone().add(q.sub(self).mul(T::half()))
     }
 }
 
@@ -90,6 +98,7 @@ where
 
 impl PointRegion for Interval {
     type Point = f64;
+    type Boolean = bool;
 
     #[inline]
     fn contains(&self, p: f64) -> bool {
@@ -113,6 +122,7 @@ impl Prunable for Interval {
 
 impl PointRegion for Sector {
     type Point = Angle;
+    type Boolean = bool;
 
     #[inline]
     fn contains(&self, p: Angle) -> bool {
@@ -136,29 +146,30 @@ impl Prunable for Sector {
 
 impl<T> PointRegion for Aabb<T>
 where
-    T: LazyReal + Copy + PartialOrd,
+    T: Real,
 {
     type Point = Vector<T>;
+    type Boolean = <T as Compare>::Mask;
 
     #[inline]
-    fn contains(&self, p: Vector<T>) -> bool {
-        Aabb::contains(*self, p)
+    fn contains(&self, p: Vector<T>) -> Self::Boolean {
+        Aabb::contains(self, p)
     }
 
     #[inline]
-    fn is_empty(&self) -> bool {
+    fn is_empty(&self) -> Self::Boolean {
         // A normalized `Aabb` (`min ≤ max` per axis) is never empty.
-        false
+        <Self::Boolean as Element>::zero()
     }
 }
 
 impl<T> Prunable for Aabb<T>
 where
-    T: LazyReal + Copy + PartialOrd,
+    T: Real,
 {
     #[inline]
-    fn intersects(&self, other: &Self) -> bool {
-        Aabb::overlaps(*self, *other)
+    fn intersects(&self, other: &Self) -> Self::Boolean {
+        Aabb::overlaps(self, other)
     }
 }
 

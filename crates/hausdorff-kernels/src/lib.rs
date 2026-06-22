@@ -6,4 +6,7 @@
 //! lowered by scalar, tensor/XLA, or dataframe/expression backends.
 
 pub mod earth;
+pub mod interval;
+pub mod planar;
 pub mod projection;
+pub mod spherical1;

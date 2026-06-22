@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use euclid::Angle as EuclidAngle;
+
 use super::GeoPoint;
 
 /// A compass bearing in degrees: `0` = North, `90` = East, increasing
@@ -14,6 +16,12 @@ impl Bearing {
     #[must_use]
     pub fn from_degrees(degrees: f64) -> Self {
         Self(degrees.rem_euclid(360.0))
+    }
+
+    /// A bearing from a generic Euclid angle, normalized into `[0, 360)`.
+    #[must_use]
+    pub fn from_angle(angle: EuclidAngle) -> Self {
+        Self::from_degrees(angle.degrees())
     }
 
     /// The initial great-circle bearing when travelling from `from` toward `to`.
@@ -40,10 +48,17 @@ impl Bearing {
         self.0
     }
 
+    /// The bearing as a generic Euclid angle.
+    #[inline]
+    #[must_use]
+    pub fn angle(self) -> EuclidAngle {
+        EuclidAngle::from_degrees(self.0)
+    }
+
     /// The bearing in radians, in `[0, 2π)`.
     #[inline]
     #[must_use]
     pub fn radians(self) -> f64 {
-        self.0.to_radians()
+        self.angle().radians()
     }
 }

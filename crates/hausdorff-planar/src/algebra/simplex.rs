@@ -20,7 +20,7 @@ impl Simplex for Triangle {
     type Scalar = f64;
 
     /// `triangleBary`: `whole = orient(a,b,c)`; each part swaps `p` into one vertex.
-    fn barycentric(&self, p: Coord) -> Barycentric {
+    fn barycentric(&self, p: Coord) -> Barycentric<Self::Scalar> {
         let Triangle(a, b, c) = *self;
         Barycentric {
             whole: Coord::orient(a, b, c),
@@ -49,7 +49,7 @@ impl Simplex for Tetrahedron {
     type Scalar = f64;
 
     /// `tetraBary`: `whole = orient4(a,b,c,d)`; each part swaps `q` into one vertex.
-    fn barycentric(&self, q: Vector) -> Barycentric {
+    fn barycentric(&self, q: Vector) -> Barycentric<Self::Scalar> {
         let Tetrahedron(a, b, c, d) = *self;
         Barycentric {
             whole: orient4(a, b, c, d),

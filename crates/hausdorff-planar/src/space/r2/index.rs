@@ -43,11 +43,11 @@ impl<T> Node<T> {
 }
 
 impl<T> StrTree<T> {
-    /// Compiled fallback node capacity, matching the bundled `hausdorff.toml`.
+    /// Compiled fallback node capacity, matching the bundled config defaults.
     pub const DEFAULT_NODE_CAPACITY: usize = 16;
 
     /// Bulk-load an index from `(bounding box, payload)` items, using the node
-    /// capacity from [`hausdorff.toml`](crate::config) (overridable per machine).
+    /// capacity from [`config`](crate::config) (overridable per machine).
     #[must_use]
     pub fn new(items: Vec<(Rect, T)>) -> Self {
         Self::with_node_capacity(items, crate::config::config().index.node_capacity)

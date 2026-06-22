@@ -28,4 +28,6 @@ fn assembled_modules_reachable() {
     assert_eq!(batch.len(), 1);
     let cfg = hausdorff::config::config();
     assert!(cfg.index.node_capacity > 0);
+    let sphere = hausdorff::kernels::earth::Sphere::<f64>::mean_earth();
+    assert!(sphere.radius_m > 0.0);
 }

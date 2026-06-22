@@ -232,6 +232,10 @@ impl ClosedInterval for Interval {
         self.hi
     }
     #[inline]
+    fn select(mask: &bool, on_true: Self, on_false: Self) -> Self {
+        if *mask { on_true } else { on_false }
+    }
+    #[inline]
     fn empty() -> Self {
         Interval::empty()
     }

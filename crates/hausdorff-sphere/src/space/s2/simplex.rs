@@ -98,7 +98,7 @@ impl Simplex for SphereTriangle {
     /// `sphereInTriangle`: `whole = orient(a, b, c)` (the spherical triple
     /// product); each part swaps `p` into one vertex (riemann
     /// `Hausdorff/SphereOrientation.sphereInTriangle_iff`).
-    fn barycentric(&self, p: S2Point) -> Barycentric {
+    fn barycentric(&self, p: S2Point) -> Barycentric<Self::Scalar> {
         let SphereTriangle(a, b, c) = *self;
         Barycentric {
             whole: S2Point::orient(a, b, c),

@@ -7,7 +7,7 @@
 //!   `algebra` package. Lives with `r2` because the two are mutually coupled:
 //!   the blanket `MetricSpace` impl is over `r2`'s `Distance`, and `r2`'s
 //!   set-distances lift the generic `algebra` kernels.
-//! - [`config`] — the `hausdorff.toml` machine-tunable kernel parameters.
+//! - [`config`] — machine-tunable kernel parameters.
 //! - [`format`] — native WKB/WKT/GeoJSON/shapefile codecs over the planar
 //!   geometry model.
 //!
@@ -19,16 +19,9 @@ pub mod config;
 pub mod format;
 pub mod space;
 
-/// Internal hierarchical-profiling hooks (the `profiling` feature); no-ops when
-/// the feature is off.
+/// Internal profiling hooks. They are inert and kept to preserve instrumentation
+/// call sites without adding a profiler dependency.
 mod profile;
 
 /// Internal scalar-first SIMD dispatch (runtime-selected) for batch kernels.
 mod simd;
-
-/// The profiling substrate, re-exported when the `profiling` feature is on so
-/// callers can drive collection: set `ProfileMode`, open a `PerfReport` root,
-/// and read the resulting span tree. See the `profile` module for the kernel
-/// span hooks.
-#[cfg(feature = "profiling")]
-pub use huygens;

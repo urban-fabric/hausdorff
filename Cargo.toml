@@ -41,15 +41,8 @@ hausdorff-sphere = { path = "crates/hausdorff-sphere" }
 hausdorff-index = { path = "crates/hausdorff-index" }
 hausdorff-earth = { path = "crates/hausdorff-earth" }
 
-# Urban fabric sibling repositories.
-# Bundled-TOML config loader (the `hausdorff.toml` tuning parameters).
-cavalieri = { git = "ssh://git@github.com/urban-fabric/cavalieri.git", branch = "main" }
+# Urban fabric sibling repository.
 euclid = { git = "ssh://git@github.com/urban-fabric/euclid.git", branch = "main" }
-# Optional: in-process profiling (hierarchical span timing of the kernels),
-# gated behind the `profiling` feature (off by default). When the feature is
-# off the span hooks compile to nothing, so normal builds carry zero profiling
-# overhead.
-huygens = { git = "ssh://git@github.com/urban-fabric/huygens.git", branch = "main" }
 
 # External crates.
 # Backing the canonical GeoPoint/FixedGeoPoint newtypes (POD layout + JSON).

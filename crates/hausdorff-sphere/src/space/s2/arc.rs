@@ -30,7 +30,7 @@ pub fn interpolate(a: S2Point, b: S2Point, t: f64) -> S2Point {
 }
 
 /// `S2Point` interpolates along the **great circle** (SLERP) — the spherical
-/// instance of the shared
+/// instance of the shared `euclid`
 /// [`Interpolate`](hausdorff_planar::algebra::Interpolate) trait. The endpoint
 /// laws `lerp(a, b, 0) = a`, `lerp(a, b, 1) = b` are the riemann `Hausdorff/Slerp`
 /// theorems (`slerp_zero` / `slerp_angle`), so generic `Interpolate` code
@@ -41,6 +41,11 @@ impl hausdorff_planar::algebra::Interpolate for S2Point {
     #[inline]
     fn lerp(self, q: Self, t: f64) -> Self {
         interpolate(self, q, t)
+    }
+
+    #[inline]
+    fn midpoint(self, q: Self) -> Self {
+        interpolate(self, q, 0.5)
     }
 }
 

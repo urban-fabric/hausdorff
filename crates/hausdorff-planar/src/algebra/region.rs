@@ -3,9 +3,9 @@
 //! elliptical disks [`Ellipse`] / [`ConfidenceEllipse`] (membership only, since
 //! their pairwise intersection has no closed form).
 //!
-//! The traits and the generic spatial filters (`filter_contained`,
-//! `count_contained`, `any_contained`, `disjoint`) live upstream in
-//! [`hausdorff_traits`]; the line / circle / ℝ³ regions (`Interval`,
+//! The traits and the generic spatial filters (`containment_masks`,
+//! `filter_contained`, `count_contained`, `any_contained`, `disjoint`) live
+//! upstream in [`hausdorff_traits`]; the line / circle / ℝ³ regions (`Interval`,
 //! `Sector`, `Aabb`) implement them in `hausdorff-base`, and `Cap` in
 //! `hausdorff-sphere`. Each membership/overlap law is machine-checked in
 //! `riemann` (cited per impl).
@@ -18,6 +18,7 @@ use crate::space::r2::{ConfidenceEllipse, Coord, Ellipse, Rect};
 
 impl PointRegion for Rect {
     type Point = Coord;
+    type Boolean = bool;
 
     #[inline]
     fn contains(&self, p: Coord) -> bool {
@@ -45,6 +46,7 @@ impl Prunable for Rect {
 
 impl PointRegion for Ellipse {
     type Point = Coord;
+    type Boolean = bool;
 
     /// Division-free membership `b²(x−cx)² + a²(y−cy)² ≤ a²b²` (`riemann`
     /// `Hausdorff/Ellipse.inEllipse`; the region is convex, `inEllipse_convex`).
@@ -61,6 +63,7 @@ impl PointRegion for Ellipse {
 
 impl PointRegion for ConfidenceEllipse {
     type Point = Coord;
+    type Boolean = bool;
 
     /// The Mahalanobis sublevel set — a positive-semidefinite quadratic form, so
     /// convex (`riemann` `Hausdorff/Ellipse.inQuad_convex`).
@@ -78,7 +81,9 @@ impl PointRegion for ConfidenceEllipse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hausdorff_traits::{any_contained, count_contained, disjoint, filter_contained};
+    use hausdorff_traits::{
+        any_contained, containment_masks, count_contained, disjoint, filter_contained,
+    };
 
     #[test]
     fn rect_region_and_overlap() {
@@ -114,6 +119,10 @@ mod tests {
         ];
         let contained: u64 = count_contained(&region, &pts);
         assert_eq!(contained, 2);
+        assert_eq!(
+            containment_masks(&region, &pts),
+            vec![true, true, false, false]
+        );
         assert_eq!(filter_contained(&region, &pts).len(), 2);
         assert!(any_contained(&region, &pts));
     }

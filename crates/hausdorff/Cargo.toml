@@ -14,25 +14,11 @@ hausdorff-planar = { workspace = true }
 hausdorff-sphere = { workspace = true }
 hausdorff-index = { workspace = true }
 hausdorff-earth = { workspace = true }
-# Re-exported as `hausdorff::huygens` when the `profiling` feature is on so
-# callers can drive collection (set `ProfileMode`, open a `PerfReport` root).
-huygens = { workspace = true, optional = true }
+hausdorff-kernels = { workspace = true }
 
 [features]
-# In-process profiling: hierarchical span timing of the kernels via huygens.
-# Off by default and compile-time zero-cost when off; forwards to the
-# instrumented subcrates.
-profiling = ["dep:huygens", "hausdorff-planar/profiling"]
-
-# Hierarchical span profile of the instrumented kernels (needs the profiling
-# feature). The example reaches huygens through `hausdorff::huygens` (the
-# re-export the `profiling` feature turns on via the optional dependency above),
-# so it needs no separate unconditional huygens dev-dependency — keeping huygens
-# off the default `cargo test`/`cargo build` path.
-# Run: `cargo run --release --example profile_kernels --features profiling`.
-[[example]]
-name = "profile_kernels"
-required-features = ["profiling"]
+# Retained for feature compatibility. Internal span hooks are inert.
+profiling = ["hausdorff-planar/profiling"]
 
 [lints]
 workspace = true
