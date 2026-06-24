@@ -25,6 +25,7 @@ dependencies = [
 [[package]]
 name = "euclid"
 version = "0.2.0"
+source = "git+ssh://git@github.com/urban-fabric/euclid.git?branch=main#32901b535dacbd4e886e5139ad32c25723f21acb"
 
 [[package]]
 name = "hausdorff"
