@@ -1,6 +1,6 @@
 //! Latitude/longitude validity and proximity kernels over scalar columns.
 
-use euclid::numeric::{Boolean as BooleanMask, Compare, Real, RealConstants};
+use euclid::numeric::{Boolean as BooleanMask, Compare, Real};
 
 use super::{
     GeospatialConstants, LatLon, Sphere, haversine_diameter_m, haversine_m, haversine_on_m,
@@ -17,7 +17,7 @@ fn mask_and<M: BooleanMask>(a: M, b: M) -> M {
 /// Mask that is true where `lat_deg` is finite and in `[-90, 90]`.
 #[inline]
 #[must_use]
-pub fn valid_latitude_degrees<T: Real + RealConstants>(lat_deg: T) -> Boolean<T> {
+pub fn valid_latitude_degrees<T: Real>(lat_deg: T) -> Boolean<T> {
     let max = T::quarter_turn_degrees();
     let min = -max.clone();
     let finite = lat_deg.clone().is_finite();
@@ -29,7 +29,7 @@ pub fn valid_latitude_degrees<T: Real + RealConstants>(lat_deg: T) -> Boolean<T>
 /// Mask that is true where `lon_deg` is finite and in `[-180, 180]`.
 #[inline]
 #[must_use]
-pub fn valid_longitude_degrees<T: Real + RealConstants>(lon_deg: T) -> Boolean<T> {
+pub fn valid_longitude_degrees<T: Real>(lon_deg: T) -> Boolean<T> {
     let max = T::half_turn_degrees();
     let min = -max.clone();
     let finite = lon_deg.clone().is_finite();
@@ -42,7 +42,7 @@ pub fn valid_longitude_degrees<T: Real + RealConstants>(lon_deg: T) -> Boolean<T
 /// latitude/longitude coordinate.
 #[inline]
 #[must_use]
-pub fn valid_latlon_degrees<T: Real + RealConstants>(lat_deg: T, lon_deg: T) -> Boolean<T> {
+pub fn valid_latlon_degrees<T: Real>(lat_deg: T, lon_deg: T) -> Boolean<T> {
     mask_and(
         valid_latitude_degrees(lat_deg),
         valid_longitude_degrees(lon_deg),
@@ -52,7 +52,7 @@ pub fn valid_latlon_degrees<T: Real + RealConstants>(lat_deg: T, lon_deg: T) -> 
 /// Normalize longitude degrees into `[-180, 180)`.
 #[inline]
 #[must_use]
-pub fn normalize_longitude_degrees<T: Real + RealConstants>(lon_deg: T) -> T {
+pub fn normalize_longitude_degrees<T: Real>(lon_deg: T) -> T {
     (lon_deg + T::three_half_turn_degrees()).rem_euclid(T::full_turn_degrees())
         - T::half_turn_degrees()
 }
@@ -60,7 +60,7 @@ pub fn normalize_longitude_degrees<T: Real + RealConstants>(lon_deg: T) -> T {
 /// Normalize compass bearing degrees into `[0, 360)`.
 #[inline]
 #[must_use]
-pub fn normalize_bearing_degrees<T: Real + RealConstants>(bearing_deg: T) -> T {
+pub fn normalize_bearing_degrees<T: Real>(bearing_deg: T) -> T {
     bearing_deg.rem_euclid(T::full_turn_degrees())
 }
 
@@ -152,7 +152,7 @@ where
 #[inline]
 #[must_use]
 #[allow(clippy::too_many_arguments)]
-pub fn valid_haversine_within_radius_m<T: GeospatialConstants + RealConstants>(
+pub fn valid_haversine_within_radius_m<T: GeospatialConstants>(
     from_lat_deg: T,
     from_lon_deg: T,
     to_lat_deg: T,
@@ -173,7 +173,7 @@ pub fn valid_haversine_within_radius_m<T: GeospatialConstants + RealConstants>(
 #[must_use]
 pub fn valid_haversine_between_within_radius_m<T, A, B>(from: &A, to: &B, radius_m: T) -> Boolean<T>
 where
-    T: GeospatialConstants + RealConstants,
+    T: GeospatialConstants,
     A: LatLon<T>,
     B: LatLon<T>,
 {

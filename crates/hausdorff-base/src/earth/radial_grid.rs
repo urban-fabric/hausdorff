@@ -64,7 +64,7 @@ impl RingPoint<f64> {
 impl RingPoint<LengthMeters> {
     /// Radius as raw metres.
     pub fn radius_m(&self) -> f64 {
-        self.radius.clone().value()
+        self.radius.value()
     }
 }
 

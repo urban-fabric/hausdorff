@@ -7,8 +7,8 @@
 //!
 //! Downstream crates re-export these so there is one point/bbox/bearing type
 //! across the workspace (`point → cell` shares this type with the H3 grid in
-//! `hausdorff-index`). Unit-typed lengths and areas use `euclid`'s lazy
-//! dimensioned units (metres etc. live there, not here).
+//! `hausdorff-index`). Unit-typed lengths and areas implement Hausdorff's
+//! concrete metre wrappers over `euclid`'s unit contracts.
 //!
 //! The Earth-facing layers that need the spherical/planar/index machinery —
 //! `arc`, `projection`, `similarity`, `batch` — live in `hausdorff-earth`,
@@ -23,11 +23,7 @@ pub mod lazy;
 mod point;
 mod radial_grid;
 mod rhumb;
-
-/// Length in metres, backed by `euclid`'s lazy dimensioned unit.
-pub type LengthMeters<T = f64> = euclid::Meters<T>;
-/// Area in square metres, backed by `euclid`'s lazy dimensioned unit.
-pub type AreaSquareMeters<T = f64> = euclid::SquareMeters<T>;
+mod units;
 
 /// Geocentric (ECEF) coordinates and local east/north/up frames.
 pub mod ecef;
@@ -54,3 +50,4 @@ pub use rhumb::{
     rhumb_bearing, rhumb_destination, rhumb_destination_m, rhumb_distance_m, rhumb_distance_meters,
     rhumb_point_at_ratio,
 };
+pub use units::{AreaSquareMeters, LengthMeters};

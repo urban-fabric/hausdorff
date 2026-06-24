@@ -1,6 +1,6 @@
 //! Earth and spherical geodesic kernels over any [`Real`] scalar.
 
-use euclid::numeric::{Real, RealConstants};
+use euclid::numeric::Real;
 
 mod bbox;
 mod proximity;
@@ -205,7 +205,7 @@ where
 ///
 /// Coordinate arguments are latitude/longitude in decimal degrees.
 #[must_use]
-pub fn initial_bearing_degrees<T: Real + RealConstants>(
+pub fn initial_bearing_degrees<T: Real>(
     from_lat_deg: T,
     from_lon_deg: T,
     to_lat_deg: T,
@@ -226,7 +226,7 @@ pub fn initial_bearing_degrees<T: Real + RealConstants>(
 #[must_use]
 pub fn initial_bearing_between_degrees<T, A, B>(from: &A, to: &B) -> T
 where
-    T: Real + RealConstants,
+    T: Real,
     A: LatLon<T>,
     B: LatLon<T>,
 {
@@ -236,7 +236,7 @@ where
 /// Destination latitude/longitude in decimal degrees after travelling
 /// `distance_m` on a sphere of `radius_m` from an origin along `bearing_deg`.
 #[must_use]
-pub fn destination_on_m<T: Real + RealConstants>(
+pub fn destination_on_m<T: Real>(
     origin_lat_deg: T,
     origin_lon_deg: T,
     bearing_deg: T,
@@ -269,7 +269,7 @@ pub fn destination_on_m<T: Real + RealConstants>(
 /// Destination latitude/longitude in decimal degrees after travelling
 /// `distance_m` on Earth from an origin along `bearing_deg`.
 #[must_use]
-pub fn destination_m<T: GeospatialConstants + RealConstants>(
+pub fn destination_m<T: GeospatialConstants>(
     origin_lat_deg: T,
     origin_lon_deg: T,
     bearing_deg: T,
@@ -290,7 +290,7 @@ pub fn destination_m<T: GeospatialConstants + RealConstants>(
 #[must_use]
 pub fn destination_from_m<T, P, B>(origin: &P, bearing: &B, distance_m: T) -> (T, T)
 where
-    T: GeospatialConstants + RealConstants,
+    T: GeospatialConstants,
     P: LatLon<T>,
     B: BearingDegrees<T>,
 {
@@ -312,7 +312,7 @@ pub fn destination_from_on_sphere_m<T, P, B>(
     sphere: &Sphere<T>,
 ) -> (T, T)
 where
-    T: Real + RealConstants,
+    T: Real,
     P: LatLon<T>,
     B: BearingDegrees<T>,
 {
