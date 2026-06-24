@@ -16,7 +16,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use euclid::LengthMeters;
+use hausdorff_base::earth::LengthMeters;
 
 use super::{base_cells, children, coord, faceijk, grid};
 

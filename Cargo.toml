@@ -2,16 +2,25 @@
 resolver = "3"
 # hausdorff: urban-fabric's geometry and spatial indexing domain.
 # Flat layout — every crate lives directly under crates/. The dependency DAG is
-#   hausdorff-geometry-traits → hausdorff-base → hausdorff-planar →
-#   {hausdorff-sphere, hausdorff-index, hausdorff-format} → hausdorff-earth →
+#   {hausdorff-kernels, hausdorff-traits} → hausdorff-base → hausdorff-planar →
+#   {hausdorff-sphere, hausdorff-index} → hausdorff-earth →
 #   hausdorff (the façade),
 # cut so that thin consumers (GeoPoint / haversine / BBox) can depend on
 # hausdorff-base alone while the `hausdorff` façade preserves the original
-# single-crate public API unchanged. hausdorff-geometry-traits is the abstract
+# single-crate public API unchanged. hausdorff-traits is the abstract
 # geometry-trait surface (Orientation / VectorSpace / Simplex / Interpolate /
 # PointRegion), upstream of every space so even the r1/s1/r3 substrates in
 # hausdorff-base implement it for their own types.
-members = ["crates/*"]
+members = [
+    "crates/hausdorff",
+    "crates/hausdorff-base",
+    "crates/hausdorff-earth",
+    "crates/hausdorff-index",
+    "crates/hausdorff-kernels",
+    "crates/hausdorff-planar",
+    "crates/hausdorff-sphere",
+    "crates/hausdorff-traits",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -24,23 +33,16 @@ rust-version = "1.95"
 [workspace.dependencies]
 # Internal crates (path deps within the workspace; consumers in sibling repos
 # reach them through this repo's git URL with the package name they need).
-hausdorff-geometry-traits = { path = "crates/hausdorff-geometry-traits" }
+hausdorff-traits = { path = "crates/hausdorff-traits" }
+hausdorff-kernels = { path = "crates/hausdorff-kernels" }
 hausdorff-base = { path = "crates/hausdorff-base" }
 hausdorff-planar = { path = "crates/hausdorff-planar" }
 hausdorff-sphere = { path = "crates/hausdorff-sphere" }
 hausdorff-index = { path = "crates/hausdorff-index" }
 hausdorff-earth = { path = "crates/hausdorff-earth" }
-hausdorff-format = { path = "crates/hausdorff-format" }
 
-# Urban fabric sibling repositories.
-# Bundled-TOML config loader (the `hausdorff.toml` tuning parameters).
-cavalieri = { git = "ssh://git@github.com/urban-fabric/cavalieri.git", branch = "main" }
+# Urban fabric sibling repository.
 euclid = { git = "ssh://git@github.com/urban-fabric/euclid.git", branch = "main" }
-# Optional: in-process profiling (hierarchical span timing of the kernels),
-# gated behind the `profiling` feature (off by default). When the feature is
-# off the span hooks compile to nothing, so normal builds carry zero profiling
-# overhead.
-huygens = { git = "ssh://git@github.com/urban-fabric/huygens.git", branch = "main" }
 
 # External crates.
 # Backing the canonical GeoPoint/FixedGeoPoint newtypes (POD layout + JSON).

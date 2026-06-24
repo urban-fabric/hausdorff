@@ -80,11 +80,13 @@ fn multipolygon_sums_area_and_unions_containment() {
     let area_sum = a.area_m2() + b.area_m2();
     let mp = GeoMultiPolygon::new(vec![a, b]);
     assert!((mp.area_m2() - area_sum).abs() < 1e-3);
-    assert!((mp.perimeter_m()
-        - (GeoPolygon::from_exterior(box_ring(0.0, 0.0, 5.0, 5.0)).perimeter_m()
-            + GeoPolygon::from_exterior(box_ring(0.0, 50.0, 5.0, 55.0)).perimeter_m()))
-    .abs()
-        < 1e-3);
+    assert!(
+        (mp.perimeter_m()
+            - (GeoPolygon::from_exterior(box_ring(0.0, 0.0, 5.0, 5.0)).perimeter_m()
+                + GeoPolygon::from_exterior(box_ring(0.0, 50.0, 5.0, 55.0)).perimeter_m()))
+        .abs()
+            < 1e-3
+    );
     // A point in either member is contained; one between them is not.
     assert!(mp.contains(g(2.5, 2.5)));
     assert!(mp.contains(g(2.5, 52.5)));
@@ -113,7 +115,10 @@ fn contains_polygon_nested_crossing_and_holes() {
     assert!(!outer.contains_polygon(&outside));
     assert!(!inner.contains_polygon(&outer)); // not the other way round
     // A polygon with a hole does not contain a shape sitting in the hole.
-    let holed = GeoPolygon::new(box_ring(0.0, 0.0, 10.0, 10.0), vec![box_ring(3.0, 3.0, 7.0, 7.0)]);
+    let holed = GeoPolygon::new(
+        box_ring(0.0, 0.0, 10.0, 10.0),
+        vec![box_ring(3.0, 3.0, 7.0, 7.0)],
+    );
     let in_hole = GeoPolygon::from_exterior(box_ring(4.0, 4.0, 6.0, 6.0));
     assert!(!holed.contains_polygon(&in_hole));
 }

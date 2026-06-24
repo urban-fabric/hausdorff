@@ -25,7 +25,7 @@ use super::{Coord, CoordsIter, Geometry};
 /// Symmetric and order-independent. Returns `None` when either geometry has no
 /// coordinates.
 #[must_use]
-pub fn hausdorff_distance<M: MetricSpace<Coord>>(
+pub fn hausdorff_distance<M: MetricSpace<Coord, Scalar = f64>>(
     metric: &M,
     a: &Geometry,
     b: &Geometry,
@@ -40,7 +40,7 @@ pub fn hausdorff_distance<M: MetricSpace<Coord>>(
 /// every vertex of `a`, of the distance to the nearest vertex of `b`. Asymmetric.
 /// Returns `None` when either geometry has no coordinates.
 #[must_use]
-pub fn directed_hausdorff_distance<M: MetricSpace<Coord>>(
+pub fn directed_hausdorff_distance<M: MetricSpace<Coord, Scalar = f64>>(
     metric: &M,
     a: &Geometry,
     b: &Geometry,
@@ -62,7 +62,7 @@ pub fn directed_hausdorff_distance<M: MetricSpace<Coord>>(
 /// is verifiable (re-evaluate the indexed pair); see `riemann`
 /// `Hausdorff/SetDistance.directed_exists_witness`.
 #[must_use]
-pub fn directed_hausdorff_witness<M: MetricSpace<Coord>>(
+pub fn directed_hausdorff_witness<M: MetricSpace<Coord, Scalar = f64>>(
     metric: &M,
     a: &Geometry,
     b: &Geometry,
@@ -78,7 +78,7 @@ pub fn directed_hausdorff_witness<M: MetricSpace<Coord>>(
 /// (the vertex order of a `LineString` is its path direction), unlike
 /// [`hausdorff_distance`]. Returns `None` when either geometry has no coordinates.
 #[must_use]
-pub fn frechet_distance<M: MetricSpace<Coord>>(
+pub fn frechet_distance<M: MetricSpace<Coord, Scalar = f64>>(
     metric: &M,
     a: &Geometry,
     b: &Geometry,

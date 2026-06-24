@@ -6,19 +6,17 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-description = "Planar f64 geometry (the georust geo port): r2 types and algorithms, the algebra abstractions, and the hausdorff.toml tuning config."
+description = "Planar f64 geometry (the georust geo port): r2 types and algorithms, the algebra abstractions, and the tuning config."
 
 [dependencies]
-hausdorff-geometry-traits = { workspace = true }
+hausdorff-traits = { workspace = true }
 hausdorff-base = { workspace = true }
-cavalieri = { workspace = true }
 serde = { workspace = true }
-huygens = { workspace = true, optional = true }
+serde_json = { workspace = true }
 
 [features]
-# In-process profiling: hierarchical span timing of the kernels via huygens.
-# Off by default and compile-time zero-cost when off.
-profiling = ["dep:huygens"]
+# Retained for feature compatibility. Internal span hooks are inert.
+profiling = []
 
 [lints]
 workspace = true

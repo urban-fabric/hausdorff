@@ -1,22 +1,15 @@
-//! A speed profile of the crate's kernels, via huygens.
+//! A speed profile of the crate's kernels.
 //!
-//! Run: `cargo run --release --example profile_kernels --features profiling`
+//! Run: `cargo run --release --example profile_kernels`
 //!
-//! Two views:
-//! 1. A flat per-call timing table (huygens `Bench`: warmup + sampled
-//!    distribution) over every kernel, sorted slowest-first — "how fast is each
-//!    function?".
-//! 2. A hierarchical `PerfReport` span tree of the instrumented operations
-//!    (bool_ops / relate and their internal phases) — "where does the time go
-//!    inside the expensive ones?".
+//! Prints a flat per-call timing table over every kernel, sorted slowest-first.
 
 use std::hint::black_box;
+use std::time::Instant;
 
 use hausdorff::earth::batch::LonLatBatch;
 use hausdorff::earth::{GeoPoint, haversine_m};
 use hausdorff::format::{geojson, wkb, wkt};
-use hausdorff::huygens::bench::{Bench, Measurement, render_table};
-use hausdorff::huygens::{PerfReport, ProfileMode, set_mode};
 use hausdorff::index::geohash;
 use hausdorff::index::h3::H3Cell;
 use hausdorff::space::r2::relate::relate;
@@ -56,22 +49,85 @@ fn poly(c: Vec<(f64, f64)>) -> Polygon {
     Polygon::new(LineString::from(c), vec![])
 }
 
+struct Measurement {
+    name: String,
+    mean_ns: f64,
+    min_ns: f64,
+    max_ns: f64,
+}
+
+impl Measurement {
+    fn mean_ns(&self) -> f64 {
+        self.mean_ns
+    }
+}
+
 /// Time one kernel: `iters` total calls, split into 50 samples (so the per-call
 /// distribution amortizes the clock read for ns-scale kernels).
-fn prof(out: &mut Vec<Measurement>, name: &str, iters: u64, f: impl FnMut()) {
+fn prof(out: &mut Vec<Measurement>, name: &str, iters: u64, mut f: impl FnMut()) {
     let samples = 50usize;
     let batch = (iters / samples as u64).max(1);
-    out.push(
-        Bench::new()
-            .warmup(batch)
-            .samples(samples)
-            .batch(batch)
-            .run(name, f),
+    for _ in 0..batch {
+        f();
+    }
+
+    let mut sample_ns = Vec::with_capacity(samples);
+    for _ in 0..samples {
+        let start = Instant::now();
+        for _ in 0..batch {
+            f();
+        }
+        sample_ns.push(start.elapsed().as_nanos() as f64 / batch as f64);
+    }
+
+    let mean_ns = sample_ns.iter().sum::<f64>() / sample_ns.len() as f64;
+    let min_ns = sample_ns.iter().copied().fold(f64::INFINITY, f64::min);
+    let max_ns = sample_ns.iter().copied().fold(0.0, f64::max);
+    out.push(Measurement {
+        name: name.to_owned(),
+        mean_ns,
+        min_ns,
+        max_ns,
+    });
+}
+
+fn render_table(rows: &[Measurement]) -> String {
+    let name_width = rows
+        .iter()
+        .map(|m| m.name.len())
+        .max()
+        .unwrap_or("kernel".len())
+        .max("kernel".len());
+    let mut out = format!(
+        "{:<name_width$} {:>14} {:>14} {:>14}\n",
+        "kernel",
+        "mean ns",
+        "min ns",
+        "max ns",
+        name_width = name_width
     );
+    out.push_str(&format!(
+        "{:-<name_width$} {:-<14} {:-<14} {:-<14}\n",
+        "",
+        "",
+        "",
+        "",
+        name_width = name_width
+    ));
+    for m in rows {
+        out.push_str(&format!(
+            "{:<name_width$} {:>14.1} {:>14.1} {:>14.1}\n",
+            m.name,
+            m.mean_ns,
+            m.min_ns,
+            m.max_ns,
+            name_width = name_width
+        ));
+    }
+    out
 }
 
 fn main() {
-    set_mode(ProfileMode::Heavy);
     let mut rng = Rng(0x00C0_FFEE_1234_5678);
 
     let pa = poly(ring(0.0, 0.0, 5.0, 64));
@@ -240,13 +296,12 @@ fn main() {
     let big_b = MultiPolygon::new(vec![poly(ring(8.0, 0.0, 10.0, 512))]);
     let gbig_a = Geometry::Polygon(poly(ring(0.0, 0.0, 10.0, 512)));
     let gbig_b = Geometry::Polygon(poly(ring(8.0, 0.0, 10.0, 512)));
-    let mut report = PerfReport::new();
-    {
-        let _root = report.span("instrumented (overlap 512-gon)");
-        black_box(big_a.intersection(&big_b));
-        black_box(relate(&gbig_a, &gbig_b));
-        black_box(hausdorff_distance(&Euclidean, &gbig_a, &gbig_b));
-    }
-    println!("\nspan tree of the instrumented operations\n");
-    print!("{}", report.render_tree());
+    let start = Instant::now();
+    black_box(big_a.intersection(&big_b));
+    black_box(relate(&gbig_a, &gbig_b));
+    black_box(hausdorff_distance(&Euclidean, &gbig_a, &gbig_b));
+    println!(
+        "\noverlap 512-gon combined pass: {:.3} ms\n",
+        start.elapsed().as_secs_f64() * 1_000.0
+    );
 }

@@ -13,12 +13,12 @@
 //! traits use. ramsey's graph fingerprint ⊕ this spatial fingerprint is the full
 //! web fingerprint.
 
-use crate::earth::{haversine_m, GeoPoint};
+use crate::earth::{GeoPoint, haversine_m};
 
 /// A space a web can be embedded in: a point type plus a distance between points.
 pub trait SpatialMetric {
     /// The coordinate type of a node in this space.
-    type Point: Copy;
+    type Point: Clone;
     /// Distance between two embedded points, in the space's natural unit
     /// (Euclidean units for [`R2`], meters for [`S2`]).
     fn distance(a: Self::Point, b: Self::Point) -> f64;
@@ -132,7 +132,7 @@ pub fn spatial_fingerprint<S: SpatialMetric>(web: &Web<S>) -> SpatialFingerprint
             if i == j {
                 continue;
             }
-            let d = S::distance(web.nodes[i], web.nodes[j]);
+            let d = S::distance(web.nodes[i].clone(), web.nodes[j].clone());
             if d < best {
                 best = d;
             }
@@ -144,7 +144,7 @@ pub fn spatial_fingerprint<S: SpatialMetric>(web: &Web<S>) -> SpatialFingerprint
     let edge_len: Vec<f64> = web
         .edges
         .iter()
-        .map(|&(u, v)| S::distance(web.nodes[u], web.nodes[v]))
+        .map(|&(u, v)| S::distance(web.nodes[u].clone(), web.nodes[v].clone()))
         .collect();
     let (nn_mean, nn_cv) = mean_cv(&nn);
     let (edge_mean, edge_cv) = mean_cv(&edge_len);
@@ -161,6 +161,20 @@ pub fn spatial_fingerprint<S: SpatialMetric>(web: &Web<S>) -> SpatialFingerprint
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[derive(Clone)]
+    struct CloneOnlyPoint(f64);
+
+    #[derive(Debug, Default)]
+    struct CloneOnlyLine;
+
+    impl SpatialMetric for CloneOnlyLine {
+        type Point = CloneOnlyPoint;
+
+        fn distance(a: CloneOnlyPoint, b: CloneOnlyPoint) -> f64 {
+            (a.0 - b.0).abs()
+        }
+    }
 
     fn grid_web(k: usize) -> Web<R2> {
         let mut nodes = Vec::new();
@@ -208,7 +222,29 @@ mod tests {
         // Every nearest-neighbour distance is exactly 1, every edge length is 1.
         assert!((fp.nn_mean - 1.0).abs() < 1e-9);
         assert!(fp.nn_cv < 1e-9, "grid nn_cv should be ~0, got {}", fp.nn_cv);
-        assert!(fp.edge_cv < 1e-9, "grid edge_cv should be ~0, got {}", fp.edge_cv);
+        assert!(
+            fp.edge_cv < 1e-9,
+            "grid edge_cv should be ~0, got {}",
+            fp.edge_cv
+        );
+    }
+
+    #[test]
+    fn spatial_fingerprint_accepts_clone_only_points() {
+        let web = Web::<CloneOnlyLine>::new(
+            vec![
+                CloneOnlyPoint(0.0),
+                CloneOnlyPoint(2.0),
+                CloneOnlyPoint(5.0),
+            ],
+            vec![(0, 1), (1, 2)],
+        );
+
+        let fp = spatial_fingerprint(&web);
+
+        assert_eq!(fp.num_nodes, 3);
+        assert_eq!(fp.num_edges, 2);
+        assert_eq!(fp.edge_mean, 2.5);
     }
 
     #[test]
@@ -216,7 +252,11 @@ mod tests {
         let grid = spatial_fingerprint(&grid_web(20)); // 400 nodes, regular
         let rand = spatial_fingerprint(&random_web(400, 19.0, 42)); // Poisson-ish
         assert!(grid.nn_cv < 0.05, "grid nn_cv {}", grid.nn_cv);
-        assert!(rand.nn_cv > 0.2, "random nn_cv {} should be substantial", rand.nn_cv);
+        assert!(
+            rand.nn_cv > 0.2,
+            "random nn_cv {} should be substantial",
+            rand.nn_cv
+        );
         assert!(rand.nn_cv > grid.nn_cv);
     }
 

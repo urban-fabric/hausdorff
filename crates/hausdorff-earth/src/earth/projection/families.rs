@@ -6,8 +6,10 @@
 //! parent via `use super::*`.
 
 use super::*;
-use hausdorff_base::earth::latitude::{
-    authalic_q, conformal_t, lat_from_authalic_q, lat_from_conformal_t,
+use hausdorff_base::earth::latitude::conformal_t;
+use hausdorff_kernels::projection::{
+    AlbersConstants, LccConstants, PolarStereoConstants, albers_forward, albers_inverse,
+    lcc_forward, lcc_inverse, polar_stereographic_forward, polar_stereographic_inverse,
 };
 
 /// **Lambert Conformal Conic (2SP)** — the conformal conic of national/regional
@@ -30,38 +32,27 @@ pub struct LambertConformalConic {
 }
 
 impl LambertConformalConic {
-    /// The cone constant `n`, scale `F`, and origin radius `ρ0` shared by the
-    /// forward and inverse maps.
-    fn constants(&self) -> (f64, f64, f64, f64) {
-        let e = self.ellipsoid.e2().sqrt();
-        let (phi1, phi2) = (self.lat1.to_radians(), self.lat2.to_radians());
-        let (m1, m2) = (m_factor(phi1, e), m_factor(phi2, e));
-        let (t0, t1, t2) = (
-            conformal_t(self.lat0.to_radians(), e),
-            conformal_t(phi1, e),
-            conformal_t(phi2, e),
-        );
-        let n = if (phi1 - phi2).abs() < 1e-12 {
-            phi1.sin()
-        } else {
-            (m1.ln() - m2.ln()) / (t1.ln() - t2.ln())
-        };
-        let f = m1 / (n * t1.powf(n));
-        let rho0 = self.ellipsoid.a * f * t0.powf(n);
-        (e, n, f, rho0)
+    /// The Snyder cone constant `n`, scale `F`, and origin radius `ρ0` — solved by
+    /// the backend-neutral [`LccConstants`] kernel (shared by the forward, inverse,
+    /// and point-scale maps).
+    fn kernel_constants(&self) -> LccConstants {
+        LccConstants::new(
+            self.ellipsoid.a,
+            self.ellipsoid.e2().sqrt(),
+            self.lat1,
+            self.lat2,
+            self.lat0,
+            self.lon0,
+            self.false_easting,
+            self.false_northing,
+        )
     }
 }
 
 impl Projection for LambertConformalConic {
     fn project(&self, p: GeoPoint) -> Coord {
-        let (e, n, f, rho0) = self.constants();
-        let t = conformal_t(p.lat.to_radians(), e);
-        let rho = self.ellipsoid.a * f * t.powf(n);
-        let theta = n * (p.lon - self.lon0).to_radians();
-        Coord::new(
-            self.false_easting + rho * theta.sin(),
-            self.false_northing + rho0 - rho * theta.cos(),
-        )
+        let (x, y) = lcc_forward(p.lat, p.lon, &self.kernel_constants());
+        Coord::new(x, y)
     }
 
     /// Proof-backed by `riemann` `Hausdorff/ConicProjection`: the closed-form
@@ -70,14 +61,7 @@ impl Projection for LambertConformalConic {
     /// `radius_recover` recovers the conformal parameter — so `inverse` is a true
     /// left inverse on the conic geometry (the ellipsoid latitude series aside).
     fn inverse(&self, c: Coord) -> GeoPoint {
-        let (e, n, f, rho0) = self.constants();
-        let x = c.x - self.false_easting;
-        let y0 = rho0 - (c.y - self.false_northing);
-        let rho = (x * x + y0 * y0).sqrt().copysign(n);
-        let theta = (x * n.signum()).atan2(y0 * n.signum());
-        let t = (rho / (self.ellipsoid.a * f)).powf(1.0 / n);
-        let lat = lat_from_conformal_t(t, e).to_degrees();
-        let lon = (theta / n).to_degrees() + self.lon0;
+        let (lat, lon) = lcc_inverse(c.x, c.y, &self.kernel_constants());
         GeoPoint::from_lat_lon(lat, lon)
     }
 }
@@ -99,32 +83,30 @@ pub struct PolarStereographic {
     pub false_northing: f64,
 }
 
+impl PolarStereographic {
+    /// The standard-parallel constants — solved by the backend-neutral
+    /// [`PolarStereoConstants`] kernel.
+    fn kernel_constants(&self) -> PolarStereoConstants {
+        PolarStereoConstants::new(
+            self.ellipsoid.a,
+            self.ellipsoid.e2().sqrt(),
+            self.lat_ts,
+            self.lon0,
+            self.north,
+            self.false_easting,
+            self.false_northing,
+        )
+    }
+}
+
 impl Projection for PolarStereographic {
     fn project(&self, p: GeoPoint) -> Coord {
-        let e = self.ellipsoid.e2().sqrt();
-        let s = if self.north { 1.0 } else { -1.0 };
-        let phi = s * p.lat.to_radians();
-        let phic = s * self.lat_ts.to_radians();
-        let (tc, mc) = (conformal_t(phic, e), m_factor(phic, e));
-        let rho = self.ellipsoid.a * mc * conformal_t(phi, e) / tc;
-        let dlon = (p.lon - self.lon0).to_radians();
-        Coord::new(
-            self.false_easting + rho * dlon.sin(),
-            self.false_northing - s * rho * dlon.cos(),
-        )
+        let (x, y) = polar_stereographic_forward(p.lat, p.lon, &self.kernel_constants());
+        Coord::new(x, y)
     }
 
     fn inverse(&self, c: Coord) -> GeoPoint {
-        let e = self.ellipsoid.e2().sqrt();
-        let s = if self.north { 1.0 } else { -1.0 };
-        let phic = s * self.lat_ts.to_radians();
-        let (tc, mc) = (conformal_t(phic, e), m_factor(phic, e));
-        let x = c.x - self.false_easting;
-        let y = c.y - self.false_northing;
-        let rho = x.hypot(y);
-        let t = rho * tc / (self.ellipsoid.a * mc);
-        let lat = (s * lat_from_conformal_t(t, e)).to_degrees();
-        let lon = self.lon0 + x.atan2(-s * y).to_degrees();
+        let (lat, lon) = polar_stereographic_inverse(c.x, c.y, &self.kernel_constants());
         GeoPoint::from_lat_lon(lat, lon)
     }
 }
@@ -150,49 +132,30 @@ pub struct AlbersEqualArea {
 }
 
 impl AlbersEqualArea {
-    /// `(e, n, C, ρ0)` — the cone constant, the constant `C`, and the origin
-    /// radius shared by the forward and inverse maps.
-    fn constants(&self) -> (f64, f64, f64, f64) {
-        let e = self.ellipsoid.e2().sqrt();
-        let (phi1, phi2) = (self.lat1.to_radians(), self.lat2.to_radians());
-        let (m1, m2) = (m_factor(phi1, e), m_factor(phi2, e));
-        let (q0, q1, q2) = (
-            authalic_q(self.lat0.to_radians(), e),
-            authalic_q(phi1, e),
-            authalic_q(phi2, e),
-        );
-        let n = if (phi1 - phi2).abs() < 1e-12 {
-            phi1.sin()
-        } else {
-            (m1 * m1 - m2 * m2) / (q2 - q1)
-        };
-        let cc = m1 * m1 + n * q1;
-        let rho0 = self.ellipsoid.a * (cc - n * q0).sqrt() / n;
-        (e, n, cc, rho0)
+    /// `(n, C, ρ0)` — the cone constant, the constant `C`, and the origin radius,
+    /// solved by the backend-neutral [`AlbersConstants`] kernel.
+    fn kernel_constants(&self) -> AlbersConstants {
+        AlbersConstants::new(
+            self.ellipsoid.a,
+            self.ellipsoid.e2().sqrt(),
+            self.lat1,
+            self.lat2,
+            self.lat0,
+            self.lon0,
+            self.false_easting,
+            self.false_northing,
+        )
     }
 }
 
 impl Projection for AlbersEqualArea {
     fn project(&self, p: GeoPoint) -> Coord {
-        let (e, n, cc, rho0) = self.constants();
-        let q = authalic_q(p.lat.to_radians(), e);
-        let rho = self.ellipsoid.a * (cc - n * q).sqrt() / n;
-        let theta = n * (p.lon - self.lon0).to_radians();
-        Coord::new(
-            self.false_easting + rho * theta.sin(),
-            self.false_northing + rho0 - rho * theta.cos(),
-        )
+        let (x, y) = albers_forward(p.lat, p.lon, &self.kernel_constants());
+        Coord::new(x, y)
     }
 
     fn inverse(&self, c: Coord) -> GeoPoint {
-        let (e, n, cc, rho0) = self.constants();
-        let x = c.x - self.false_easting;
-        let y0 = rho0 - (c.y - self.false_northing);
-        let rho = x.hypot(y0).copysign(n);
-        let theta = (x * n.signum()).atan2(y0 * n.signum());
-        let q = (cc - (rho * n / self.ellipsoid.a).powi(2)) / n;
-        let lat = lat_from_authalic_q(q, e).to_degrees();
-        let lon = (theta / n).to_degrees() + self.lon0;
+        let (lat, lon) = albers_inverse(c.x, c.y, &self.kernel_constants());
         GeoPoint::from_lat_lon(lat, lon)
     }
 }
@@ -268,10 +231,10 @@ impl Projection for LocalTangentPlane {
 impl ConformalProjection for LambertConformalConic {
     /// `k = n·ρ / (a·m(φ))` — unity at the two standard parallels (Snyder 14-16).
     fn point_scale(&self, lat_deg: f64) -> f64 {
-        let (e, n, f, _rho0) = self.constants();
+        let k = self.kernel_constants();
         let phi = lat_deg.to_radians();
-        let rho = self.ellipsoid.a * f * conformal_t(phi, e).powf(n);
-        rho * n / (self.ellipsoid.a * m_factor(phi, e))
+        let rho = k.a * k.f * conformal_t(phi, k.e).powf(k.n);
+        rho * k.n / (k.a * m_factor(phi, k.e))
     }
 }
 

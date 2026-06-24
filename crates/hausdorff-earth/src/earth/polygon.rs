@@ -193,7 +193,9 @@ pub fn geo_ring_to_s2(ring: &[GeoPoint]) -> Vec<S2Point> {
 /// ([`Ellipsoid::geodetic_to_ecef`]).
 #[must_use]
 pub fn geo_ring_to_ecef(ring: &[GeoPoint], ellipsoid: Ellipsoid) -> Vec<EcefPoint> {
-    ring.iter().map(|&p| ellipsoid.geodetic_to_ecef(p, 0.0)).collect()
+    ring.iter()
+        .map(|&p| ellipsoid.geodetic_to_ecef(p, 0.0))
+        .collect()
 }
 
 /// A ring as a counter-clockwise unit-sphere [`Loop`] — reversed if its signed

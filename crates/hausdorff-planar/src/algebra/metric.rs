@@ -30,24 +30,30 @@
 //! [Fréchet distance]: https://en.wikipedia.org/wiki/Fr%C3%A9chet_distance
 
 use crate::space::r2::Distance;
+use hausdorff_traits::{Element, Real};
 
 /// A metric space over points of type `P`: a non-negative, symmetric distance.
 ///
-/// Modelled on `spire`'s `MetricSpace[V, R]` (here the scalar `R` is fixed to
-/// `f64`). Every [`Distance<P, P>`](crate::space::r2::Distance) is automatically a
-/// `MetricSpace<P>`, so `Euclidean`/`Haversine` need no extra impl.
+/// Modelled on `spire`'s `MetricSpace[V, R]`. Every
+/// [`Distance<P, P>`](crate::space::r2::Distance) is automatically a
+/// host-`f64` `MetricSpace<P>`, so `Euclidean`/`Haversine` need no extra impl.
 pub trait MetricSpace<P> {
+    /// The scalar distance carrier.
+    type Scalar: Real;
+
     /// The distance between `a` and `b` in this metric's own unit (metres for
     /// the great-circle metrics, the plane's own unit for `Euclidean`).
-    fn distance(&self, a: P, b: P) -> f64;
+    fn distance(&self, a: P, b: P) -> Self::Scalar;
 }
 
 impl<M, P> MetricSpace<P> for M
 where
     M: Distance<P, P>,
 {
+    type Scalar = f64;
+
     #[inline]
-    fn distance(&self, a: P, b: P) -> f64 {
+    fn distance(&self, a: P, b: P) -> Self::Scalar {
         Distance::distance(self, a, b)
     }
 }
@@ -64,18 +70,18 @@ where
 /// is within `r` of some point of `b`); `directed_triangle` /
 /// `directed_eq_zero_iff` are the directed half of the metric laws.
 #[must_use]
-pub fn directed_hausdorff<M, P>(metric: &M, a: &[P], b: &[P]) -> Option<f64>
+pub fn directed_hausdorff<M, P>(metric: &M, a: &[P], b: &[P]) -> Option<M::Scalar>
 where
     M: MetricSpace<P>,
-    P: Copy,
+    P: Clone,
 {
     if a.is_empty() || b.is_empty() {
         return None;
     }
-    Some(a.iter().fold(0.0_f64, |max_min, &p| {
-        let nearest = b
-            .iter()
-            .fold(f64::INFINITY, |best, &q| best.min(metric.distance(p, q)));
+    Some(a.iter().fold(M::Scalar::zero(), |max_min, p| {
+        let nearest = b.iter().fold(M::Scalar::infinity(), |best, q| {
+            best.min(metric.distance(p.clone(), q.clone()))
+        });
         max_min.max(nearest)
     }))
 }
@@ -96,14 +102,14 @@ where
 /// realizable certificate (the worst point and its nearest neighbour), not
 /// merely a bound.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct HausdorffWitness {
+pub struct HausdorffWitness<T = f64> {
     /// Index into the *source* slice of the point furthest from the target set.
     pub source_index: usize,
     /// Index into the *target* slice of the source point's nearest neighbour.
     pub target_index: usize,
     /// The realized distance between the two indexed points — equal to
     /// [`directed_hausdorff`] over the same arguments.
-    pub distance: f64,
+    pub distance: T,
 }
 
 /// Like [`directed_hausdorff`], but returns the attaining [`HausdorffWitness`]
@@ -120,10 +126,15 @@ pub struct HausdorffWitness {
 /// shape mismatch (which vertex is the outlier, and what it is closest to), not
 /// only measuring it.
 #[must_use]
-pub fn directed_hausdorff_witness<M, P>(metric: &M, a: &[P], b: &[P]) -> Option<HausdorffWitness>
+pub fn directed_hausdorff_witness<M, P>(
+    metric: &M,
+    a: &[P],
+    b: &[P],
+) -> Option<HausdorffWitness<M::Scalar>>
 where
     M: MetricSpace<P>,
-    P: Copy,
+    M::Scalar: PartialOrd,
+    P: Clone,
 {
     if a.is_empty() || b.is_empty() {
         return None;
@@ -131,15 +142,15 @@ where
     let mut best = HausdorffWitness {
         source_index: 0,
         target_index: 0,
-        distance: f64::NEG_INFINITY,
+        distance: M::Scalar::neg_infinity(),
     };
-    for (i, &p) in a.iter().enumerate() {
+    for (i, p) in a.iter().enumerate() {
         // The nearest neighbour of `p` in `b` (lowest index on ties).
         let (nearest_j, nearest_d) =
             b.iter()
                 .enumerate()
-                .fold((0usize, f64::INFINITY), |(bj, bd), (j, &q)| {
-                    let d = metric.distance(p, q);
+                .fold((0usize, M::Scalar::infinity()), |(bj, bd), (j, q)| {
+                    let d = metric.distance(p.clone(), q.clone());
                     if d < bd { (j, d) } else { (bj, bd) }
                 });
         // Keep the point of `a` whose nearest neighbour is farthest (the max-min).
@@ -163,10 +174,10 @@ where
 /// `hausdorffDist_nonneg`, `hausdorffDist_triangle`, and `hausdorffDist_eq_zero_iff`
 /// (vanishes *iff* the sets are equal).
 #[must_use]
-pub fn hausdorff_distance<M, P>(metric: &M, a: &[P], b: &[P]) -> Option<f64>
+pub fn hausdorff_distance<M, P>(metric: &M, a: &[P], b: &[P]) -> Option<M::Scalar>
 where
     M: MetricSpace<P>,
-    P: Copy,
+    P: Clone,
 {
     directed_hausdorff(metric, a, b)
         .and_then(|ab| directed_hausdorff(metric, b, a).map(|ba| ab.max(ba)))
@@ -184,35 +195,40 @@ where
 /// polylines — i.e. it really is the discrete Fréchet distance, not just an
 /// upper bound. See [`FrechetWorkspace::distance`] for the recurrence.
 #[must_use]
-pub fn frechet_distance<M, P>(metric: &M, p: &[P], q: &[P]) -> Option<f64>
+pub fn frechet_distance<M, P>(metric: &M, p: &[P], q: &[P]) -> Option<M::Scalar>
 where
     M: MetricSpace<P>,
-    P: Copy,
+    P: Clone,
 {
-    FrechetWorkspace::new().distance(metric, p, q)
+    FrechetWorkspace::<M::Scalar>::new().distance(metric, p, q)
 }
 
 /// Reusable scratch space for repeated discrete-Fréchet computations.
 ///
-/// The dynamic program needs one `f64` row of width `|q|`. Allocating it per call
-/// is wasteful when comparing many curve pairs (trajectory matching, nearest-curve
-/// search), so a workspace amortizes the allocation across calls — the
+/// The dynamic program needs one scalar row of width `|q|`. Allocating it per
+/// call is wasteful when comparing many curve pairs (trajectory matching,
+/// nearest-curve search), so a workspace amortizes the allocation across calls — the
 /// faer/RustFFT "reusable scratch" pattern. The free [`frechet_distance`] is the
 /// allocate-internally convenience form. Cheap to clone and `Send`/`Sync`, so one
 /// per worker thread reuses its buffer across a batch.
 #[derive(Debug, Default, Clone)]
-pub struct FrechetWorkspace {
-    row: Vec<f64>,
+pub struct FrechetWorkspace<T = f64> {
+    row: Vec<T>,
 }
 
-impl FrechetWorkspace {
+impl<T> FrechetWorkspace<T> {
     /// A new, empty workspace; its buffer grows to fit the first comparison and
     /// is reused (without reallocating) by subsequent same-or-smaller ones.
     #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self { row: Vec::new() }
     }
+}
 
+impl<T> FrechetWorkspace<T>
+where
+    T: Real,
+{
     /// Discrete Fréchet distance between `p` and `q` under `metric`, reusing this
     /// workspace's row buffer. Identical result to [`frechet_distance`].
     /// Returns `None` if either path is empty.
@@ -221,10 +237,10 @@ impl FrechetWorkspace {
     /// `Hausdorff/Frechet.frechetDP` — the `max(min(left, up, diag), d)`
     /// recurrence (`frechetDP_succ_succ`), whose value `frechet_isLeast` proves is
     /// the least coupling cost.
-    pub fn distance<M, P>(&mut self, metric: &M, p: &[P], q: &[P]) -> Option<f64>
+    pub fn distance<M, P>(&mut self, metric: &M, p: &[P], q: &[P]) -> Option<T>
     where
-        M: MetricSpace<P>,
-        P: Copy,
+        M: MetricSpace<P, Scalar = T>,
+        P: Clone,
     {
         let (m, n) = (p.len(), q.len());
         if m == 0 || n == 0 {
@@ -233,101 +249,31 @@ impl FrechetWorkspace {
 
         let row = &mut self.row;
         row.clear();
-        row.resize(n, 0.0);
-        row[0] = metric.distance(p[0], q[0]);
+        row.resize(n, T::zero());
+        row[0] = metric.distance(p[0].clone(), q[0].clone());
         for j in 1..n {
-            row[j] = row[j - 1].max(metric.distance(p[0], q[j]));
+            row[j] = row[j - 1]
+                .clone()
+                .max(metric.distance(p[0].clone(), q[j].clone()));
         }
-        for &pi in &p[1..] {
-            let mut diag = row[0];
-            row[0] = row[0].max(metric.distance(pi, q[0]));
+        for pi in &p[1..] {
+            let mut diag = row[0].clone();
+            row[0] = row[0]
+                .clone()
+                .max(metric.distance(pi.clone(), q[0].clone()));
             for j in 1..n {
-                let up = row[j];
+                let up = row[j].clone();
                 // `frechetDP_succ_succ`: min over the three predecessors (up, left,
                 // diag), then the new pair's leash — the cheapest way to extend a
                 // coupling to (i, j).
-                let best_prev = row[j].min(row[j - 1]).min(diag);
-                row[j] = best_prev.max(metric.distance(pi, q[j]));
+                let best_prev = row[j].clone().min(row[j - 1].clone()).min(diag);
+                row[j] = best_prev.max(metric.distance(pi.clone(), q[j].clone()));
                 diag = up;
             }
         }
-        Some(row[n - 1])
+        Some(row[n - 1].clone())
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::space::r2::{Coord, Euclidean};
-
-    fn pts(coords: &[(f64, f64)]) -> Vec<Coord> {
-        coords.iter().map(|&(x, y)| Coord::new(x, y)).collect()
-    }
-
-    #[test]
-    fn witness_attains_the_directed_distance() {
-        let a = pts(&[(0.0, 0.0), (10.0, 0.0)]);
-        let b = pts(&[(0.0, 1.0), (10.0, 2.0)]);
-
-        let scalar = directed_hausdorff(&Euclidean, &a, &b).expect("non-empty");
-        let w = directed_hausdorff_witness(&Euclidean, &a, &b).expect("non-empty");
-
-        // The worst point of `a` is (10,0); its nearest neighbour in `b` is (10,2).
-        assert_eq!(w.source_index, 1);
-        assert_eq!(w.target_index, 1);
-        assert_eq!(w.distance, 2.0);
-        // The witness distance is the directed Hausdorff distance...
-        assert_eq!(w.distance, scalar);
-        // ...and the certificate is verifiable: re-evaluating the indexed pair
-        // reproduces it (the `directed_exists_witness` property).
-        assert_eq!(
-            MetricSpace::distance(&Euclidean, a[w.source_index], b[w.target_index]),
-            w.distance
-        );
-    }
-
-    #[test]
-    fn witness_is_asymmetric_like_the_scalar() {
-        let a = pts(&[(0.0, 0.0), (10.0, 0.0)]);
-        let b = pts(&[(0.0, 1.0), (10.0, 2.0)]);
-
-        let ab = directed_hausdorff_witness(&Euclidean, &a, &b).expect("non-empty");
-        let ba = directed_hausdorff_witness(&Euclidean, &b, &a).expect("non-empty");
-        // b→a worst point is (10,2), nearest in a is (10,0), distance 2.
-        assert_eq!(ab.distance, 2.0);
-        assert_eq!(ba.distance, 2.0);
-        // Indices are into the respective source/target slices.
-        assert_eq!(ba.source_index, 1);
-        assert_eq!(ba.target_index, 1);
-    }
-
-    #[test]
-    fn witness_ties_resolve_to_lowest_index() {
-        // Two points of `a` are equidistant (1.0) from their nearest neighbours;
-        // the lowest source index wins, and its lowest nearest-neighbour index.
-        let a = pts(&[(0.0, 1.0), (5.0, 1.0)]);
-        let b = pts(&[(0.0, 0.0), (5.0, 0.0)]);
-        let w = directed_hausdorff_witness(&Euclidean, &a, &b).expect("non-empty");
-        assert_eq!(w.source_index, 0);
-        assert_eq!(w.target_index, 0);
-        assert_eq!(w.distance, 1.0);
-    }
-
-    #[test]
-    fn witness_of_a_subset_is_zero() {
-        // a ⊆ b ⟹ directed distance 0 (every point of `a` sits on a point of `b`).
-        let a = pts(&[(1.0, 1.0)]);
-        let b = pts(&[(0.0, 0.0), (1.0, 1.0), (2.0, 2.0)]);
-        let w = directed_hausdorff_witness(&Euclidean, &a, &b).expect("non-empty");
-        assert_eq!(w.distance, 0.0);
-        assert_eq!(w.target_index, 1);
-    }
-
-    #[test]
-    fn witness_none_on_empty() {
-        let a = pts(&[(0.0, 0.0)]);
-        let empty: Vec<Coord> = Vec::new();
-        assert_eq!(directed_hausdorff_witness(&Euclidean, &a, &empty), None);
-        assert_eq!(directed_hausdorff_witness(&Euclidean, &empty, &a), None);
-    }
-}
+mod tests;

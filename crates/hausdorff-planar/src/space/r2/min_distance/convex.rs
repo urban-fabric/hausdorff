@@ -3,7 +3,7 @@
 //! Minkowski difference, found by the 2-simplex GJK distance algorithm — no
 //! `O(n·m)` segment scan. Falls back (returns `None`) if GJK doesn't converge.
 
-use hausdorff_geometry_traits::is_convex_ring;
+use hausdorff_traits::is_convex_ring;
 
 use super::super::{Coord, Geometry, Intersects};
 use super::boxes_overlap;

@@ -55,7 +55,11 @@ fn decodes_golden_reference_wkb() {
         "010700000002000000010100000000000000000008c00000000000001c400102000000020000000000000000000000000000000000000000000000000024400000000000002440",
     ];
     for (g, golden) in fixtures().into_iter().zip(GOLDEN) {
-        assert_eq!(from_wkb(&hex(golden)).unwrap(), g, "native decode of golden WKB");
+        assert_eq!(
+            from_wkb(&hex(golden)).unwrap(),
+            g,
+            "native decode of golden WKB"
+        );
         // And the native encoder still round-trips its own output.
         assert_eq!(from_wkb(&to_wkb(&g)).unwrap(), g);
     }

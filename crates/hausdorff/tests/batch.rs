@@ -2,7 +2,7 @@
 //! exactly the same results as the per-element scalar APIs — whether built with
 //! the `parallel` feature or not (run the suite both ways to cover the seam).
 
-use hausdorff::earth::{BBox, GeoPoint, LonLatBatch, haversine_m};
+use hausdorff::earth::{BBox, GeoPoint, LengthMeters, LonLatBatch, haversine_m};
 use hausdorff::index::h3::H3Cell;
 use hausdorff::space::r2::{Coord, PointBatch};
 
@@ -38,10 +38,43 @@ fn lonlat_batch_haversine_matches_scalar() {
     let b = LonLatBatch::from_points(&pts);
     let target = GeoPoint::from_lat_lon(51.5074, -0.1278);
     let fan = b.haversine_to(target);
+    let raw = b.haversine_to_m(target);
     assert_eq!(fan.len(), pts.len());
+    assert_eq!(raw.len(), pts.len());
     for (i, p) in pts.iter().enumerate() {
-        assert_eq!(fan[i].as_meters(), haversine_m(*p, target));
+        let expected = haversine_m(*p, target);
+        assert_eq!(fan[i].clone().value(), expected);
+        assert_eq!(raw[i], expected);
     }
+}
+
+#[test]
+fn lonlat_batch_masks_match_scalar_predicates() {
+    let pts = sample_points();
+    let b = LonLatBatch::from_points(&pts);
+    let bbox = BBox::new(-40.0, -10.0, 55.0, 20.0);
+    let target = GeoPoint::from_lat_lon(51.5074, -0.1278);
+
+    assert_eq!(
+        b.bbox_contains_mask(bbox),
+        pts.iter().map(|&p| bbox.contains(p)).collect::<Vec<_>>()
+    );
+
+    let radius_m = 1_000_000.0;
+    assert_eq!(
+        b.within_radius_m(target, radius_m),
+        pts.iter()
+            .map(|&p| p.is_finite() && target.is_finite() && haversine_m(p, target) <= radius_m)
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        b.within_radius(target, LengthMeters::new(radius_m)),
+        b.within_radius_latlon_m(target.lat, target.lon, radius_m)
+    );
+
+    let bad = LonLatBatch::from_columns(vec![0.0, 10.0, f64::NAN], vec![0.0, 91.0, 10.0])
+        .expect("same length");
+    assert_eq!(bad.valid_lonlat_mask(), vec![true, false, false]);
 }
 
 #[test]

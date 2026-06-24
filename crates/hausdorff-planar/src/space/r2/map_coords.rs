@@ -16,23 +16,42 @@ use super::{
 pub trait MapCoords: Sized {
     /// This geometry with `f` applied to every coordinate.
     #[must_use]
-    fn map_coords(&self, f: impl Fn(Coord) -> Coord + Copy) -> Self;
+    fn map_coords<F>(&self, f: F) -> Self
+    where
+        F: Fn(Coord) -> Coord,
+    {
+        self.map_coords_ref(&f)
+    }
+
+    #[doc(hidden)]
+    fn map_coords_ref<F>(&self, f: &F) -> Self
+    where
+        F: Fn(Coord) -> Coord;
 }
 
 impl MapCoords for Point {
-    fn map_coords(&self, f: impl Fn(Coord) -> Coord + Copy) -> Self {
+    fn map_coords_ref<F>(&self, f: &F) -> Self
+    where
+        F: Fn(Coord) -> Coord,
+    {
         Point(f(self.0))
     }
 }
 
 impl MapCoords for Line {
-    fn map_coords(&self, f: impl Fn(Coord) -> Coord + Copy) -> Self {
+    fn map_coords_ref<F>(&self, f: &F) -> Self
+    where
+        F: Fn(Coord) -> Coord,
+    {
         Line::new(f(self.start), f(self.end))
     }
 }
 
 impl MapCoords for LineString {
-    fn map_coords(&self, f: impl Fn(Coord) -> Coord + Copy) -> Self {
+    fn map_coords_ref<F>(&self, f: &F) -> Self
+    where
+        F: Fn(Coord) -> Coord,
+    {
         LineString(self.0.iter().map(|&c| f(c)).collect())
     }
 }
@@ -40,29 +59,44 @@ impl MapCoords for LineString {
 /// Rings stay rings: a closed ring maps vertex-by-vertex to a closed ring
 /// (`Polygon::new` re-closes defensively).
 impl MapCoords for Polygon {
-    fn map_coords(&self, f: impl Fn(Coord) -> Coord + Copy) -> Self {
+    fn map_coords_ref<F>(&self, f: &F) -> Self
+    where
+        F: Fn(Coord) -> Coord,
+    {
         Polygon::new(
-            self.exterior().map_coords(f),
-            self.interiors().iter().map(|r| r.map_coords(f)).collect(),
+            self.exterior().map_coords_ref(f),
+            self.interiors()
+                .iter()
+                .map(|r| r.map_coords_ref(f))
+                .collect(),
         )
     }
 }
 
 impl MapCoords for MultiPoint {
-    fn map_coords(&self, f: impl Fn(Coord) -> Coord + Copy) -> Self {
-        MultiPoint(self.0.iter().map(|p| p.map_coords(f)).collect())
+    fn map_coords_ref<F>(&self, f: &F) -> Self
+    where
+        F: Fn(Coord) -> Coord,
+    {
+        MultiPoint(self.0.iter().map(|p| p.map_coords_ref(f)).collect())
     }
 }
 
 impl MapCoords for MultiLineString {
-    fn map_coords(&self, f: impl Fn(Coord) -> Coord + Copy) -> Self {
-        MultiLineString(self.0.iter().map(|ls| ls.map_coords(f)).collect())
+    fn map_coords_ref<F>(&self, f: &F) -> Self
+    where
+        F: Fn(Coord) -> Coord,
+    {
+        MultiLineString(self.0.iter().map(|ls| ls.map_coords_ref(f)).collect())
     }
 }
 
 impl MapCoords for MultiPolygon {
-    fn map_coords(&self, f: impl Fn(Coord) -> Coord + Copy) -> Self {
-        MultiPolygon(self.0.iter().map(|p| p.map_coords(f)).collect())
+    fn map_coords_ref<F>(&self, f: &F) -> Self
+    where
+        F: Fn(Coord) -> Coord,
+    {
+        MultiPolygon(self.0.iter().map(|p| p.map_coords_ref(f)).collect())
     }
 }
 
@@ -73,31 +107,40 @@ impl MapCoords for MultiPolygon {
 /// [`to_polygon`](Rect::to_polygon) first when the four edges must be mapped
 /// faithfully.
 impl MapCoords for Rect {
-    fn map_coords(&self, f: impl Fn(Coord) -> Coord + Copy) -> Self {
+    fn map_coords_ref<F>(&self, f: &F) -> Self
+    where
+        F: Fn(Coord) -> Coord,
+    {
         Rect::new(f(self.min()), f(self.max()))
     }
 }
 
 impl MapCoords for Triangle {
-    fn map_coords(&self, f: impl Fn(Coord) -> Coord + Copy) -> Self {
+    fn map_coords_ref<F>(&self, f: &F) -> Self
+    where
+        F: Fn(Coord) -> Coord,
+    {
         Triangle::new(f(self.0), f(self.1), f(self.2))
     }
 }
 
 impl MapCoords for Geometry {
-    fn map_coords(&self, f: impl Fn(Coord) -> Coord + Copy) -> Self {
+    fn map_coords_ref<F>(&self, f: &F) -> Self
+    where
+        F: Fn(Coord) -> Coord,
+    {
         match self {
-            Geometry::Point(p) => Geometry::Point(p.map_coords(f)),
-            Geometry::Line(l) => Geometry::Line(l.map_coords(f)),
-            Geometry::LineString(ls) => Geometry::LineString(ls.map_coords(f)),
-            Geometry::Polygon(p) => Geometry::Polygon(p.map_coords(f)),
-            Geometry::MultiPoint(mp) => Geometry::MultiPoint(mp.map_coords(f)),
-            Geometry::MultiLineString(mls) => Geometry::MultiLineString(mls.map_coords(f)),
-            Geometry::MultiPolygon(mp) => Geometry::MultiPolygon(mp.map_coords(f)),
-            Geometry::Rect(r) => Geometry::Rect(r.map_coords(f)),
-            Geometry::Triangle(t) => Geometry::Triangle(t.map_coords(f)),
+            Geometry::Point(p) => Geometry::Point(p.map_coords_ref(f)),
+            Geometry::Line(l) => Geometry::Line(l.map_coords_ref(f)),
+            Geometry::LineString(ls) => Geometry::LineString(ls.map_coords_ref(f)),
+            Geometry::Polygon(p) => Geometry::Polygon(p.map_coords_ref(f)),
+            Geometry::MultiPoint(mp) => Geometry::MultiPoint(mp.map_coords_ref(f)),
+            Geometry::MultiLineString(mls) => Geometry::MultiLineString(mls.map_coords_ref(f)),
+            Geometry::MultiPolygon(mp) => Geometry::MultiPolygon(mp.map_coords_ref(f)),
+            Geometry::Rect(r) => Geometry::Rect(r.map_coords_ref(f)),
+            Geometry::Triangle(t) => Geometry::Triangle(t.map_coords_ref(f)),
             Geometry::GeometryCollection(gs) => {
-                Geometry::GeometryCollection(gs.iter().map(|g| g.map_coords(f)).collect())
+                Geometry::GeometryCollection(gs.iter().map(|g| g.map_coords_ref(f)).collect())
             }
         }
     }
@@ -148,5 +191,20 @@ mod tests {
         let mapped = r.map_coords(|c| Coord::new(-c.x, -c.y));
         assert_eq!(mapped.min(), Coord::new(-2.0, -3.0));
         assert_eq!(mapped.max(), Coord::new(0.0, 0.0));
+    }
+
+    #[test]
+    fn map_coords_accepts_non_copy_closure() {
+        let captured = String::from("column-expression-context");
+        let transform = move |c: Coord| {
+            assert!(!captured.is_empty());
+            Coord::new(c.x + 10.0, c.y + 20.0)
+        };
+
+        let line = LineString::from(vec![(1.0, 2.0), (3.0, 4.0)]);
+        let mapped = line.map_coords(transform);
+
+        assert_eq!(mapped.0[0], Coord::new(11.0, 22.0));
+        assert_eq!(mapped.0[1], Coord::new(13.0, 24.0));
     }
 }

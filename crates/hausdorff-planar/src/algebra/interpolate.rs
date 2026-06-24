@@ -1,8 +1,8 @@
 //! Planar [`Interpolate`] instance — straight-line `lerp` on [`Coord`] (riemann
-//! `planarInterp`). The trait, the endpoint laws, and the generic `sample` /
-//! `midpoint` live upstream in [`hausdorff_geometry_traits`].
+//! `planarInterp`). The trait comes from `euclid` and is re-exported by
+//! [`hausdorff_traits`] alongside the generic `sample` helpers.
 
-use hausdorff_geometry_traits::Interpolate;
+use hausdorff_traits::Interpolate;
 
 use crate::space::r2::Coord;
 
@@ -14,12 +14,17 @@ impl Interpolate for Coord {
     fn lerp(self, q: Self, t: f64) -> Self {
         Coord::new(self.x + t * (q.x - self.x), self.y + t * (q.y - self.y))
     }
+
+    #[inline]
+    fn midpoint(self, q: Self) -> Self {
+        Coord::new(self.x + (q.x - self.x) * 0.5, self.y + (q.y - self.y) * 0.5)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hausdorff_geometry_traits::sample;
+    use hausdorff_traits::sample;
 
     #[test]
     fn coord_lerp_endpoints_and_midpoint() {
@@ -28,6 +33,7 @@ mod tests {
         assert_eq!(p.lerp(q, 0.0), p); // lerp_zero
         assert_eq!(p.lerp(q, 1.0), q); // lerp_one
         assert_eq!(p.midpoint(q), Coord::new(1.0, 2.0));
+        assert_eq!(Interpolate::midpoint(p, q), Coord::new(1.0, 2.0));
     }
 
     #[test]

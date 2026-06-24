@@ -14,30 +14,11 @@ hausdorff-planar = { workspace = true }
 hausdorff-sphere = { workspace = true }
 hausdorff-index = { workspace = true }
 hausdorff-earth = { workspace = true }
-hausdorff-format = { workspace = true }
-# Re-exported as `hausdorff::huygens` when the `profiling` feature is on so
-# callers can drive collection (set `ProfileMode`, open a `PerfReport` root).
-huygens = { workspace = true, optional = true }
+hausdorff-kernels = { workspace = true }
 
 [features]
-# In-process profiling: hierarchical span timing of the kernels via huygens.
-# Off by default and compile-time zero-cost when off; forwards to the
-# instrumented subcrates.
-profiling = ["dep:huygens", "hausdorff-planar/profiling"]
-
-[dev-dependencies]
-# The relocated tests/ integration suite names the typed LengthMeters returned
-# across the public API (e.g. RadialGrid construction).
-euclid = { workspace = true }
-# In-process benchmark harness (statistical per-call timing, TSC fast-clock)
-# for the kernel span-profile example.
-huygens = { workspace = true }
-
-# Hierarchical span profile of the instrumented kernels (needs the profiling
-# feature). Run: `cargo run --release --example profile_kernels --features profiling`.
-[[example]]
-name = "profile_kernels"
-required-features = ["profiling"]
+# Retained for feature compatibility. Internal span hooks are inert.
+profiling = ["hausdorff-planar/profiling"]
 
 [lints]
 workspace = true

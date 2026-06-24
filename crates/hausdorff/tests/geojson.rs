@@ -56,7 +56,11 @@ fn parses_golden_reference_geojson() {
         r#"{"type":"GeometryCollection","geometries":[{"type":"Point","coordinates":[-3.0,7.0]}]}"#,
     ];
     for (g, golden) in fixtures().into_iter().zip(GOLDEN) {
-        assert_eq!(from_geojson(golden).unwrap(), g, "native parse of `{golden}`");
+        assert_eq!(
+            from_geojson(golden).unwrap(),
+            g,
+            "native parse of `{golden}`"
+        );
         // And the native encoder still round-trips its own output.
         assert_eq!(from_geojson(&to_geojson(&g)).unwrap(), g);
     }

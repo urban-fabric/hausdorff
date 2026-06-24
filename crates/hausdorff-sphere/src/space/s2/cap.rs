@@ -227,6 +227,7 @@ fn normalize_lng(lng: f64) -> f64 {
 /// `Hausdorff/SphereCap.inCap_iff_dot`.
 impl PointRegion for Cap {
     type Point = S2Point;
+    type Boolean = bool;
 
     #[inline]
     fn contains(&self, p: S2Point) -> bool {

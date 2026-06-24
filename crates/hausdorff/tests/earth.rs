@@ -75,7 +75,6 @@ mod geodesic {
 }
 
 mod radial_grid {
-    use euclid::LengthMeters;
     use hausdorff::earth::*;
 
     fn approx(a: f64, b: f64, tol: f64) -> bool {
@@ -107,8 +106,8 @@ mod radial_grid {
             LengthMeters::new(100.0),
             4,
         );
-        assert!(approx(g.radius(0).as_meters(), 100.0, 1e-9));
-        assert!(approx(g.radius(2).as_meters(), 300.0, 1e-9));
+        assert!(approx(g.radius(0).value(), 100.0, 1e-9));
+        assert!(approx(g.radius(2).value(), 300.0, 1e-9));
         assert!(approx(g.bearing(0).degrees(), 0.0, 1e-9));
         assert!(approx(g.bearing(1).degrees(), 90.0, 1e-9));
         assert!(approx(g.bearing(2).degrees(), 180.0, 1e-9));
@@ -147,6 +146,23 @@ mod radial_grid {
     }
 
     #[test]
+    fn raw_points_keep_copy_radius_metadata() {
+        fn require_copy<T: Copy>(value: T) -> T {
+            value
+        }
+
+        let g = RadialGrid::new(
+            GeoPoint::from_lat_lon(0.0, 0.0),
+            1,
+            LengthMeters::new(100.0),
+            4,
+        );
+        let raw: RawRingPoint = require_copy(g.raw_ring_point(0, 0));
+        assert!(approx(raw.radius, 100.0, 1e-9));
+        assert!(approx(raw.with_unit_radius().radius.value(), 100.0, 1e-9));
+    }
+
+    #[test]
     fn cardinal_directions_point_the_right_way() {
         let center = GeoPoint::from_lat_lon(0.0, 0.0);
         let g = RadialGrid::new(center, 1, LengthMeters::new(1_000.0), 4);
@@ -167,11 +183,11 @@ mod radial_grid {
         for rp in g.points() {
             let d = haversine_m(center, rp.point);
             assert!(
-                approx(d, rp.radius.as_meters(), 0.5),
+                approx(d, rp.radius_m(), 0.5),
                 "ring {} spoke {}: {d} m vs nominal {} m",
                 rp.ring,
                 rp.spoke,
-                rp.radius.as_meters(),
+                rp.radius_m(),
             );
         }
     }
@@ -185,10 +201,10 @@ mod radial_grid {
             LengthMeters::new(100.0),
             8,
         );
-        assert!(approx(g.first_radius().as_meters(), 50.0, 1e-9));
-        assert!(approx(g.radius(0).as_meters(), 50.0, 1e-9));
-        assert!(approx(g.radius(1).as_meters(), 150.0, 1e-9));
-        assert!(approx(g.radius(2).as_meters(), 250.0, 1e-9));
+        assert!(approx(g.first_radius().value(), 50.0, 1e-9));
+        assert!(approx(g.radius(0).value(), 50.0, 1e-9));
+        assert!(approx(g.radius(1).value(), 150.0, 1e-9));
+        assert!(approx(g.radius(2).value(), 250.0, 1e-9));
     }
 
     #[test]
@@ -214,8 +230,8 @@ mod radial_grid {
             LengthMeters::new(100.0),
             8,
         );
-        assert!(approx(g.radius(0).as_meters(), 100.0, 1e-9));
-        assert!(approx(g.radius(2).as_meters(), 300.0, 1e-9));
+        assert!(approx(g.radius(0).value(), 100.0, 1e-9));
+        assert!(approx(g.radius(2).value(), 300.0, 1e-9));
     }
 
     #[test]
@@ -314,11 +330,11 @@ mod similarity {
         let a = [pt(0.0, 0.0), pt(0.0, 1.0)];
         let b = [pt(0.5, 0.5)];
         assert_eq!(
-            hausdorff_distance(&a, &b).expect("non-empty").as_meters(),
+            hausdorff_distance(&a, &b).expect("non-empty").value(),
             hausdorff_distance_m(&a, &b).expect("non-empty")
         );
         assert_eq!(
-            frechet_distance(&a, &b).expect("non-empty").as_meters(),
+            frechet_distance(&a, &b).expect("non-empty").value(),
             frechet_distance_m(&a, &b).expect("non-empty")
         );
     }

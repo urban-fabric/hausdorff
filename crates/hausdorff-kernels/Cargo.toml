@@ -1,0 +1,15 @@
+[package]
+name = "hausdorff-kernels"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Backend-neutral geospatial formula kernels over euclid numeric traits."
+
+[dependencies]
+euclid = { workspace = true }
+
+[lints]
+workspace = true

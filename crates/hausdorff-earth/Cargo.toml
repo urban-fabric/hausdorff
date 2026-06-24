@@ -10,6 +10,7 @@ description = "The integrated Earth layer: great-circle arcs over the S2 kernels
 
 [dependencies]
 hausdorff-base = { workspace = true }
+hausdorff-kernels = { workspace = true }
 hausdorff-planar = { workspace = true }
 hausdorff-sphere = { workspace = true }
 hausdorff-index = { workspace = true }

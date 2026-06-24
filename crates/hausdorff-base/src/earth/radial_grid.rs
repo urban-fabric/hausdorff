@@ -6,8 +6,7 @@
 //! grid is free and you only pay for the points you query.
 //!
 //! ```
-//! use euclid::LengthMeters;
-//! use hausdorff_base::earth::{GeoPoint, RadialGrid};
+//! use hausdorff_base::earth::{GeoPoint, LengthMeters, RadialGrid};
 //!
 //! // 15 rings, +100 m radius per ring, 32 points on each ring.
 //! let grid = RadialGrid::new(
@@ -25,22 +24,48 @@
 //! # let _ = (all, outer, p);
 //! ```
 
-use super::{Bearing, GeoPoint, destination_m};
-use euclid::LengthMeters;
+use super::{Bearing, GeoPoint, LengthMeters, destination_m};
 
 /// One sampled point on a [`RadialGrid`], carrying its polar coordinates.
+///
+/// The default `R = LengthMeters` form is the unit-bearing public shape. Use
+/// [`RawRingPoint`] / [`RadialGrid::raw_points`] when a `Copy` result is more
+/// useful than carrying the lazy unit wrapper.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct RingPoint {
+pub struct RingPoint<R = LengthMeters> {
     /// Ring index, 0-based; ring 0 is the innermost, at `first_radius` from the center.
     pub ring: u32,
     /// Spoke index, 0-based, increasing clockwise from the bearing offset.
     pub spoke: u32,
     /// Radius of this ring, measured from the center.
-    pub radius: LengthMeters,
+    pub radius: R,
     /// Compass bearing of this spoke (0 = North, clockwise).
     pub bearing: Bearing,
     /// The sampled geographic point.
     pub point: GeoPoint,
+}
+
+/// A `Copy` ring point whose radius is stored as raw metres.
+pub type RawRingPoint = RingPoint<f64>;
+
+impl RingPoint<f64> {
+    /// Add the metre unit wrapper to a raw ring point.
+    pub fn with_unit_radius(self) -> RingPoint {
+        RingPoint {
+            ring: self.ring,
+            spoke: self.spoke,
+            radius: LengthMeters::new(self.radius),
+            bearing: self.bearing,
+            point: self.point,
+        }
+    }
+}
+
+impl RingPoint<LengthMeters> {
+    /// Radius as raw metres.
+    pub fn radius_m(&self) -> f64 {
+        self.radius.value()
+    }
 }
 
 /// Concentric rings of equally-spaced sample points around a center point.
@@ -78,7 +103,15 @@ impl RadialGrid {
         step: LengthMeters,
         points_per_ring: u32,
     ) -> Self {
-        Self::linear(center, ring_count, step, step, points_per_ring)
+        let step_m = step.value();
+        Self {
+            center,
+            ring_count,
+            first_radius_m: step_m,
+            step_m,
+            points_per_ring,
+            bearing_offset_deg: 0.0,
+        }
     }
 
     /// Build a grid whose innermost ring sits at `first_radius` and whose
@@ -95,8 +128,8 @@ impl RadialGrid {
         Self {
             center,
             ring_count,
-            first_radius_m: first_radius.as_meters(),
-            step_m: step.as_meters(),
+            first_radius_m: first_radius.value(),
+            step_m: step.value(),
             points_per_ring,
             bearing_offset_deg: 0.0,
         }
@@ -105,7 +138,7 @@ impl RadialGrid {
     /// Override the innermost ring's radius, keeping the same `step` between
     /// rings (ring `r` at `first_radius + r * step`).
     pub fn with_first_radius(mut self, first_radius: LengthMeters) -> Self {
-        self.first_radius_m = first_radius.as_meters();
+        self.first_radius_m = first_radius.value();
         self
     }
 
@@ -171,19 +204,21 @@ impl RadialGrid {
     /// counts are not rejected — the polar formula is simply evaluated at the
     /// implied radius/bearing.
     pub fn point(&self, ring: u32, spoke: u32) -> GeoPoint {
-        destination_m(
-            self.center,
-            self.bearing(spoke),
-            self.radius(ring).as_meters(),
-        )
+        destination_m(self.center, self.bearing(spoke), self.radius(ring).value())
     }
 
     /// The full [`RingPoint`] (point plus polar metadata) at `(ring, spoke)`.
     pub fn ring_point(&self, ring: u32, spoke: u32) -> RingPoint {
-        RingPoint {
+        self.raw_ring_point(ring, spoke).with_unit_radius()
+    }
+
+    /// The full [`RawRingPoint`] (point plus polar metadata) at `(ring, spoke)`,
+    /// keeping the radius as raw metres so the result remains `Copy`.
+    pub fn raw_ring_point(&self, ring: u32, spoke: u32) -> RawRingPoint {
+        RawRingPoint {
             ring,
             spoke,
-            radius: self.radius(ring),
+            radius: self.first_radius_m + f64::from(ring) * self.step_m,
             bearing: self.bearing(spoke),
             point: self.point(ring, spoke),
         }
@@ -205,6 +240,14 @@ impl RadialGrid {
     pub fn points(&self) -> impl Iterator<Item = RingPoint> + '_ {
         (0..self.ring_count).flat_map(move |ring| {
             (0..self.points_per_ring).map(move |spoke| self.ring_point(ring, spoke))
+        })
+    }
+
+    /// Flat, ring-major iterator over every sample point with raw metre metadata.
+    /// This is the `Copy` counterpart to [`points`](Self::points).
+    pub fn raw_points(&self) -> impl Iterator<Item = RawRingPoint> + '_ {
+        (0..self.ring_count).flat_map(move |ring| {
+            (0..self.points_per_ring).map(move |spoke| self.raw_ring_point(ring, spoke))
         })
     }
 

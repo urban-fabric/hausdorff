@@ -1,11 +1,11 @@
-//! The `hausdorff.toml` tuning config: bundled defaults parse, partial overrides
-//! fill from defaults, and unknown keys are rejected.
+//! The tuning config: bundled defaults parse, partial overrides fill from
+//! defaults, and unknown keys are rejected.
 
 use hausdorff::config::{BundledConfig, Config, config};
 
 #[test]
 fn bundled_defaults_parse() {
-    let c = Config::bundled().expect("bundled hausdorff.toml must parse");
+    let c = Config::bundled().expect("bundled config must parse");
     assert_eq!(c.cost_model.min_distance.index_build_weight, 6.0);
     assert_eq!(c.cost_model.min_distance.index_query_weight, 6.0);
     assert_eq!(c.index.node_capacity, 16);

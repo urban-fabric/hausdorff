@@ -42,7 +42,13 @@ impl Tissot {
         let m12 = a * b + c * d;
         let m22 = b * b + d * d;
         Self {
-            indicatrix: ConfidenceEllipse::from_covariance(Coord::new(0.0, 0.0), m11, m12, m22, 1.0),
+            indicatrix: ConfidenceEllipse::from_covariance(
+                Coord::new(0.0, 0.0),
+                m11,
+                m12,
+                m22,
+                1.0,
+            ),
         }
     }
 
@@ -143,6 +149,10 @@ mod tests {
         assert!(t.is_equal_area(1e-9));
         assert!(!t.is_conformal(1e-9));
         // ω: sin(ω/2) = (2 − 0.5)/(2 + 0.5) = 0.6 ⇒ ω = 2·asin(0.6).
-        assert!(close(t.max_angular_distortion(), 2.0 * 0.6_f64.asin(), 1e-12));
+        assert!(close(
+            t.max_angular_distortion(),
+            2.0 * 0.6_f64.asin(),
+            1e-12
+        ));
     }
 }

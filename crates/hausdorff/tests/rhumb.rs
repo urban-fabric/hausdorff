@@ -6,10 +6,9 @@
 //! point-at-ratio, length = segment sum, and densify path-length preservation,
 //! plus a few golden absolute-scale anchors. No third-party geometry crate.
 
-use euclid::LengthMeters;
 use hausdorff::earth::{
-    Bearing as CompassBearing, GeoPoint, rhumb_bearing, rhumb_destination, rhumb_destination_m,
-    rhumb_distance_m, rhumb_distance_meters, rhumb_point_at_ratio,
+    Bearing as CompassBearing, GeoPoint, LengthMeters, rhumb_bearing, rhumb_destination,
+    rhumb_destination_m, rhumb_distance_m, rhumb_distance_meters, rhumb_point_at_ratio,
 };
 use hausdorff::{Bearing as _, Densify as _, Destination as _, Distance as _, Length as _};
 
@@ -62,7 +61,10 @@ fn sample_pairs() -> Vec<((f64, f64), (f64, f64))> {
 
 fn rel_close(ours: f64, want: f64, what: &str) {
     let scale = want.abs().max(1.0);
-    assert!((ours - want).abs() / scale < REL_EPS, "{what}: {ours} vs {want}");
+    assert!(
+        (ours - want).abs() / scale < REL_EPS,
+        "{what}: {ours} vs {want}"
+    );
 }
 fn deg_close(ours: f64, want: f64, what: &str) {
     let diff = ((ours - want + 540.0).rem_euclid(360.0) - 180.0).abs();
@@ -73,12 +75,20 @@ fn deg_close(ours: f64, want: f64, what: &str) {
 fn distance_absolute_and_analytic() {
     // Golden absolute anchors.
     rel_close(dist((0.0, 0.0), (90.0, 0.0)), EQ_QUARTER, "equator quarter");
-    rel_close(dist((0.0, 0.0), (0.0, 90.0)), EQ_QUARTER, "meridian quarter");
+    rel_close(
+        dist((0.0, 0.0), (0.0, 90.0)),
+        EQ_QUARTER,
+        "meridian quarter",
+    );
     rel_close(dist(NYC, LON), NYC_LON_DIST, "NYC→London");
 
     // Linear in Δlon along the equator.
     for d in [10.0, 30.0, 45.0, 120.0] {
-        rel_close(dist((0.0, 0.0), (d, 0.0)), EQ_QUARTER * d / 90.0, "equator linear");
+        rel_close(
+            dist((0.0, 0.0), (d, 0.0)),
+            EQ_QUARTER * d / 90.0,
+            "equator linear",
+        );
     }
     // East-west distance at latitude φ scales as cos φ.
     for lat in [15.0, 30.0, 45.0, 60.0] {
@@ -103,31 +113,65 @@ fn bearing_cardinals_and_anchor() {
 fn destination_round_trips_distance_and_bearing() {
     // Mid-latitude origins only: a due-north course from near a pole overshoots
     // it (a rhumb singularity), which is out of scope for the round-trip.
-    let origins = [(13.405, 52.52), (179.8, 10.0), (-179.9, -45.0), (0.0, 0.0), (-100.0, -33.0)];
-    let courses = [(0.0, 100_000.0), (45.0, 2_500_000.0), (90.0, 5_000_000.0), (215.0, 750.0), (359.0, 12_000.0)];
+    let origins = [
+        (13.405, 52.52),
+        (179.8, 10.0),
+        (-179.9, -45.0),
+        (0.0, 0.0),
+        (-100.0, -33.0),
+    ];
+    let courses = [
+        (0.0, 100_000.0),
+        (45.0, 2_500_000.0),
+        (90.0, 5_000_000.0),
+        (215.0, 750.0),
+        (359.0, 12_000.0),
+    ];
     for &(x, y) in &origins {
         for &(bearing, d) in &courses {
             let dest = rhumb_destination_m(gp(x, y), CompassBearing::from_degrees(bearing), d);
             rel_close(dist((x, y), (dest.lon, dest.lat)), d, "round-trip distance");
-            deg_close(brg((x, y), (dest.lon, dest.lat)), bearing, "round-trip bearing");
+            deg_close(
+                brg((x, y), (dest.lon, dest.lat)),
+                bearing,
+                "round-trip bearing",
+            );
         }
     }
     // Golden destination anchor.
-    let dest = rhumb_destination_m(gp(13.405, 52.52), CompassBearing::from_degrees(45.0), 2_500_000.0);
+    let dest = rhumb_destination_m(
+        gp(13.405, 52.52),
+        CompassBearing::from_degrees(45.0),
+        2_500_000.0,
+    );
     deg_close(dest.lon, 46.44157217795885, "dest lon");
-    assert!((dest.lat - 68.41788819121933).abs() < DEG_EPS, "dest lat {}", dest.lat);
+    assert!(
+        (dest.lat - 68.41788819121933).abs() < DEG_EPS,
+        "dest lat {}",
+        dest.lat
+    );
 }
 
 #[test]
 fn facade_and_typed_kernels_agree() {
     for &((x1, y1), (x2, y2)) in &sample_pairs() {
         let kernel = rhumb_distance_m(gp(x1, y1), gp(x2, y2));
-        let metric = hausdorff::Rhumb.distance(hausdorff::Point::new(x1, y1), hausdorff::Point::new(x2, y2));
+        let metric =
+            hausdorff::Rhumb.distance(hausdorff::Point::new(x1, y1), hausdorff::Point::new(x2, y2));
         rel_close(metric, kernel, "metric distance == kernel");
-        rel_close(rhumb_distance_meters(gp(x1, y1), gp(x2, y2)).as_meters(), kernel, "typed distance == kernel");
+        rel_close(
+            rhumb_distance_meters(gp(x1, y1), gp(x2, y2)).value(),
+            kernel,
+            "typed distance == kernel",
+        );
 
-        let metric_brg = hausdorff::Rhumb.bearing(hausdorff::Point::new(x1, y1), hausdorff::Point::new(x2, y2));
-        deg_close(metric_brg, brg((x1, y1), (x2, y2)), "metric bearing == kernel");
+        let metric_brg =
+            hausdorff::Rhumb.bearing(hausdorff::Point::new(x1, y1), hausdorff::Point::new(x2, y2));
+        deg_close(
+            metric_brg,
+            brg((x1, y1), (x2, y2)),
+            "metric bearing == kernel",
+        );
     }
     // destination: metric == _m == typed.
     let (o, bearing, d) = ((13.405, 52.52), 215.0, 750.0);
@@ -135,7 +179,11 @@ fn facade_and_typed_kernels_agree() {
     let metric = hausdorff::Rhumb.destination(hausdorff::Point::new(o.0, o.1), bearing, d);
     deg_close(metric.x(), km.lon, "dest metric lon");
     assert!((metric.y() - km.lat).abs() < DEG_EPS, "dest metric lat");
-    let typed = rhumb_destination(gp(o.0, o.1), CompassBearing::from_degrees(bearing), LengthMeters::new(d));
+    let typed = rhumb_destination(
+        gp(o.0, o.1),
+        CompassBearing::from_degrees(bearing),
+        LengthMeters::new(d),
+    );
     assert_eq!((typed.lat, typed.lon), (km.lat, km.lon), "typed == _m");
 }
 
@@ -154,8 +202,16 @@ fn point_at_ratio_is_proportional_and_collinear() {
         }
         for ratio in [0.1, 0.5, 0.9] {
             let p = rhumb_point_at_ratio(gp(x1, y1), gp(x2, y2), ratio);
-            rel_close(dist((x1, y1), (p.lon, p.lat)), ratio * total, "proportional distance");
-            deg_close(brg((x1, y1), (p.lon, p.lat)), brg((x1, y1), (x2, y2)), "collinear bearing");
+            rel_close(
+                dist((x1, y1), (p.lon, p.lat)),
+                ratio * total,
+                "proportional distance",
+            );
+            deg_close(
+                brg((x1, y1), (p.lon, p.lat)),
+                brg((x1, y1), (x2, y2)),
+                "collinear bearing",
+            );
         }
     }
 }
@@ -163,7 +219,12 @@ fn point_at_ratio_is_proportional_and_collinear() {
 fn fixture_lines() -> Vec<Vec<(f64, f64)>> {
     vec![
         vec![(13.405, 52.52), (2.3522, 48.8566), (-0.1278, 51.5074)],
-        vec![(170.0, -20.0), (179.5, -22.0), (-178.0, -23.5), (-160.0, -30.0)],
+        vec![
+            (170.0, -20.0),
+            (179.5, -22.0),
+            (-178.0, -23.5),
+            (-160.0, -30.0),
+        ],
         vec![(10.0, 45.0), (50.0, 45.0), (90.0, 45.0)],
         vec![(30.0, 88.0), (60.0, 89.0), (120.0, 89.5)],
         vec![(0.0, 0.0), (90.0, 0.0), (90.0, 45.0)],
@@ -194,12 +255,20 @@ fn densify_preserves_path_endpoints_and_caps_gaps() {
             assert!(pts.len() >= coords.len(), "densify never drops vertices");
             // Endpoints preserved.
             deg_close(pts[0].0, coords[0].0, "densify start lon");
-            deg_close(pts.last().unwrap().0, coords.last().unwrap().0, "densify end lon");
+            deg_close(
+                pts.last().unwrap().0,
+                coords.last().unwrap().0,
+                "densify end lon",
+            );
             // No gap exceeds max_dist, and the rhumb path length is unchanged.
             for w in pts.windows(2) {
                 assert!(dist(w[0], w[1]) <= max_dist + 1e-3, "gap exceeds max");
             }
-            rel_close(hausdorff::Rhumb.length(&dense), orig_len, "densify preserves length");
+            rel_close(
+                hausdorff::Rhumb.length(&dense),
+                orig_len,
+                "densify preserves length",
+            );
         }
     }
 }
@@ -220,5 +289,8 @@ fn euclidean_densify_caps_gaps_and_stays_collinear() {
     let seg_len = |a: (f64, f64), b: (f64, f64)| ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt();
     let orig: f64 = coords.windows(2).map(|w| seg_len(w[0], w[1])).sum();
     let dense_len: f64 = pts.windows(2).map(|w| seg_len(w[0], w[1])).sum();
-    assert!((orig - dense_len).abs() < 1e-9, "euclidean densify preserves length");
+    assert!(
+        (orig - dense_len).abs() < 1e-9,
+        "euclidean densify preserves length"
+    );
 }

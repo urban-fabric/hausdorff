@@ -1,0 +1,16 @@
+[package]
+name = "hausdorff-traits"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Abstract, proof-backed geometry traits (Orientation, VectorSpace, Simplex, Interpolate, PointRegion/Prunable) and the generic algorithms over them — the trait surface every hausdorff space implements for its own point/region types."
+
+[dependencies]
+# The lazy real-analysis foundation behind the local `Real` scalar trait.
+euclid = { workspace = true }
+
+[lints]
+workspace = true

@@ -121,15 +121,13 @@ fn sphere_is_planet_flexible() {
     use hausdorff::earth::sphere::Sphere;
     use hausdorff::space::s1::Angle;
 
-    assert!(
-        (Sphere::EARTH.length(Angle::from_radians(1.0)).as_meters() - EARTH_RADIUS_M).abs() < 1e-6
-    );
+    assert!((Sphere::EARTH.length(Angle::from_radians(1.0)).value() - EARTH_RADIUS_M).abs() < 1e-6);
     let full = Sphere::EARTH.area_m2(4.0 * PI);
     assert!((full - 4.0 * PI * EARTH_RADIUS_M * EARTH_RADIUS_M).abs() / full < 1e-12);
-    assert_eq!(Sphere::EARTH.area(4.0 * PI).as_square_meters(), full);
+    assert_eq!(Sphere::EARTH.area(4.0 * PI).value(), full);
     let a = Angle::from_degrees(1.0);
-    assert!(Sphere::MARS.radius().as_meters() < Sphere::EARTH.radius().as_meters());
-    assert!(Sphere::MARS.length(a).as_meters() < Sphere::EARTH.length(a).as_meters());
+    assert!(Sphere::MARS.radius().value() < Sphere::EARTH.radius().value());
+    assert!(Sphere::MARS.length(a).value() < Sphere::EARTH.length(a).value());
 }
 
 #[test]

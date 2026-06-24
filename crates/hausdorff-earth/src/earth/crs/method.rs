@@ -78,10 +78,11 @@ pub(super) fn projection_from_method(
                 false_northing: param("False northing").unwrap_or(0.0),
             })
         }
-        "popular visualisation pseudo mercator" | "mercator (variant a)"
-        | "mercator (variant b)" => {
-            ProjectionKind::WebMercator(WebMercator { radius: ellipsoid.a })
-        }
+        "popular visualisation pseudo mercator"
+        | "mercator (variant a)"
+        | "mercator (variant b)" => ProjectionKind::WebMercator(WebMercator {
+            radius: ellipsoid.a,
+        }),
         _ => return None,
     })
 }

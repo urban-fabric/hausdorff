@@ -83,7 +83,7 @@ pub struct GeometryIndex<P> {
     tree: StrTree<u32>,
 }
 
-impl<P: Copy> GeometryIndex<P> {
+impl<P> GeometryIndex<P> {
     /// Index `(geometry, payload)` items; geometries with no bounding box are
     /// dropped.
     pub fn build(items: impl IntoIterator<Item = (Geometry, P)>) -> Self {
@@ -126,7 +126,8 @@ impl<P: Copy> GeometryIndex<P> {
     #[must_use]
     pub fn join<Q, F>(&self, probe: &[(Geometry, Q)], predicate: F) -> Vec<(Q, P)>
     where
-        Q: Copy,
+        P: Clone,
+        Q: Clone,
         F: Fn(&Geometry, &Geometry) -> bool,
     {
         let mut out = Vec::new();
@@ -135,7 +136,7 @@ impl<P: Copy> GeometryIndex<P> {
                 self.tree.query_each(q, |_, &i| {
                     let e = &self.entries[i as usize];
                     if predicate(pgeom, &e.geom) {
-                        out.push((*pq, e.payload));
+                        out.push((pq.clone(), e.payload.clone()));
                     }
                 });
             }
@@ -157,8 +158,8 @@ pub fn nested_loop_join<P, Q, F>(
     predicate: F,
 ) -> Vec<(P, Q)>
 where
-    P: Copy,
-    Q: Copy,
+    P: Clone,
+    Q: Clone,
     F: Fn(&Geometry, &Geometry) -> bool,
 {
     let right_rects: Vec<Option<Rect>> = right.iter().map(|(g, _)| g.bounding_rect()).collect();
@@ -170,7 +171,7 @@ where
         for ((rg, rq), rb) in right.iter().zip(&right_rects) {
             let Some(rb) = rb else { continue };
             if la.intersects(rb) && predicate(lg, rg) {
-                out.push((*lp, *rq));
+                out.push((lp.clone(), rq.clone()));
             }
         }
     }
@@ -217,5 +218,26 @@ mod payload_join_tests {
         nested.sort_unstable();
         assert_eq!(indexed, nested);
         assert_eq!(indexed, vec![(1, 10), (1, 30)]);
+    }
+
+    #[test]
+    fn payload_joins_accept_clone_only_payloads() {
+        let build = vec![
+            (square(0.0, 0.0), String::from("a")),
+            (square(5.0, 5.0), String::from("b")),
+        ];
+        let probe = vec![(
+            Geometry::Point(Point(Coord::new(0.4, 0.4))),
+            String::from("probe"),
+        )];
+        let pred =
+            |a: &Geometry, b: &Geometry| crate::space::r2::SpatialPredicate::Intersects.eval(a, b);
+
+        let idx = GeometryIndex::build(build.clone());
+        let indexed = idx.join(&probe, pred);
+        let nested = nested_loop_join(&probe, &build, pred);
+
+        assert_eq!(indexed, vec![(String::from("probe"), String::from("a"))]);
+        assert_eq!(indexed, nested);
     }
 }

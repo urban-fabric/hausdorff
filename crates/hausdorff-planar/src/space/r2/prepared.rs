@@ -269,8 +269,13 @@ mod tests {
             (-2.0, -1.0),
         ]);
         let prep = PreparedGeometry::new(&hex);
-        assert!(prep.convex.is_some(), "convex hexagon should take the fast path");
-        let Geometry::Polygon(p) = &hex else { unreachable!() };
+        assert!(
+            prep.convex.is_some(),
+            "convex hexagon should take the fast path"
+        );
+        let Geometry::Polygon(p) = &hex else {
+            unreachable!()
+        };
         // Clearly-interior points: fast path and the one-shot even-odd agree (true).
         for c in [
             Coord::new(0.0, 0.0),
@@ -325,8 +330,14 @@ mod tests {
         ]);
         let prep = PreparedGeometry::new(&l);
         assert!(prep.convex.is_none(), "L-shape is concave");
-        let Geometry::Polygon(p) = &l else { unreachable!() };
-        for c in [Coord::new(1.0, 5.0), Coord::new(5.0, 5.0), Coord::new(1.0, 1.0)] {
+        let Geometry::Polygon(p) = &l else {
+            unreachable!()
+        };
+        for c in [
+            Coord::new(1.0, 5.0),
+            Coord::new(5.0, 5.0),
+            Coord::new(1.0, 1.0),
+        ] {
             assert_eq!(prep.contains_point(c), p.contains(&c), "mismatch at {c:?}");
         }
 

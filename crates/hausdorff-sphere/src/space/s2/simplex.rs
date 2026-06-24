@@ -69,7 +69,11 @@ impl SphereTriangle {
             return None; // degenerate — chords are parallel (a coincident pair)
         }
         // Orient to the triangle's side so the circumscribed cap is the minor cap.
-        let pole = if pole.dot(va) >= 0.0 { pole } else { pole.mul(-1.0) };
+        let pole = if pole.dot(va) >= 0.0 {
+            pole
+        } else {
+            pole.mul(-1.0)
+        };
         Some(S2Point::from_direction(pole))
     }
 
@@ -94,7 +98,7 @@ impl Simplex for SphereTriangle {
     /// `sphereInTriangle`: `whole = orient(a, b, c)` (the spherical triple
     /// product); each part swaps `p` into one vertex (riemann
     /// `Hausdorff/SphereOrientation.sphereInTriangle_iff`).
-    fn barycentric(&self, p: S2Point) -> Barycentric {
+    fn barycentric(&self, p: S2Point) -> Barycentric<Self::Scalar> {
         let SphereTriangle(a, b, c) = *self;
         Barycentric {
             whole: S2Point::orient(a, b, c),

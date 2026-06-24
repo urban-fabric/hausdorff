@@ -126,16 +126,14 @@ impl Sphere {
     /// [`distance_to_arc_m`](Self::distance_to_arc_m).
     #[must_use]
     pub fn cross_track_m(self, p: GeoPoint, a: GeoPoint, b: GeoPoint) -> f64 {
-        self.length(s2arc::cross_track(sp(p), sp(a), sp(b)))
-            .as_meters()
+        self.length(s2arc::cross_track(sp(p), sp(a), sp(b))).value()
     }
 
     /// Signed along-track distance: how far along the arc direction (from
     /// `a`, positive toward `b`) the perpendicular foot of `p` falls.
     #[must_use]
     pub fn along_track_m(self, p: GeoPoint, a: GeoPoint, b: GeoPoint) -> f64 {
-        self.length(s2arc::along_track(sp(p), sp(a), sp(b)))
-            .as_meters()
+        self.length(s2arc::along_track(sp(p), sp(a), sp(b))).value()
     }
 
     /// Distance from `p` to the arc **segment** `a → b` (perpendicular foot,
@@ -144,7 +142,7 @@ impl Sphere {
     #[must_use]
     pub fn distance_to_arc_m(self, p: GeoPoint, a: GeoPoint, b: GeoPoint) -> f64 {
         self.length(s2arc::distance_to_arc(sp(p), sp(a), sp(b)))
-            .as_meters()
+            .value()
     }
 }
 

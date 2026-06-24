@@ -24,6 +24,10 @@
 
 use crate::earth::GeoPoint;
 use hausdorff_base::earth::{Enu, EnuFrame};
+use hausdorff_kernels::projection::{
+    KrugerSeries, transverse_mercator_forward, transverse_mercator_inverse, web_mercator_forward,
+    web_mercator_inverse,
+};
 use hausdorff_planar::space::r2::{Coord, MapCoords};
 
 pub use crate::earth::ellipsoid::Ellipsoid;
@@ -103,18 +107,16 @@ impl Projection for WebMercator {
     fn project(&self, p: GeoPoint) -> Coord {
         // y = R·ψ(φ), ψ the isometric latitude `log((1 + sinφ)/cosφ)` — the
         // exact spherical-Mercator form, `riemann` `Hausdorff/Rhumb.isoLat`.
-        let (s, c) = p.lat.to_radians().sin_cos();
-        Coord::new(self.radius * p.lon.to_radians(), self.radius * ((1.0 + s) / c).ln())
+        let (x, y) = web_mercator_forward(p.lat, p.lon, self.radius);
+        Coord::new(x, y)
     }
 
     fn inverse(&self, c: Coord) -> GeoPoint {
         // φ = arcsin(tanh(y/R)) — the **provably exact** inverse (`riemann`
         // `Hausdorff/Mercator.mercator_inverse`: forward∘inverse = id), since
         // `tanh(ψ(φ)) = sinφ` (`Rhumb.tanh_isoLat`).
-        GeoPoint::from_lat_lon(
-            (c.y / self.radius).tanh().asin().to_degrees(),
-            (c.x / self.radius).to_degrees(),
-        )
+        let (lat, lon) = web_mercator_inverse(c.x, c.y, self.radius);
+        GeoPoint::from_lat_lon(lat, lon)
     }
 }
 
@@ -177,124 +179,40 @@ impl TransverseMercator {
     }
 }
 
-impl Projection for TransverseMercator {
-    fn project(&self, p: GeoPoint) -> Coord {
-        let ks = self.kruger();
-        // Conformal latitude (as its tangent τ′), then the Gauss–Schreiber
-        // intermediate (ξ′, η′) about the central meridian.
-        let lam = (p.lon - self.central_meridian).to_radians();
-        let (slam, clam) = lam.sin_cos();
-        let taup = taupf(p.lat.to_radians().tan(), ks.e);
-        let xip = taup.atan2(clam);
-        let etap = (slam / taup.hypot(clam)).asinh();
-        // Krüger series ξ′,η′ → ξ,η.
-        let (mut xi, mut eta) = (xip, etap);
-        for (j, &a_j) in ks.alpha.iter().enumerate() {
-            let two_j = 2.0 * (j as f64 + 1.0);
-            xi += a_j * (two_j * xip).sin() * (two_j * etap).cosh();
-            eta += a_j * (two_j * xip).cos() * (two_j * etap).sinh();
-        }
-        let scale = self.k0 * ks.a_rect;
-        Coord::new(
-            self.false_easting + scale * eta,
-            self.false_northing + scale * (xi - ks.xi_origin(self.lat_origin)),
-        )
-    }
-
-    fn inverse(&self, coord: Coord) -> GeoPoint {
-        let ks = self.kruger();
-        let scale = self.k0 * ks.a_rect;
-        let xi = ks.xi_origin(self.lat_origin) + (coord.y - self.false_northing) / scale;
-        let eta = (coord.x - self.false_easting) / scale;
-        // Krüger series ξ,η → ξ′,η′.
-        let (mut xip, mut etap) = (xi, eta);
-        for (j, &b_j) in ks.beta.iter().enumerate() {
-            let two_j = 2.0 * (j as f64 + 1.0);
-            xip -= b_j * (two_j * xi).sin() * (two_j * eta).cosh();
-            etap -= b_j * (two_j * xi).cos() * (two_j * eta).sinh();
-        }
-        // Invert the Gauss–Schreiber step: recover λ and the conformal latitude
-        // (as τ′), then the geodetic latitude via `tauf`.
-        let (sxip, cxip) = xip.sin_cos();
-        let sinh_etap = etap.sinh();
-        let lam = sinh_etap.atan2(cxip);
-        let taup = sxip / sinh_etap.hypot(cxip);
-        let lat = tauf(taup, ks.e).atan();
-        GeoPoint::from_lat_lon(
-            lat.to_degrees(),
-            self.central_meridian + lam.to_degrees(),
-        )
-    }
-}
-
-/// Karney–Krüger Transverse Mercator series constants for one ellipsoid: the
-/// rectifying radius `A`, the forward (`α`) and inverse (`β`) coefficient sets
-/// (order `n⁶`), and the eccentricity `e`. Depend only on the ellipsoid.
-struct KrugerSeries {
-    /// Rectifying radius `A = a/(1+n)·(1 + n²/4 + n⁴/64 + n⁶/256)`.
-    a_rect: f64,
-    /// Forward coefficients α₁..α₆.
-    alpha: [f64; 6],
-    /// Inverse coefficients β₁..β₆.
-    beta: [f64; 6],
-    /// First eccentricity.
-    e: f64,
-}
-
-impl KrugerSeries {
-    /// ξ at the natural origin (latitude `lat_origin`, on the central meridian) —
-    /// the rectifying-latitude offset subtracted so northings are measured from
-    /// the origin parallel. At λ = 0 the Gauss–Schreiber η′ is 0.
-    fn xi_origin(&self, lat_origin: f64) -> f64 {
-        if lat_origin == 0.0 {
-            return 0.0;
-        }
-        let xip = taupf(lat_origin.to_radians().tan(), self.e).atan();
-        let mut xi = xip;
-        for (j, &a_j) in self.alpha.iter().enumerate() {
-            xi += a_j * (2.0 * (j as f64 + 1.0) * xip).sin();
-        }
-        xi
-    }
-}
-
 impl TransverseMercator {
     /// The Karney–Krüger series constants for this projection's ellipsoid.
     fn kruger(&self) -> KrugerSeries {
-        let f = self.ellipsoid.f;
-        let n = f / (2.0 - f); // third flattening
-        let (n2, n3, n4, n5, n6) = (n * n, n * n * n, n.powi(4), n.powi(5), n.powi(6));
-        let a_rect =
-            self.ellipsoid.a / (1.0 + n) * (1.0 + n2 / 4.0 + n4 / 64.0 + n6 / 256.0);
-        // Krüger forward (α) and inverse (β) coefficients, order n⁶ (Karney 2011).
-        let alpha = [
-            n / 2.0 - 2.0 / 3.0 * n2 + 5.0 / 16.0 * n3 + 41.0 / 180.0 * n4
-                - 127.0 / 288.0 * n5
-                + 7891.0 / 37800.0 * n6,
-            13.0 / 48.0 * n2 - 3.0 / 5.0 * n3 + 557.0 / 1440.0 * n4 + 281.0 / 630.0 * n5
-                - 1_983_433.0 / 1_935_360.0 * n6,
-            61.0 / 240.0 * n3 - 103.0 / 140.0 * n4 + 15_061.0 / 26_880.0 * n5
-                + 167_603.0 / 181_440.0 * n6,
-            49_561.0 / 161_280.0 * n4 - 179.0 / 168.0 * n5 + 6_601_661.0 / 7_257_600.0 * n6,
-            34_729.0 / 80_640.0 * n5 - 3_418_889.0 / 1_995_840.0 * n6,
-            212_378_941.0 / 319_334_400.0 * n6,
-        ];
-        let beta = [
-            n / 2.0 - 2.0 / 3.0 * n2 + 37.0 / 96.0 * n3 - 1.0 / 360.0 * n4 - 81.0 / 512.0 * n5
-                + 96_199.0 / 604_800.0 * n6,
-            1.0 / 48.0 * n2 + 1.0 / 15.0 * n3 - 437.0 / 1440.0 * n4 + 46.0 / 105.0 * n5
-                - 1_118_711.0 / 3_870_720.0 * n6,
-            17.0 / 480.0 * n3 - 37.0 / 840.0 * n4 - 209.0 / 4480.0 * n5 + 5569.0 / 90_720.0 * n6,
-            4397.0 / 161_280.0 * n4 - 11.0 / 504.0 * n5 - 830_251.0 / 7_257_600.0 * n6,
-            4583.0 / 161_280.0 * n5 - 108_847.0 / 3_991_680.0 * n6,
-            20_648_693.0 / 638_668_800.0 * n6,
-        ];
-        KrugerSeries {
-            a_rect,
-            alpha,
-            beta,
-            e: self.ellipsoid.e2().sqrt(),
-        }
+        KrugerSeries::for_ellipsoid(self.ellipsoid.a, self.ellipsoid.f)
+    }
+}
+
+impl Projection for TransverseMercator {
+    fn project(&self, p: GeoPoint) -> Coord {
+        let (e, n) = transverse_mercator_forward(
+            p.lat,
+            p.lon,
+            self.central_meridian,
+            self.lat_origin,
+            self.k0,
+            self.false_easting,
+            self.false_northing,
+            &self.kruger(),
+        );
+        Coord::new(e, n)
+    }
+
+    fn inverse(&self, coord: Coord) -> GeoPoint {
+        let (lat, lon) = transverse_mercator_inverse(
+            coord.x,
+            coord.y,
+            self.central_meridian,
+            self.lat_origin,
+            self.k0,
+            self.false_easting,
+            self.false_northing,
+            &self.kruger(),
+        );
+        GeoPoint::from_lat_lon(lat, lon)
     }
 }
 
@@ -351,38 +269,14 @@ impl Utm {
 // are imported by [`families`] / used through the `Ellipsoid` methods here.
 
 /// `m = cosφ / √(1 − e² sin²φ)` (Snyder 14-15) — the radius of the parallel
-/// scaled to the unit sphere; the prime-vertical-radius factor.
+/// scaled to the unit sphere; the prime-vertical-radius factor. A thin `f64`
+/// wrapper over the generic [`hausdorff_kernels::projection::m_factor`]: the
+/// conformal/equal-area auxiliary-latitude kernels (`taupf`/`tauf`,
+/// `conformal_t`/`authalic_q`, the projection families) all now live in
+/// [`hausdorff_kernels::projection`], generic over any
+/// [`euclid::numeric::Real`], so they run on `f64`, `f32`, and tensors alike.
 fn m_factor(phi: f64, e: f64) -> f64 {
-    let s = phi.sin();
-    phi.cos() / (1.0 - e * e * s * s).sqrt()
-}
-
-/// `tan χ` from `tan φ`: the tangent of the **conformal latitude** χ given the
-/// tangent of the geodetic latitude φ, on an ellipsoid of eccentricity `e`
-/// (Karney 2011 `taupf`). The exact closed form (no series).
-fn taupf(tau: f64, e: f64) -> f64 {
-    let tau1 = tau.hypot(1.0);
-    let sig = (e * (e * tau / tau1).atanh()).sinh();
-    sig.hypot(1.0) * tau - sig * tau1
-}
-
-/// The inverse of [`taupf`]: `tan φ` from `tan χ`, by Newton's method (Karney
-/// 2011 `tauf`) — a handful of iterations to full `f64` precision.
-fn tauf(taup: f64, e: f64) -> f64 {
-    let e2m = 1.0 - e * e; // 1 − e²
-    let mut tau = taup / e2m; // initial guess
-    let tol = f64::EPSILON.sqrt() / 10.0;
-    let stol = tol * taup.abs().max(1.0);
-    for _ in 0..5 {
-        let taupa = taupf(tau, e);
-        let dtau = (taup - taupa) * (1.0 + e2m * tau * tau)
-            / (e2m * tau.hypot(1.0) * taupa.hypot(1.0));
-        tau += dtau;
-        if dtau.abs() < stol {
-            break;
-        }
-    }
-    tau
+    hausdorff_kernels::projection::m_factor(phi, e)
 }
 
 /// A **conformal** (angle-preserving) projection — a property defined through the
@@ -415,7 +309,6 @@ impl ConformalProjection for WebMercator {
     }
 }
 
-
 /// An **equal-area** (area-preserving) projection — the property, defined through
 /// the trait, that every region maps to a region of *proportional* area (a
 /// constant area scale). It is the conjugate of conformality: an equal-area map
@@ -430,4 +323,3 @@ pub trait EqualAreaProjection: Projection {
 }
 
 impl EqualAreaProjection for AlbersEqualArea {}
-

@@ -80,8 +80,10 @@ impl LengthMetric {
         if value <= 0.0 {
             return MAX_LEVEL;
         }
-        let mut level =
-            (self.deriv / value).log2().ceil().clamp(0.0, f64::from(MAX_LEVEL)) as u32;
+        let mut level = (self.deriv / value)
+            .log2()
+            .ceil()
+            .clamp(0.0, f64::from(MAX_LEVEL)) as u32;
         while level > 0 && self.value(level - 1) <= value {
             level -= 1;
         }
@@ -99,8 +101,10 @@ impl LengthMetric {
         if value <= 0.0 {
             return MAX_LEVEL;
         }
-        let mut level =
-            (self.deriv / value).log2().floor().clamp(0.0, f64::from(MAX_LEVEL)) as u32;
+        let mut level = (self.deriv / value)
+            .log2()
+            .floor()
+            .clamp(0.0, f64::from(MAX_LEVEL)) as u32;
         while level < MAX_LEVEL && self.value(level + 1) >= value {
             level += 1;
         }
@@ -210,7 +214,10 @@ mod tests {
         assert_eq!(MIN_WIDTH.get_max_level(100.0), 0);
         // AVG_EDGE is coarser (longer) than MIN_WIDTH at every level.
         for level in 0..=MAX_LEVEL {
-            assert!(AVG_EDGE.value(level) > MIN_WIDTH.value(level), "level {level}");
+            assert!(
+                AVG_EDGE.value(level) > MIN_WIDTH.value(level),
+                "level {level}"
+            );
         }
     }
 }

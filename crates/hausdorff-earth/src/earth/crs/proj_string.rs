@@ -42,7 +42,9 @@ impl Crs {
         let p = ProjParams::parse(s);
         // `+init=epsg:NNNN` — defer to the registry (and keep the code).
         if let Some(init) = p.get("init") {
-            let code = init.strip_prefix("epsg:").or_else(|| init.strip_prefix("EPSG:"))?;
+            let code = init
+                .strip_prefix("epsg:")
+                .or_else(|| init.strip_prefix("EPSG:"))?;
             return Crs::from_epsg(code.parse().ok()?);
         }
         let datum = p.datum()?;
@@ -83,15 +85,17 @@ impl Crs {
             })),
             "lcc" => {
                 let lat1 = p.f("lat_1")?;
-                projected(ProjectionKind::LambertConformalConic(LambertConformalConic {
-                    ellipsoid: ell,
-                    lat1,
-                    lat2: p.f("lat_2").unwrap_or(lat1),
-                    lat0: p.f("lat_0").unwrap_or(lat1),
-                    lon0: p.f("lon_0").unwrap_or(0.0),
-                    false_easting: p.f("x_0").unwrap_or(0.0),
-                    false_northing: p.f("y_0").unwrap_or(0.0),
-                }))
+                projected(ProjectionKind::LambertConformalConic(
+                    LambertConformalConic {
+                        ellipsoid: ell,
+                        lat1,
+                        lat2: p.f("lat_2").unwrap_or(lat1),
+                        lat0: p.f("lat_0").unwrap_or(lat1),
+                        lon0: p.f("lon_0").unwrap_or(0.0),
+                        false_easting: p.f("x_0").unwrap_or(0.0),
+                        false_northing: p.f("y_0").unwrap_or(0.0),
+                    },
+                ))
             }
             "aea" => projected(ProjectionKind::AlbersEqualArea(AlbersEqualArea {
                 ellipsoid: ell,
@@ -136,7 +140,10 @@ impl Crs {
                 datum, projection, ..
             } => match projection {
                 ProjectionKind::WebMercator(m) => {
-                    format!("+proj=merc +a={} +b={} +lat_ts=0 +lon_0=0", m.radius, m.radius)
+                    format!(
+                        "+proj=merc +a={} +b={} +lat_ts=0 +lon_0=0",
+                        m.radius, m.radius
+                    )
                 }
                 ProjectionKind::TransverseMercator(m) => format!(
                     "+proj=tmerc +lat_0={} +lon_0={} +k={} +x_0={} +y_0={} {}",
@@ -149,12 +156,22 @@ impl Crs {
                 ),
                 ProjectionKind::LambertConformalConic(m) => format!(
                     "+proj=lcc +lat_0={} +lon_0={} +lat_1={} +lat_2={} +x_0={} +y_0={} {}",
-                    m.lat0, m.lon0, m.lat1, m.lat2, m.false_easting, m.false_northing,
+                    m.lat0,
+                    m.lon0,
+                    m.lat1,
+                    m.lat2,
+                    m.false_easting,
+                    m.false_northing,
                     proj_datum(datum),
                 ),
                 ProjectionKind::AlbersEqualArea(m) => format!(
                     "+proj=aea +lat_0={} +lon_0={} +lat_1={} +lat_2={} +x_0={} +y_0={} {}",
-                    m.lat0, m.lon0, m.lat1, m.lat2, m.false_easting, m.false_northing,
+                    m.lat0,
+                    m.lon0,
+                    m.lat1,
+                    m.lat2,
+                    m.false_easting,
+                    m.false_northing,
                     proj_datum(datum),
                 ),
                 ProjectionKind::PolarStereographic(m) => format!(
@@ -225,7 +242,10 @@ impl<'a> ProjParams<'a> {
 
     /// The value of `+key=value`, or `None` if absent or a bare flag.
     fn get(&self, key: &str) -> Option<&'a str> {
-        self.items.iter().find(|(k, _)| *k == key).and_then(|(_, v)| *v)
+        self.items
+            .iter()
+            .find(|(k, _)| *k == key)
+            .and_then(|(_, v)| *v)
     }
 
     /// Whether a bare `+key` flag (e.g. `+south`) is present.
@@ -261,7 +281,10 @@ impl<'a> ProjParams<'a> {
             Some(h) => DatumShift::Helmert(h),
             None => DatumShift::Helmert(Helmert::IDENTITY),
         };
-        Some(Datum { ellipsoid, to_wgs84 })
+        Some(Datum {
+            ellipsoid,
+            to_wgs84,
+        })
     }
 
     /// Resolve the reference ellipsoid from `+ellps`, or an explicit

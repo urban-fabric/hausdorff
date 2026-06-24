@@ -241,7 +241,9 @@ impl Datum {
     pub fn ed50() -> Datum {
         Datum {
             ellipsoid: intl1924(),
-            to_wgs84: DatumShift::Helmert(Helmert::bursa_wolf(-87.0, -98.0, -121.0, 0.0, 0.0, 0.0, 0.0)),
+            to_wgs84: DatumShift::Helmert(Helmert::bursa_wolf(
+                -87.0, -98.0, -121.0, 0.0, 0.0, 0.0, 0.0,
+            )),
         }
     }
 
@@ -251,7 +253,9 @@ impl Datum {
     pub fn nad27() -> Datum {
         Datum {
             ellipsoid: clarke1866(),
-            to_wgs84: DatumShift::Helmert(Helmert::bursa_wolf(-8.0, 160.0, 176.0, 0.0, 0.0, 0.0, 0.0)),
+            to_wgs84: DatumShift::Helmert(Helmert::bursa_wolf(
+                -8.0, 160.0, 176.0, 0.0, 0.0, 0.0, 0.0,
+            )),
         }
     }
 }
@@ -260,7 +264,13 @@ impl Datum {
 /// [`ellipsoid_by_proj_name`]), or `None` if it is not one of the named set.
 pub(super) fn proj_name_of_ellipsoid(e: Ellipsoid) -> Option<&'static str> {
     [
-        "WGS84", "GRS80", "airy", "intl", "clrk66", "bessel", "clrk80ign",
+        "WGS84",
+        "GRS80",
+        "airy",
+        "intl",
+        "clrk66",
+        "bessel",
+        "clrk80ign",
     ]
     .into_iter()
     .find(|&n| ellipsoid_by_proj_name(n) == Some(e))
