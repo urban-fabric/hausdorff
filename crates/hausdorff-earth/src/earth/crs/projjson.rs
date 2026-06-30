@@ -74,15 +74,16 @@ impl Crs {
                 } else {
                     format!("{AXIS_LAT},{AXIS_LON}")
                 };
+                let (name, dname, ename) = geographic_names(epsg);
                 format!(
-                    r#"{{"type":"GeographicCRS","name":"geographic","datum":{},"coordinate_system":{{"subtype":"ellipsoidal","axis":[{axes}]}}{}}}"#,
-                    datum_json(datum),
+                    r#"{{"type":"GeographicCRS","name":"{name}","datum":{},"coordinate_system":{{"subtype":"ellipsoidal","axis":[{axes}]}}{}}}"#,
+                    datum_json(datum, dname, ename),
                     id_json(epsg)
                 )
             }
             Crs::Geocentric { datum, epsg } => format!(
                 r#"{{"type":"GeodeticCRS","name":"geocentric","datum":{},"coordinate_system":{{"subtype":"Cartesian","axis":[{AXIS_X},{AXIS_Y},{AXIS_Z}]}}{}}}"#,
-                datum_json(datum),
+                datum_json(datum, "datum", "ellipsoid"),
                 id_json(epsg)
             ),
             Crs::Projected {
@@ -92,7 +93,7 @@ impl Crs {
             } => {
                 let base = format!(
                     r#"{{"type":"GeographicCRS","name":"base","datum":{},"coordinate_system":{{"subtype":"ellipsoidal","axis":[{AXIS_LAT},{AXIS_LON}]}}{}}}"#,
-                    datum_json(datum),
+                    datum_json(datum, "datum", "ellipsoid"),
                     id_json(datum::base_geographic_code(datum))
                 );
                 format!(
@@ -102,6 +103,15 @@ impl Crs {
                 )
             }
         }
+    }
+
+    /// PROJJSON for a standard EPSG `code` (`None` if the registry does not model
+    /// it) — convenience over [`from_epsg`](Self::from_epsg) +
+    /// [`to_projjson`](Self::to_projjson). Geometry producers (e.g. a GeoParquet
+    /// writer) name a CRS by code rather than hand-authoring the document.
+    #[must_use]
+    pub fn projjson_from_epsg(code: u32) -> Option<String> {
+        Some(Crs::from_epsg(code)?.to_projjson())
     }
 }
 
@@ -121,8 +131,10 @@ const AXIS_Z: &str =
 const AXIS_E: &str = r#"{"name":"Easting","abbreviation":"E","direction":"east","unit":"metre"}"#;
 const AXIS_N: &str = r#"{"name":"Northing","abbreviation":"N","direction":"north","unit":"metre"}"#;
 
-/// `{"type":"GeodeticReferenceFrame","name":"datum","ellipsoid":{…}}`.
-fn datum_json(d: Datum) -> String {
+/// `{"type":"GeodeticReferenceFrame","name":<name>,"ellipsoid":{"name":<ell>,…}}`.
+/// `name`/`ell_name` are the human-readable datum/ellipsoid names; pass the generic
+/// `"datum"`/`"ellipsoid"` placeholders when none is known.
+fn datum_json(d: Datum, name: &str, ell_name: &str) -> String {
     let e = d.ellipsoid;
     let shape = if e.f == 0.0 {
         format!(r#""semi_major_axis":{},"semi_minor_axis":{}"#, e.a, e.a)
@@ -134,8 +146,25 @@ fn datum_json(d: Datum) -> String {
         )
     };
     format!(
-        r#"{{"type":"GeodeticReferenceFrame","name":"datum","ellipsoid":{{"name":"ellipsoid",{shape}}}}}"#
+        r#"{{"type":"GeodeticReferenceFrame","name":"{name}","ellipsoid":{{"name":"{ell_name}",{shape}}}}}"#
     )
+}
+
+/// Human-readable `(crs, datum, ellipsoid)` names for well-known geographic EPSG
+/// codes, so emitted PROJJSON carries real names (`"NAD83"`, …) rather than the
+/// generic placeholders. Unknown codes fall back to the placeholders; readers key
+/// on the EPSG `id` regardless, so this only improves legibility.
+fn geographic_names(epsg: Option<u32>) -> (&'static str, &'static str, &'static str) {
+    match epsg {
+        Some(4326) => ("WGS 84", "World Geodetic System 1984", "WGS 84"),
+        Some(4269) => ("NAD83", "North American Datum 1983", "GRS 1980"),
+        Some(4258) => (
+            "ETRS89",
+            "European Terrestrial Reference System 1989",
+            "GRS 1980",
+        ),
+        _ => ("geographic", "datum", "ellipsoid"),
+    }
 }
 
 /// `,"id":{"authority":"EPSG","code":code}` or empty.

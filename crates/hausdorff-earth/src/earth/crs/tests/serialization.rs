@@ -327,6 +327,24 @@ fn projjson_round_trips_and_parses() {
 }
 
 #[test]
+fn projjson_from_epsg_carries_names_id_and_round_trips() {
+    // NAD83 (TIGER's datum): the wrapper yields PROJJSON with the real names, the
+    // correct GRS 1980 ellipsoid, and the EPSG id readers key on.
+    let json = Crs::projjson_from_epsg(4269).expect("4269 is in the registry");
+    assert!(json.contains(r#""name":"NAD83""#), "{json}");
+    assert!(json.contains(r#""name":"North American Datum 1983""#), "{json}");
+    assert!(json.contains(r#""name":"GRS 1980""#), "{json}");
+    assert!(json.contains(r#""inverse_flattening":298.257222101"#), "{json}");
+    assert!(json.contains(r#""id":{"authority":"EPSG","code":4269}"#), "{json}");
+    // Names are cosmetic — it still round-trips back to the same CRS by id.
+    assert_eq!(Crs::from_projjson(&json), Some(Crs::from_epsg(4269).unwrap()));
+
+    // WGS 84 likewise; an unknown code yields None.
+    assert!(Crs::projjson_from_epsg(4326).unwrap().contains(r#""name":"WGS 84""#));
+    assert_eq!(Crs::projjson_from_epsg(999_999), None);
+}
+
+#[test]
 fn projjson_parses_hand_written_and_rejects() {
     // Geographic by EPSG id (registry datum); 2 axes → 2-D.
     let g = Crs::from_projjson(
