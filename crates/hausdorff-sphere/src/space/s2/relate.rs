@@ -63,7 +63,32 @@ impl SpatialPredicate {
                     .eval_points_in_areal(&s2_points(b), &s2_polygons(a)?),
             );
         }
+        if is_areal(a) && is_areal(b) {
+            return self.eval_areal_areal(&s2_polygons(a)?, &s2_polygons(b)?);
+        }
         None
+    }
+
+    /// Evaluate `areal <self> areal`, exactly on the sphere for the tractable case:
+    /// **Intersects / Disjoint over hole-free polygons**, via shell-loop
+    /// intersection ([`Loop::intersects`] — boundary crossing or nesting). Returns
+    /// `None` (defer to the planar predicate) for containment predicates and for any
+    /// polygon carrying holes, which need a full spherical boolean / DE-9IM engine
+    /// this does not yet provide.
+    fn eval_areal_areal(self, a: &[S2Polygon], b: &[S2Polygon]) -> Option<bool> {
+        if !matches!(self, SpatialPredicate::Intersects | SpatialPredicate::Disjoint) {
+            return None;
+        }
+        if a.iter().chain(b.iter()).any(|p| !p.holes().is_empty()) {
+            return None;
+        }
+        let hit = a
+            .iter()
+            .any(|x| b.iter().any(|y| x.shell().intersects(y.shell())));
+        Some(match self {
+            SpatialPredicate::Disjoint => !hit,
+            _ => hit,
+        })
     }
 
     /// The predicate with its arguments swapped: `Contains`⇄`Within`,

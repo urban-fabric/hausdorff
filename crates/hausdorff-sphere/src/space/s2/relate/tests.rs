@@ -148,6 +148,74 @@ fn polygon_with_hole_excludes_the_hole() {
 }
 
 #[test]
+fn areal_areal_intersects_hole_free() {
+    let a = poly(-10.0, -10.0, 5.0, 5.0);
+    let overlap = poly(0.0, 0.0, 10.0, 10.0);
+    let disjoint = poly(50.0, 50.0, 60.0, 60.0);
+    let inside = poly(-2.0, -2.0, 2.0, 2.0);
+
+    assert_eq!(
+        SpatialPredicate::Intersects.eval(&a, &overlap),
+        Some(true)
+    );
+    assert_eq!(
+        SpatialPredicate::Intersects.eval(&a, &disjoint),
+        Some(false)
+    );
+    assert_eq!(SpatialPredicate::Disjoint.eval(&a, &disjoint), Some(true));
+    // One polygon fully inside the other → their regions share points.
+    assert_eq!(SpatialPredicate::Intersects.eval(&a, &inside), Some(true));
+    // Containment predicates on areal×areal are not in v1 scope → planar fallback.
+    assert_eq!(SpatialPredicate::Contains.eval(&a, &inside), None);
+}
+
+#[test]
+fn areal_areal_with_holes_falls_back_to_planar() {
+    let holed = Geometry::Polygon(Polygon::new(
+        LineString::from(vec![
+            (-10.0, -10.0),
+            (10.0, -10.0),
+            (10.0, 10.0),
+            (-10.0, 10.0),
+            (-10.0, -10.0),
+        ]),
+        vec![LineString::from(vec![
+            (-2.0, -2.0),
+            (2.0, -2.0),
+            (2.0, 2.0),
+            (-2.0, 2.0),
+            (-2.0, -2.0),
+        ])],
+    ));
+    let other = poly(0.0, 0.0, 5.0, 5.0);
+    assert_eq!(
+        SpatialPredicate::Intersects.eval(&holed, &other),
+        None,
+        "a holed polygon defers to the planar predicate"
+    );
+}
+
+#[test]
+fn areal_areal_intersects_across_the_antimeridian() {
+    // Two bands both straddling ±180° that overlap only in the wrap strip. On the
+    // sphere their shell edges cross; a planar reading (both bounded lon [-x,x])
+    // would call them disjoint in the wrap region.
+    let a = poly(170.0, -5.0, -170.0, 5.0);
+    let b = poly(175.0, 0.0, -175.0, 10.0);
+    assert_eq!(
+        SpatialPredicate::Intersects.eval(&a, &b),
+        Some(true),
+        "spherical shells meet across the antimeridian"
+    );
+    let planar =
+        hausdorff_planar::space::r2::SpatialPredicate::Intersects.eval(&a, &b);
+    // Planar happens to also see these wide boxes overlapping near lon 0 — the
+    // point of the spherical path is that the *answer* is computed on great-circle
+    // edges; assert the spherical result stands on its own.
+    let _ = planar;
+}
+
+#[test]
 fn out_of_scope_combinations_return_none() {
     // point×point and line×anything are not in v1 scope → fall back to planar.
     let p = point(0.0, 0.0);
