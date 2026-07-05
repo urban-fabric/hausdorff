@@ -66,10 +66,61 @@ impl Rect {
         }
     }
 
+    /// The smallest rectangle containing a single WGS84 point (a degenerate
+    /// rectangle whose corners coincide). [`Rect::empty`] grown by
+    /// [`add_point`](Self::add_point) reaches this.
+    #[must_use]
+    pub fn from_point(p: GeoPoint) -> Self {
+        Self {
+            lat: LatInterval::from_point_pair(p.lat.to_radians(), p.lat.to_radians()),
+            lng: LngInterval::from_point_pair(p.lon.to_radians(), p.lon.to_radians()),
+        }
+    }
+
+    /// This rectangle grown to also contain `p`. Latitude grows by the closed
+    /// interval; **longitude grows the shorter way around the circle** (golang/geo
+    /// `s1.Interval.Union` of the point), so a point just west of the antimeridian
+    /// added to one just east yields a narrow *inverted* span rather than the whole
+    /// globe. Adding to [`Rect::empty`] yields [`from_point`](Self::from_point).
+    #[must_use]
+    pub fn add_point(self, p: GeoPoint) -> Self {
+        self.union(&Rect::from_point(p))
+    }
+
+    /// The smallest rectangle containing every point of `points` — the **vertex
+    /// bound**, folding each point through [`add_point`](Self::add_point). Empty
+    /// for an empty slice.
+    ///
+    /// The longitude span is antimeridian-correct (each point joins the shorter
+    /// way, so a ring straddling ±180° gets a tight *inverted* longitude interval,
+    /// not the full circle). The latitude span is the vertex min/max — it does
+    /// **not** add the poleward bulge a great-circle edge can reach between two
+    /// vertices (golang/geo's edge-aware `RectBounder`). So this bounds a geometry
+    /// by its vertices, matching the planar `bounding_rect` in latitude while fixing
+    /// the longitude wrap; it is a conservative superset only for edges whose
+    /// latitude extreme is at a vertex (all edges away from the poles). Callers
+    /// needing the edge-exact bound near the poles should widen latitude to the
+    /// pole.
+    #[must_use]
+    pub fn from_geo_points(points: &[GeoPoint]) -> Self {
+        points
+            .iter()
+            .fold(Rect::empty(), |bound, &p| bound.add_point(p))
+    }
+
     /// True iff the rectangle contains no points.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.lat.is_empty() || self.lng.is_empty()
+    }
+
+    /// True iff the longitude span crosses the antimeridian — its low corner
+    /// longitude is **east** of (greater than) its high corner longitude, the
+    /// wraparound case a planar `xmin ≤ xmax` box cannot represent. `false` for the
+    /// empty and full rectangles.
+    #[must_use]
+    pub fn is_lng_inverted(&self) -> bool {
+        !self.is_empty() && !self.lng.is_full() && self.lng.lo > self.lng.hi
     }
 
     /// True iff the rectangle is the whole sphere.

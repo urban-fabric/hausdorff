@@ -279,6 +279,46 @@ where
     out
 }
 
+/// As [`k_nearest`], but **including tie-breakers**: every candidate whose distance
+/// equals the `k`-th nearest distance is emitted, so a probe may get more than `k`
+/// results when several points sit exactly at the cutoff. The peer of Sedona's
+/// `includeTieBreakers` — with it, the result no longer depends on an arbitrary
+/// choice among equidistant neighbours. Results are sorted nearest-first per probe.
+#[must_use]
+pub fn k_nearest_with_ties<P, Q>(
+    probe: impl IntoIterator<Item = (f64, f64, Q)>,
+    points: &[(f64, f64, P)],
+    k: usize,
+) -> Vec<(Q, P, f64)>
+where
+    P: Clone,
+    Q: Clone,
+{
+    let mut out = Vec::new();
+    let mut candidates: Vec<(f64, P)> = Vec::with_capacity(points.len());
+    for (lat, lon, q) in probe {
+        candidates.clear();
+        for &(plat, plon, ref payload) in points {
+            candidates.push((distance_m(lat, lon, plat, plon), payload.clone()));
+        }
+        let keep = k.min(candidates.len());
+        if keep == 0 {
+            continue;
+        }
+        candidates.sort_by(|a, b| a.0.total_cmp(&b.0));
+        // The k-th nearest distance is the cutoff; take that many, then keep going
+        // while later candidates tie it exactly (the list is sorted ascending).
+        let cutoff = candidates[keep - 1].0;
+        for (d, payload) in &candidates {
+            if *d > cutoff {
+                break;
+            }
+            out.push((q.clone(), payload.clone(), *d));
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
@@ -352,6 +392,40 @@ mod tests {
         assert_eq!((knn[0].0, knn[0].1), (0, 0));
         assert_eq!((knn[1].0, knn[1].1), (0, 1));
         assert!(knn[0].2 <= knn[1].2);
+    }
+
+    #[test]
+    fn k_nearest_with_ties_includes_equidistant_neighbours() {
+        // Two points due east and west at the same distance, plus a nearer one and
+        // a far one. k=2 without ties would arbitrarily pick one of the two ties;
+        // with ties both are returned (3 total), and the far point is excluded.
+        let points = pts(&[0.0, 0.0, 0.0, 0.0], &[0.0, 0.1, -0.1, 5.0]);
+        let probe = pts(&[0.0], &[0.0]);
+
+        let plain = k_nearest(probe.iter().copied(), &points, 2);
+        assert_eq!(plain.len(), 2, "plain k-NN returns exactly k");
+
+        let tied = k_nearest_with_ties(probe.iter().copied(), &points, 2);
+        assert_eq!(tied.len(), 3, "both equidistant neighbours are kept");
+        assert_eq!(tied[0].1, 0, "the nearest is first");
+        let far_included = tied.iter().any(|t| t.1 == 3);
+        assert!(!far_included, "the far point is beyond the k-th distance");
+        // The two ties share the k-th distance.
+        assert!((tied[1].2 - tied[2].2).abs() < 1e-6);
+    }
+
+    #[test]
+    fn k_nearest_with_ties_matches_plain_without_ties() {
+        // Strictly increasing distances → no ties → same result as plain k-NN.
+        let points = pts(&[0.0, 0.1, 0.2, 5.0], &[0.0, 0.0, 0.0, 0.0]);
+        let probe = pts(&[0.0], &[0.0]);
+        let plain = k_nearest(probe.iter().copied(), &points, 2);
+        let tied = k_nearest_with_ties(probe.iter().copied(), &points, 2);
+        assert_eq!(plain.len(), tied.len());
+        assert_eq!(
+            plain.iter().map(|t| t.1).collect::<Vec<_>>(),
+            tied.iter().map(|t| t.1).collect::<Vec<_>>()
+        );
     }
 
     #[test]

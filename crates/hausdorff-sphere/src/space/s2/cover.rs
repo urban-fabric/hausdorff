@@ -10,7 +10,7 @@ use hausdorff_base::earth::GeoPoint;
 use hausdorff_planar::space::r2::{Geometry, LineString, Polygon};
 
 use super::coords::MAX_LEVEL;
-use super::{CellUnion, Loop, Polygon as S2Polygon, Polyline, RegionCoverer, S2CellId, S2Point};
+use super::{CellUnion, Loop, Polygon as S2Polygon, Polyline, Rect, RegionCoverer, S2CellId, S2Point};
 
 /// S2 cells at `level` covering `geom`:
 /// - **points** → the containing cell;
@@ -46,6 +46,79 @@ pub fn cover_r2_geometry(geom: &Geometry, coverer: &RegionCoverer) -> Option<Cel
     let mut cells = Vec::new();
     collect_adaptive(geom, coverer, &mut cells)?;
     Some(CellUnion::from(cells))
+}
+
+/// The antimeridian-correct lat/lng bounding [`Rect`] of an r2 (lon/lat)
+/// [`Geometry`] — the wrap-aware peer of the geometry's planar `bounding_rect`.
+/// Every finite, in-range vertex is folded in via [`Rect::add_point`], so a ring
+/// straddling ±180° yields a tight *inverted* longitude span instead of the
+/// globe-spanning `[-180°, 180°]` a min/max box produces. `None` when the geometry
+/// has no valid vertex (empty, or every coordinate non-finite / out of range).
+///
+/// This is a **vertex** bound (see [`Rect::from_geo_points`]): the latitude span is
+/// the vertex min/max, matching the planar `bounding_rect` away from the poles,
+/// while the longitude span is wrap-aware. Points recurse through collections.
+#[must_use]
+pub fn bound_r2_geometry(geom: &Geometry) -> Option<Rect> {
+    let mut pts = Vec::new();
+    push_geo_points(geom, &mut pts);
+    (!pts.is_empty()).then(|| Rect::from_geo_points(&pts))
+}
+
+/// Append every finite, in-range vertex of `geom` (lon/lat) to `out`, recursing
+/// through multi-geometries and collections.
+fn push_geo_points(geom: &Geometry, out: &mut Vec<GeoPoint>) {
+    match geom {
+        Geometry::Point(p) => push_coord(p.x(), p.y(), out),
+        Geometry::MultiPoint(mp) => {
+            for p in mp.iter() {
+                push_coord(p.x(), p.y(), out);
+            }
+        }
+        Geometry::Line(l) => {
+            push_coord(l.start.x, l.start.y, out);
+            push_coord(l.end.x, l.end.y, out);
+        }
+        Geometry::LineString(ls) => {
+            for c in ls.coords() {
+                push_coord(c.x, c.y, out);
+            }
+        }
+        Geometry::MultiLineString(mls) => {
+            for ls in mls.iter() {
+                for c in ls.coords() {
+                    push_coord(c.x, c.y, out);
+                }
+            }
+        }
+        Geometry::Polygon(poly) => push_polygon(poly, out),
+        Geometry::MultiPolygon(mp) => {
+            for poly in mp.iter() {
+                push_polygon(poly, out);
+            }
+        }
+        Geometry::Rect(r) => push_polygon(&r.to_polygon(), out),
+        Geometry::Triangle(t) => push_polygon(&t.to_polygon(), out),
+        Geometry::GeometryCollection(gs) => {
+            for g in gs {
+                push_geo_points(g, out);
+            }
+        }
+    }
+}
+
+fn push_polygon(poly: &Polygon, out: &mut Vec<GeoPoint>) {
+    for ring in std::iter::once(poly.exterior()).chain(poly.interiors()) {
+        for c in ring.coords() {
+            push_coord(c.x, c.y, out);
+        }
+    }
+}
+
+fn push_coord(lon: f64, lat: f64, out: &mut Vec<GeoPoint>) {
+    if valid_lonlat(lon, lat) {
+        out.push(GeoPoint::from_lon_lat(lon, lat));
+    }
 }
 
 fn collect(geom: &Geometry, level: u32, out: &mut BTreeSet<S2CellId>) -> Option<()> {
@@ -134,7 +207,7 @@ fn collect_adaptive(
 }
 
 /// True iff `(lon, lat)` is a finite, in-range WGS84 coordinate.
-fn valid_lonlat(lon: f64, lat: f64) -> bool {
+pub(super) fn valid_lonlat(lon: f64, lat: f64) -> bool {
     lon.is_finite()
         && lat.is_finite()
         && (-90.0..=90.0).contains(&lat)
@@ -160,7 +233,7 @@ fn adaptive_polygon(poly: &Polygon, coverer: &RegionCoverer) -> Option<CellUnion
 
 /// The lon/lat polygon as a spherical [`S2Polygon`]; `None` when a ring has an
 /// invalid coordinate.
-fn polygon_region(poly: &Polygon) -> Option<S2Polygon> {
+pub(super) fn polygon_region(poly: &Polygon) -> Option<S2Polygon> {
     for ring in std::iter::once(poly.exterior()).chain(poly.interiors()) {
         if !ring.coords().all(|c| valid_lonlat(c.x, c.y)) {
             return None;
@@ -232,6 +305,54 @@ mod tests {
 
     fn at(lon: f64, lat: f64, level: u32) -> S2CellId {
         S2CellId::from_geo_point_at_level(GeoPoint::from_lon_lat(lon, lat), level)
+    }
+
+    #[test]
+    fn bound_matches_planar_rect_away_from_antimeridian() {
+        let poly = Geometry::Polygon(Polygon::new(
+            LineString::from(vec![
+                (9.5, 49.5),
+                (10.5, 49.5),
+                (10.5, 50.5),
+                (9.5, 50.5),
+                (9.5, 49.5),
+            ]),
+            vec![],
+        ));
+        let bound = bound_r2_geometry(&poly).unwrap();
+        assert!(!bound.is_lng_inverted());
+        assert!((bound.lo().lon - 9.5).abs() < 1e-9 && (bound.hi().lon - 10.5).abs() < 1e-9);
+        assert!((bound.lo().lat - 49.5).abs() < 1e-9 && (bound.hi().lat - 50.5).abs() < 1e-9);
+        assert!(bound.contains_lat_lng(GeoPoint::from_lon_lat(10.0, 50.0)));
+    }
+
+    #[test]
+    fn bound_wraps_antimeridian_polygon() {
+        // A polygon spanning 178° → -178° (4° wide across ±180°). A planar min/max
+        // box would report lng [-178, 178] (356° wide); the wrap-aware bound is 4°.
+        let poly = Geometry::Polygon(Polygon::new(
+            LineString::from(vec![
+                (178.0, 10.0),
+                (-178.0, 10.0),
+                (-178.0, 20.0),
+                (178.0, 20.0),
+                (178.0, 10.0),
+            ]),
+            vec![],
+        ));
+        let bound = bound_r2_geometry(&poly).unwrap();
+        assert!(bound.is_lng_inverted(), "antimeridian polygon must wrap");
+        assert!(bound.contains_lat_lng(GeoPoint::from_lon_lat(180.0, 15.0)));
+        assert!(bound.contains_lat_lng(GeoPoint::from_lon_lat(-179.0, 15.0)));
+        assert!(!bound.contains_lat_lng(GeoPoint::from_lon_lat(0.0, 15.0)));
+    }
+
+    #[test]
+    fn bound_none_for_empty_or_invalid() {
+        let empty = Geometry::MultiPoint(hausdorff_planar::space::r2::MultiPoint::new(vec![]));
+        assert!(bound_r2_geometry(&empty).is_none());
+        let bad = Geometry::Point(Point::new(200.0, 100.0)); // out of range
+        assert!(bound_r2_geometry(&bad).is_none());
     }
 
     #[test]
