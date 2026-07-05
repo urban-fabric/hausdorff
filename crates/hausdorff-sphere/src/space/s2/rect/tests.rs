@@ -174,3 +174,55 @@ fn bounding_cap_contains_rect_samples() {
     }
     assert!(Rect::empty().bounding_cap().is_empty());
 }
+
+#[test]
+fn from_geo_points_bounds_all_vertices() {
+    let pts = [gp(40.0, -5.0), gp(45.0, 5.0), gp(42.0, 0.0), gp(41.0, -3.0)];
+    let bound = Rect::from_geo_points(&pts);
+    assert!(!bound.is_empty() && bound.is_valid());
+    for &p in &pts {
+        assert!(bound.contains_lat_lng(p), "vertex {p:?} escaped its bound");
+    }
+    // A tight, non-wrapping box: lat [40,45], lng [-5,5].
+    assert!(!bound.is_lng_inverted());
+    assert!((bound.lo().lat - 40.0).abs() < 1e-9 && (bound.hi().lat - 45.0).abs() < 1e-9);
+    assert!((bound.lo().lon - -5.0).abs() < 1e-9 && (bound.hi().lon - 5.0).abs() < 1e-9);
+    assert_eq!(Rect::from_geo_points(&[]), Rect::empty());
+}
+
+#[test]
+fn from_geo_points_bounds_antimeridian_ring_tightly() {
+    // A ring straddling ±180° (a 20°-wide box centred on the antimeridian). The
+    // vertex longitudes are 175, -175 — a min/max box would span 350° of the
+    // globe; the wrap-aware bound spans only 10° the short way.
+    let ring = [
+        gp(10.0, 175.0),
+        gp(10.0, -175.0),
+        gp(20.0, -175.0),
+        gp(20.0, 175.0),
+    ];
+    let bound = Rect::from_geo_points(&ring);
+    assert!(bound.is_valid());
+    assert!(bound.is_lng_inverted(), "antimeridian ring must wrap");
+    for &p in &ring {
+        assert!(bound.contains_lat_lng(p));
+    }
+    // Points inside the short arc are covered; the far side of the globe is not.
+    assert!(bound.contains_lat_lng(gp(15.0, 180.0)));
+    assert!(bound.contains_lat_lng(gp(15.0, -180.0)));
+    assert!(!bound.contains_lat_lng(gp(15.0, 0.0)));
+    assert!(!bound.contains_lat_lng(gp(15.0, 90.0)));
+    // Its longitude corners are the ring's east/west edges, inverted (lo > hi).
+    assert!((bound.lo().lon - 175.0).abs() < 1e-9 && (bound.hi().lon - -175.0).abs() < 1e-9);
+}
+
+#[test]
+fn add_point_grows_the_short_way() {
+    let base = Rect::from_point(gp(0.0, 179.0));
+    assert!(!base.is_lng_inverted());
+    let grown = base.add_point(gp(0.0, -179.0));
+    // 179 → -179 is 2° across the antimeridian, not 358° around.
+    assert!(grown.is_lng_inverted());
+    assert!(grown.contains_lat_lng(gp(0.0, 180.0)));
+    assert!(!grown.contains_lat_lng(gp(0.0, 0.0)));
+}
