@@ -65,6 +65,93 @@ pub fn bound_r2_geometry(geom: &Geometry) -> Option<Rect> {
     (!pts.is_empty()).then(|| Rect::from_geo_points(&pts))
 }
 
+/// The great-circle-**arc**-aware lat/lng bound of an r2 geometry — like
+/// [`bound_r2_geometry`], but each edge's latitude span covers its great-circle
+/// arc (which can ride higher than either endpoint; see [`super::arc::rect_bound`]),
+/// so the bound conservatively contains the geometry *as the spherical predicates
+/// interpret it*. This is the bound a spherical-predicate broad phase must use: a
+/// vertex-only box can miss an intersection where two edges bow toward each other
+/// between their endpoints. `None` when the geometry has no valid vertex.
+#[must_use]
+pub fn bound_r2_geometry_arc(geom: &Geometry) -> Option<Rect> {
+    let bound = fold_geo_arcs(geom, Rect::empty());
+    (!bound.is_empty()).then_some(bound)
+}
+
+/// The valid lon/lat vertices of one ring or line, in order.
+fn ring_geo_points(ls: &LineString) -> Vec<GeoPoint> {
+    let mut out = Vec::new();
+    for c in ls.coords() {
+        push_coord(c.x, c.y, &mut out);
+    }
+    out
+}
+
+/// Fold one vertex sequence into `bound`: each consecutive pair as a great-circle
+/// arc bound, or a lone point directly.
+fn fold_arc_seq(pts: &[GeoPoint], bound: Rect) -> Rect {
+    match pts {
+        [] => bound,
+        [p] => bound.add_point(*p),
+        _ => pts.windows(2).fold(bound, |acc, w| {
+            acc.union(&super::arc::rect_bound(
+                S2Point::from_geo_point(w[0]),
+                S2Point::from_geo_point(w[1]),
+            ))
+        }),
+    }
+}
+
+fn fold_polygon_arcs(poly: &Polygon, bound: Rect) -> Rect {
+    let mut b = std::iter::once(poly.exterior())
+        .chain(poly.interiors())
+        .fold(bound, |acc, ring| fold_arc_seq(&ring_geo_points(ring), acc));
+    // A polygon whose interior contains a pole must bound that pole: the pole is
+    // interior (and at every longitude), not on any edge, so the arc fold over
+    // the boundary misses it — which would let a broad phase drop a point/region
+    // at the pole that the polygon actually contains.
+    if let Some(shell) = ring_loop(poly.exterior()) {
+        for lat in [90.0_f64, -90.0] {
+            let pole = S2Point::from_geo_point(GeoPoint::from_lat_lon(lat, 0.0));
+            if shell.contains_point(pole) {
+                b = b.union(&Rect::from_degrees(lat, -180.0, lat, 180.0));
+            }
+        }
+    }
+    b
+}
+
+fn fold_geo_arcs(geom: &Geometry, bound: Rect) -> Rect {
+    match geom {
+        Geometry::Point(p) => fold_arc_seq(&ring_geo_points_of_coords([(p.x(), p.y())]), bound),
+        Geometry::MultiPoint(mp) => mp.iter().fold(bound, |acc, p| {
+            fold_arc_seq(&ring_geo_points_of_coords([(p.x(), p.y())]), acc)
+        }),
+        Geometry::Line(l) => fold_arc_seq(
+            &ring_geo_points_of_coords([(l.start.x, l.start.y), (l.end.x, l.end.y)]),
+            bound,
+        ),
+        Geometry::LineString(ls) => fold_arc_seq(&ring_geo_points(ls), bound),
+        Geometry::MultiLineString(mls) => mls
+            .iter()
+            .fold(bound, |acc, ls| fold_arc_seq(&ring_geo_points(ls), acc)),
+        Geometry::Polygon(poly) => fold_polygon_arcs(poly, bound),
+        Geometry::MultiPolygon(mp) => mp.iter().fold(bound, |acc, poly| fold_polygon_arcs(poly, acc)),
+        Geometry::Rect(r) => fold_polygon_arcs(&r.to_polygon(), bound),
+        Geometry::Triangle(t) => fold_polygon_arcs(&t.to_polygon(), bound),
+        Geometry::GeometryCollection(gs) => gs.iter().fold(bound, |acc, g| fold_geo_arcs(g, acc)),
+    }
+}
+
+/// Valid lon/lat points from raw `(x, y)` coordinate pairs, in order.
+fn ring_geo_points_of_coords<I: IntoIterator<Item = (f64, f64)>>(coords: I) -> Vec<GeoPoint> {
+    let mut out = Vec::new();
+    for (x, y) in coords {
+        push_coord(x, y, &mut out);
+    }
+    out
+}
+
 /// Append every finite, in-range vertex of `geom` (lon/lat) to `out`, recursing
 /// through multi-geometries and collections.
 fn push_geo_points(geom: &Geometry, out: &mut Vec<GeoPoint>) {

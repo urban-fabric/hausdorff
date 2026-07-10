@@ -20,6 +20,19 @@ fn poly(min_lon: f64, min_lat: f64, max_lon: f64, max_lat: f64) -> Geometry {
 }
 
 #[test]
+fn far_apart_polygons_are_disjoint() {
+    // Two small rects on opposite sides of the globe (galois join proptest).
+    let south = poly(-98.0, -60.0, -88.0, -50.0);
+    let north = poly(80.0, 53.0, 88.0, 59.0);
+    assert_eq!(
+        SpatialPredicate::Intersects.eval(&south, &north),
+        Some(false),
+        "small rects on opposite sides of the globe do not intersect"
+    );
+    assert_eq!(SpatialPredicate::Disjoint.eval(&south, &north), Some(true));
+}
+
+#[test]
 fn point_in_polygon_core_predicates() {
     let square = poly(-10.0, -10.0, 10.0, 10.0);
     let inside = point(0.0, 0.0);

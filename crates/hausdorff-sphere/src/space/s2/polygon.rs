@@ -59,6 +59,15 @@ impl Polygon {
         self.shell.contains_point(p) && !self.holes.iter().any(|h| h.contains_point(p))
     }
 
+    /// True iff `p` is inside the shell **or on the polygon boundary** (shell or
+    /// hole boundary), and strictly inside no hole — the boundary-inclusive
+    /// companion to [`contains_point`](Self::contains_point), for the OGC
+    /// predicates that include the boundary.
+    #[must_use]
+    pub fn contains_point_closed(&self, p: S2Point) -> bool {
+        self.shell.contains_point_closed(p) && !self.holes.iter().any(|h| h.contains_point(p))
+    }
+
     /// Total boundary length (shell + holes) as an [`Angle`]; multiply by a
     /// planet radius (see [`hausdorff_base::earth::sphere::Sphere`]) for metres.
     #[must_use]

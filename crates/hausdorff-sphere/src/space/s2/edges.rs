@@ -42,7 +42,41 @@ pub fn crossing_sign(a: S2Point, b: S2Point, c: S2Point, d: S2Point) -> Crossing
     if cda == cdb {
         return Crossing::DoNotCross;
     }
-    Crossing::Cross
+    // The orientation signs now say each arc separates the other's endpoints —
+    // necessary but NOT sufficient. The two great circles meet at an antipodal
+    // pair `±x`; arc `a→b` may cross the `c→d` circle at `x` while arc `c→d`
+    // crosses the `a→b` circle at `−x` (e.g. two small polygons on opposite sides
+    // of the globe). That is not a shared point. Confirm one of `±x` lies on
+    // *both* minor arcs.
+    if arcs_share_a_crossing(a, b, c, d) {
+        Crossing::Cross
+    } else {
+        Crossing::DoNotCross
+    }
+}
+
+/// Whether the great circles of `a→b` and `c→d` meet at a point lying on **both**
+/// minor arcs. The intersection directions are `±(a×b)×(c×d)`; a normalized
+/// direction `p` is within the minor arc `a→b` iff it is no farther from either
+/// endpoint than they are from each other (`p·a ≥ a·b` and `p·b ≥ a·b`).
+fn arcs_share_a_crossing(a: S2Point, b: S2Point, c: S2Point, d: S2Point) -> bool {
+    let n1 = a.vector().cross(b.vector());
+    let n2 = c.vector().cross(d.vector());
+    let x = n1.cross(n2);
+    if x.dot(x) == 0.0 {
+        return false; // coincident great circles: no isolated crossing
+    }
+    let x = x.normalize();
+    let on_both = |p: super::S2Point| within_minor_arc(a, b, p) && within_minor_arc(c, d, p);
+    on_both(S2Point::from_vector(x)) || on_both(S2Point::from_vector(x.mul(-1.0)))
+}
+
+/// Whether unit point `p` (already on the great circle through `a`, `b`) lies on
+/// the minor arc `a → b`, endpoints included.
+fn within_minor_arc(a: S2Point, b: S2Point, p: S2Point) -> bool {
+    let (av, bv, pv) = (a.vector(), b.vector(), p.vector());
+    let ab = av.dot(bv);
+    pv.dot(av) >= ab && pv.dot(bv) >= ab
 }
 
 /// The intersection point of two crossing great-circle edges `a0 → a1` and

@@ -106,15 +106,22 @@ impl SpatialPredicate {
 
     /// Evaluate `points <self> areal`: the predicate with the point side as `a`.
     fn eval_points_in_areal(self, points: &[S2Point], areal: &[S2Polygon]) -> bool {
-        let inside = |p: S2Point| areal.iter().any(|poly| poly.contains_point(p));
+        // `Intersects`/`Disjoint`/`CoveredBy` include the boundary (a point on
+        // an edge shares that point with the region); `Within` is the strict
+        // interior (a boundary point is covered by, but not within, the region).
+        let inside_closed = |p: S2Point| areal.iter().any(|poly| poly.contains_point_closed(p));
+        let inside_open = |p: S2Point| areal.iter().any(|poly| poly.contains_point(p));
         match self {
-            // Points and an areal share a point iff some point is inside.
-            SpatialPredicate::Intersects => points.iter().any(|&p| inside(p)),
-            SpatialPredicate::Disjoint => !points.iter().any(|&p| inside(p)),
-            // The points are within / covered by the areal iff every point is
-            // inside (and there is at least one point).
-            SpatialPredicate::Within | SpatialPredicate::CoveredBy => {
-                !points.is_empty() && points.iter().all(|&p| inside(p))
+            // Points and an areal share a point iff some point is on/in the region.
+            SpatialPredicate::Intersects => points.iter().any(|&p| inside_closed(p)),
+            SpatialPredicate::Disjoint => !points.iter().any(|&p| inside_closed(p)),
+            // Covered by the areal iff every point is inside or on its boundary.
+            SpatialPredicate::CoveredBy => {
+                !points.is_empty() && points.iter().all(|&p| inside_closed(p))
+            }
+            // Within iff every point is in the strict interior.
+            SpatialPredicate::Within => {
+                !points.is_empty() && points.iter().all(|&p| inside_open(p))
             }
             // A point set (dimension 0) can never contain/cover an areal region.
             SpatialPredicate::Contains | SpatialPredicate::Covers => false,

@@ -173,6 +173,18 @@ impl Loop {
         sum > PI
     }
 
+    /// True iff `p` lies in the loop interior **or on its boundary** — the
+    /// boundary-inclusive companion to the open-interior
+    /// [`contains_point`](Self::contains_point). Where `contains_point`'s
+    /// proof-backed hemisphere test leaves a point exactly on an edge/vertex
+    /// "not guaranteed", this resolves it: on-boundary counts as inside. It is
+    /// what the OGC predicates that include the boundary (Intersects, Covers,
+    /// CoveredBy, Disjoint) test against.
+    #[must_use]
+    pub fn contains_point_closed(&self, p: S2Point) -> bool {
+        self.contains_point(p) || self.edges().any(|(a, b)| point_on_arc(a, b, p))
+    }
+
     /// Perimeter — the sum of the great-circle edge lengths — as an [`Angle`].
     /// Multiply by a planet radius (see [`hausdorff_base::earth::sphere::Sphere`]) for metres.
     #[must_use]
@@ -199,8 +211,11 @@ impl Loop {
             .fold(Rect::empty(), |acc, r| acc.union(&r))
     }
 
-    /// True iff this loop and `other` overlap — their boundaries cross, or one
-    /// loop contains the other (the nested case). `O(n·m)` in the edge counts.
+    /// True iff this loop and `other` share at least one point (OGC
+    /// `Intersects`): their boundaries cross or touch, or one loop contains the
+    /// other (the nested case). Boundary-inclusive — coincident edges and
+    /// boundary-touching or -coincident vertices count, so a loop intersects
+    /// itself. `O(n·m)` in the edge counts.
     #[must_use]
     pub fn intersects(&self, other: &Loop) -> bool {
         if self.vertices.len() < 3 || other.vertices.len() < 3 {
@@ -208,13 +223,60 @@ impl Loop {
         }
         for (a, b) in self.edges() {
             for (c, d) in other.edges() {
-                if crossing_sign(a, b, c, d) == Crossing::Cross {
-                    return true;
+                match crossing_sign(a, b, c, d) {
+                    Crossing::Cross => return true,
+                    // An endpoint lies on the other edge's great circle. Confirm
+                    // it lies on the *arc* (segment), not merely the circle,
+                    // before counting the boundary touch.
+                    Crossing::Maybe => {
+                        if point_on_arc(a, b, c)
+                            || point_on_arc(a, b, d)
+                            || point_on_arc(c, d, a)
+                            || point_on_arc(c, d, b)
+                        {
+                            return true;
+                        }
+                    }
+                    Crossing::DoNotCross => {}
                 }
             }
         }
-        self.contains_point(other.vertices[0]) || other.contains_point(self.vertices[0])
+        // Nesting or coincidence: a boundary-coincident vertex counts as shared,
+        // so identical loops intersect.
+        self.contains_point_closed(other.vertices[0])
+            || other.contains_point_closed(self.vertices[0])
     }
+}
+
+/// Great-circle-plane tolerance for [`point_on_arc`]: a point within this angle
+/// (radians) of an edge's great circle counts as on it. `1e-12 rad` ≈ 6 µm on
+/// Earth — far below any real geometry's resolution, but wide enough to absorb
+/// the floating-point rounding in the triple product `(a × b) · p`, which is a
+/// mathematical zero for a point on the circle (and exactly a vertex) yet lands
+/// near `1e-16` in `f64`.
+const ON_ARC_EPS: f64 = 1e-12;
+
+/// True iff `p` lies on the great-circle arc `a → b`, endpoints included — the
+/// boundary-membership primitive the open-interior `contains_point` omits. `p`
+/// must be within [`ON_ARC_EPS`] of the great circle through `a, b` *and* within
+/// the minor arc: no farther from either endpoint than they are from each other
+/// (`cos` decreases with angle, so a larger dot means a smaller subtended angle).
+fn point_on_arc(a: S2Point, b: S2Point, p: S2Point) -> bool {
+    let (av, bv, pv) = (a.vector(), b.vector(), p.vector());
+    // Normal to the edge plane; `|n| = sin(angle(a, b))`, so `(n · p) / |n|` is
+    // `sin` of `p`'s angular distance to the plane. Compare squared to avoid a
+    // `sqrt`: `|n·p| ≤ ε·|n|`.
+    let n = av.cross(bv);
+    let nn = n.dot(n);
+    if nn == 0.0 {
+        return false; // degenerate edge (a and b antipodal or equal)
+    }
+    let d = n.dot(pv);
+    if d * d > ON_ARC_EPS * ON_ARC_EPS * nn {
+        return false;
+    }
+    let ab = av.dot(bv);
+    pv.dot(av) >= ab && pv.dot(bv) >= ab
 }
 
 #[cfg(test)]
@@ -238,6 +300,29 @@ mod tests {
         } else {
             l
         }
+    }
+
+    #[test]
+    fn a_loop_intersects_itself() {
+        // The exact failing rect from galois's geometry_invariants proptest.
+        let l = ccw(vec![
+            sp(-16.898893641227332, -78.04642515443419),
+            sp(-16.898893641227332, -76.43908903820845),
+            sp(-7.387428552600339, -76.43908903820845),
+            sp(-7.387428552600339, -78.04642515443419),
+        ]);
+        assert!(
+            l.contains_point_closed(l.vertices()[0]),
+            "a vertex lies on the loop boundary"
+        );
+        assert!(
+            point_on_arc(l.vertices()[0], l.vertices()[1], l.vertices()[0]),
+            "an endpoint is on its own edge's arc"
+        );
+        assert!(
+            l.intersects(&l),
+            "a non-empty loop shares all its points with itself"
+        );
     }
 
     #[test]
