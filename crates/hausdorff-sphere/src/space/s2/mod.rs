@@ -43,7 +43,9 @@ pub use cap::Cap;
 pub use cellid::S2CellId;
 pub use cellunion::CellUnion;
 pub use convex_loop::ConvexLoop;
-pub use cover::{bound_r2_geometry, cover_r2_geometry, cover_r2_geometry_at_level};
+pub use cover::{
+    bound_r2_geometry, bound_r2_geometry_arc, cover_r2_geometry, cover_r2_geometry_at_level,
+};
 pub use edges::{Crossing, crossing_sign, intersection};
 pub use great_circle::GreatCircle;
 pub use loops::Loop;
