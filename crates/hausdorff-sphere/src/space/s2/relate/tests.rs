@@ -39,10 +39,7 @@ fn point_in_polygon_core_predicates() {
     let outside = point(20.0, 20.0);
 
     // point <pred> polygon
-    assert_eq!(
-        SpatialPredicate::Within.eval(&inside, &square),
-        Some(true)
-    );
+    assert_eq!(SpatialPredicate::Within.eval(&inside, &square), Some(true));
     assert_eq!(
         SpatialPredicate::Within.eval(&outside, &square),
         Some(false)
@@ -102,8 +99,12 @@ fn spherical_differs_from_planar_across_the_antimeridian() {
     // The planar predicate on the same lon/lat coordinates disagrees: the ring's
     // vertices span lon [-170, 170] as a *Cartesian* box, which does NOT contain
     // lon 180 — the exact error the spherical predicate fixes.
-    let planar = hausdorff_planar::space::r2::SpatialPredicate::Within.eval(&on_antimeridian, &band);
-    assert!(!planar, "planar treats the wrap-around band as excluding lon 180");
+    let planar =
+        hausdorff_planar::space::r2::SpatialPredicate::Within.eval(&on_antimeridian, &band);
+    assert!(
+        !planar,
+        "planar treats the wrap-around band as excluding lon 180"
+    );
 }
 
 #[test]
@@ -167,10 +168,7 @@ fn areal_areal_intersects_hole_free() {
     let disjoint = poly(50.0, 50.0, 60.0, 60.0);
     let inside = poly(-2.0, -2.0, 2.0, 2.0);
 
-    assert_eq!(
-        SpatialPredicate::Intersects.eval(&a, &overlap),
-        Some(true)
-    );
+    assert_eq!(SpatialPredicate::Intersects.eval(&a, &overlap), Some(true));
     assert_eq!(
         SpatialPredicate::Intersects.eval(&a, &disjoint),
         Some(false)
@@ -220,8 +218,7 @@ fn areal_areal_intersects_across_the_antimeridian() {
         Some(true),
         "spherical shells meet across the antimeridian"
     );
-    let planar =
-        hausdorff_planar::space::r2::SpatialPredicate::Intersects.eval(&a, &b);
+    let planar = hausdorff_planar::space::r2::SpatialPredicate::Intersects.eval(&a, &b);
     // Planar happens to also see these wide boxes overlapping near lon 0 — the
     // point of the spherical path is that the *answer* is computed on great-circle
     // edges; assert the spherical result stands on its own.
@@ -234,5 +231,8 @@ fn out_of_scope_combinations_return_none() {
     let p = point(0.0, 0.0);
     let line = Geometry::LineString(LineString::from(vec![(0.0, 0.0), (1.0, 1.0)]));
     assert_eq!(SpatialPredicate::Intersects.eval(&p, &p), None);
-    assert_eq!(SpatialPredicate::Intersects.eval(&line, &poly(-1.0, -1.0, 1.0, 1.0)), None);
+    assert_eq!(
+        SpatialPredicate::Intersects.eval(&line, &poly(-1.0, -1.0, 1.0, 1.0)),
+        None
+    );
 }
