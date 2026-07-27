@@ -7,7 +7,7 @@
 use std::collections::BTreeSet;
 
 use hausdorff_base::earth::GeoPoint;
-use hausdorff_planar::space::r2::{Geometry, LineString, Polygon};
+use hausdorff_planar::space::r2::{Coord, Geometry, LineString, Polygon};
 
 use super::coords::MAX_LEVEL;
 use super::{CellUnion, Loop, Polygon as S2Polygon, Polyline, Rect, RegionCoverer, S2CellId, S2Point};
@@ -31,7 +31,13 @@ pub fn cover_r2_geometry_at_level(geom: &Geometry, level: u32) -> Option<Vec<S2C
         return None;
     }
     let mut cells = BTreeSet::new();
-    collect(geom, level, &mut cells)?;
+    walk_parts(
+        geom,
+        &mut FixedCover {
+            level,
+            out: &mut cells,
+        },
+    )?;
     Some(cells.into_iter().collect())
 }
 
@@ -44,7 +50,14 @@ pub fn cover_r2_geometry_at_level(geom: &Geometry, level: u32) -> Option<Vec<S2C
 #[must_use]
 pub fn cover_r2_geometry(geom: &Geometry, coverer: &RegionCoverer) -> Option<CellUnion> {
     let mut cells = Vec::new();
-    collect_adaptive(geom, coverer, &mut cells)?;
+    walk_parts(
+        geom,
+        &mut AdaptiveCover {
+            coverer,
+            point_level: coverer.max_level.min(MAX_LEVEL),
+            out: &mut cells,
+        },
+    )?;
     Some(CellUnion::from(cells))
 }
 
@@ -61,7 +74,7 @@ pub fn cover_r2_geometry(geom: &Geometry, coverer: &RegionCoverer) -> Option<Cel
 #[must_use]
 pub fn bound_r2_geometry(geom: &Geometry) -> Option<Rect> {
     let mut pts = Vec::new();
-    push_geo_points(geom, &mut pts);
+    walk_parts(geom, &mut VertexCollector { out: &mut pts });
     (!pts.is_empty()).then(|| Rect::from_geo_points(&pts))
 }
 
@@ -74,8 +87,71 @@ pub fn bound_r2_geometry(geom: &Geometry) -> Option<Rect> {
 /// between their endpoints. `None` when the geometry has no valid vertex.
 #[must_use]
 pub fn bound_r2_geometry_arc(geom: &Geometry) -> Option<Rect> {
-    let bound = fold_geo_arcs(geom, Rect::empty());
-    (!bound.is_empty()).then_some(bound)
+    let mut arcs = ArcBounder {
+        bound: Rect::empty(),
+    };
+    walk_parts(geom, &mut arcs);
+    (!arcs.bound.is_empty()).then_some(arcs.bound)
+}
+
+/// A sink for the primitive parts of an r2 [`Geometry`], visited in document
+/// order by [`walk_parts`].
+///
+/// Every geometry→S2 pass here (fixed-level cover, adaptive cover, vertex bound,
+/// arc bound) shares the exact same [`Geometry`]-enum walk: `Multi*` iterate,
+/// [`Geometry::Rect`]/[`Geometry::Triangle`] fold in as their `to_polygon()`, and
+/// [`Geometry::GeometryCollection`] recurses. Hoisting that skeleton into one
+/// walker keeps the four passes from each re-deriving it (and re-deriving the
+/// exact Rect/Triangle canonicalization), so a new geometry variant is handled in
+/// one place instead of four. Each pass only says what to do with the three
+/// leaf kinds — a point, a coordinate chain, or a polygon.
+///
+/// Callbacks return [`Option`] so a validation failure short-circuits the whole
+/// walk (mirroring the `?` in the cover passes); an infallible pass returns
+/// `Some(())`.
+trait GeometryParts {
+    /// A single lon/lat coordinate (a `Point`, or one member of a `MultiPoint`).
+    fn point(&mut self, lon: f64, lat: f64) -> Option<()>;
+    /// A chain of lon/lat coordinates that forms a line (a `Line`'s two
+    /// endpoints, or one `LineString`).
+    fn line(&mut self, coords: &[Coord]) -> Option<()>;
+    /// One polygon, exterior plus holes (also how `Rect`/`Triangle` arrive).
+    fn polygon(&mut self, poly: &Polygon) -> Option<()>;
+}
+
+/// Walk `geom`'s primitive parts, dispatching each to `parts` — the single copy
+/// of the [`Geometry`]-enum plumbing every pass in this module shares. Returns
+/// `None` as soon as a callback does.
+fn walk_parts<V: GeometryParts>(geom: &Geometry, parts: &mut V) -> Option<()> {
+    match geom {
+        Geometry::Point(p) => parts.point(p.x(), p.y())?,
+        Geometry::MultiPoint(mp) => {
+            for p in mp.iter() {
+                parts.point(p.x(), p.y())?;
+            }
+        }
+        Geometry::Line(l) => parts.line(&[l.start, l.end])?,
+        Geometry::LineString(ls) => parts.line(&ls.0)?,
+        Geometry::MultiLineString(mls) => {
+            for ls in mls.iter() {
+                parts.line(&ls.0)?;
+            }
+        }
+        Geometry::Polygon(poly) => parts.polygon(poly)?,
+        Geometry::MultiPolygon(mp) => {
+            for poly in mp.iter() {
+                parts.polygon(poly)?;
+            }
+        }
+        Geometry::Rect(r) => parts.polygon(&r.to_polygon())?,
+        Geometry::Triangle(t) => parts.polygon(&t.to_polygon())?,
+        Geometry::GeometryCollection(gs) => {
+            for g in gs {
+                walk_parts(g, parts)?;
+            }
+        }
+    }
+    Some(())
 }
 
 /// The valid lon/lat vertices of one ring or line, in order.
@@ -121,25 +197,26 @@ fn fold_polygon_arcs(poly: &Polygon, bound: Rect) -> Rect {
     b
 }
 
-fn fold_geo_arcs(geom: &Geometry, bound: Rect) -> Rect {
-    match geom {
-        Geometry::Point(p) => fold_arc_seq(&ring_geo_points_of_coords([(p.x(), p.y())]), bound),
-        Geometry::MultiPoint(mp) => mp.iter().fold(bound, |acc, p| {
-            fold_arc_seq(&ring_geo_points_of_coords([(p.x(), p.y())]), acc)
-        }),
-        Geometry::Line(l) => fold_arc_seq(
-            &ring_geo_points_of_coords([(l.start.x, l.start.y), (l.end.x, l.end.y)]),
-            bound,
-        ),
-        Geometry::LineString(ls) => fold_arc_seq(&ring_geo_points(ls), bound),
-        Geometry::MultiLineString(mls) => mls
-            .iter()
-            .fold(bound, |acc, ls| fold_arc_seq(&ring_geo_points(ls), acc)),
-        Geometry::Polygon(poly) => fold_polygon_arcs(poly, bound),
-        Geometry::MultiPolygon(mp) => mp.iter().fold(bound, |acc, poly| fold_polygon_arcs(poly, acc)),
-        Geometry::Rect(r) => fold_polygon_arcs(&r.to_polygon(), bound),
-        Geometry::Triangle(t) => fold_polygon_arcs(&t.to_polygon(), bound),
-        Geometry::GeometryCollection(gs) => gs.iter().fold(bound, |acc, g| fold_geo_arcs(g, acc)),
+/// Accumulates the great-circle-arc lat/lng bound of a geometry (see
+/// [`bound_r2_geometry_arc`]): points and line chains fold in as arc sequences,
+/// polygons via [`fold_polygon_arcs`] (which also captures an enclosed pole).
+struct ArcBounder {
+    bound: Rect,
+}
+
+impl GeometryParts for ArcBounder {
+    fn point(&mut self, lon: f64, lat: f64) -> Option<()> {
+        self.bound = fold_arc_seq(&ring_geo_points_of_coords([(lon, lat)]), self.bound);
+        Some(())
+    }
+    fn line(&mut self, coords: &[Coord]) -> Option<()> {
+        let pts = ring_geo_points_of_coords(coords.iter().map(|c| (c.x, c.y)));
+        self.bound = fold_arc_seq(&pts, self.bound);
+        Some(())
+    }
+    fn polygon(&mut self, poly: &Polygon) -> Option<()> {
+        self.bound = fold_polygon_arcs(poly, self.bound);
+        Some(())
     }
 }
 
@@ -152,45 +229,27 @@ fn ring_geo_points_of_coords<I: IntoIterator<Item = (f64, f64)>>(coords: I) -> V
     out
 }
 
-/// Append every finite, in-range vertex of `geom` (lon/lat) to `out`, recursing
-/// through multi-geometries and collections.
-fn push_geo_points(geom: &Geometry, out: &mut Vec<GeoPoint>) {
-    match geom {
-        Geometry::Point(p) => push_coord(p.x(), p.y(), out),
-        Geometry::MultiPoint(mp) => {
-            for p in mp.iter() {
-                push_coord(p.x(), p.y(), out);
-            }
+/// Appends every finite, in-range lon/lat vertex of a geometry — the vertex set
+/// behind [`bound_r2_geometry`]. Points, line vertices, and polygon-ring
+/// vertices all contribute alike.
+struct VertexCollector<'a> {
+    out: &'a mut Vec<GeoPoint>,
+}
+
+impl GeometryParts for VertexCollector<'_> {
+    fn point(&mut self, lon: f64, lat: f64) -> Option<()> {
+        push_coord(lon, lat, self.out);
+        Some(())
+    }
+    fn line(&mut self, coords: &[Coord]) -> Option<()> {
+        for c in coords {
+            push_coord(c.x, c.y, self.out);
         }
-        Geometry::Line(l) => {
-            push_coord(l.start.x, l.start.y, out);
-            push_coord(l.end.x, l.end.y, out);
-        }
-        Geometry::LineString(ls) => {
-            for c in ls.coords() {
-                push_coord(c.x, c.y, out);
-            }
-        }
-        Geometry::MultiLineString(mls) => {
-            for ls in mls.iter() {
-                for c in ls.coords() {
-                    push_coord(c.x, c.y, out);
-                }
-            }
-        }
-        Geometry::Polygon(poly) => push_polygon(poly, out),
-        Geometry::MultiPolygon(mp) => {
-            for poly in mp.iter() {
-                push_polygon(poly, out);
-            }
-        }
-        Geometry::Rect(r) => push_polygon(&r.to_polygon(), out),
-        Geometry::Triangle(t) => push_polygon(&t.to_polygon(), out),
-        Geometry::GeometryCollection(gs) => {
-            for g in gs {
-                push_geo_points(g, out);
-            }
-        }
+        Some(())
+    }
+    fn polygon(&mut self, poly: &Polygon) -> Option<()> {
+        push_polygon(poly, self.out);
+        Some(())
     }
 }
 
@@ -208,89 +267,58 @@ fn push_coord(lon: f64, lat: f64, out: &mut Vec<GeoPoint>) {
     }
 }
 
-fn collect(geom: &Geometry, level: u32, out: &mut BTreeSet<S2CellId>) -> Option<()> {
-    match geom {
-        Geometry::Point(p) => insert_point(p.x(), p.y(), level, out),
-        Geometry::MultiPoint(mp) => {
-            for p in mp.iter() {
-                insert_point(p.x(), p.y(), level, out);
-            }
-        }
-        Geometry::Polygon(poly) => cover_polygon(poly, level, out)?,
-        Geometry::MultiPolygon(mp) => {
-            for poly in mp.iter() {
-                cover_polygon(poly, level, out)?;
-            }
-        }
-        Geometry::Rect(r) => cover_polygon(&r.to_polygon(), level, out)?,
-        Geometry::Triangle(t) => cover_polygon(&t.to_polygon(), level, out)?,
-        Geometry::GeometryCollection(gs) => {
-            for g in gs {
-                collect(g, level, out)?;
-            }
-        }
-        Geometry::Line(l) => {
-            let coords = [(l.start.x, l.start.y), (l.end.x, l.end.y)];
-            out.extend(cover_line_coords(&coords, &RegionCoverer::at_level(level))?);
-        }
-        Geometry::LineString(ls) => {
-            out.extend(cover_line_string(ls, &RegionCoverer::at_level(level))?);
-        }
-        Geometry::MultiLineString(mls) => {
-            for ls in mls.iter() {
-                out.extend(cover_line_string(ls, &RegionCoverer::at_level(level))?);
-            }
-        }
-    }
-    Some(())
+/// Collects a fixed-level cover into a deduplicating [`BTreeSet`]: points map to
+/// their containing cell, lines to their [`Polyline`] cover, polygons to their
+/// [`RegionCoverer`] cover — all at `level`. Backs [`cover_r2_geometry_at_level`].
+struct FixedCover<'a> {
+    level: u32,
+    out: &'a mut BTreeSet<S2CellId>,
 }
 
-fn collect_adaptive(
-    geom: &Geometry,
-    coverer: &RegionCoverer,
-    out: &mut Vec<S2CellId>,
-) -> Option<()> {
-    let point_level = coverer.max_level.min(MAX_LEVEL);
-    match geom {
-        Geometry::Point(p) => {
-            if valid_lonlat(p.x(), p.y()) {
-                let gp = GeoPoint::from_lon_lat(p.x(), p.y());
-                out.push(S2CellId::from_geo_point_at_level(gp, point_level));
-            }
-        }
-        Geometry::MultiPoint(mp) => {
-            for p in mp.iter() {
-                if valid_lonlat(p.x(), p.y()) {
-                    let gp = GeoPoint::from_lon_lat(p.x(), p.y());
-                    out.push(S2CellId::from_geo_point_at_level(gp, point_level));
-                }
-            }
-        }
-        Geometry::Polygon(poly) => out.extend(adaptive_polygon(poly, coverer)?.iter()),
-        Geometry::MultiPolygon(mp) => {
-            for poly in mp.iter() {
-                out.extend(adaptive_polygon(poly, coverer)?.iter());
-            }
-        }
-        Geometry::Rect(r) => out.extend(adaptive_polygon(&r.to_polygon(), coverer)?.iter()),
-        Geometry::Triangle(t) => out.extend(adaptive_polygon(&t.to_polygon(), coverer)?.iter()),
-        Geometry::GeometryCollection(gs) => {
-            for g in gs {
-                collect_adaptive(g, coverer, out)?;
-            }
-        }
-        Geometry::Line(l) => {
-            let coords = [(l.start.x, l.start.y), (l.end.x, l.end.y)];
-            out.extend(cover_line_coords(&coords, coverer)?);
-        }
-        Geometry::LineString(ls) => out.extend(cover_line_string(ls, coverer)?),
-        Geometry::MultiLineString(mls) => {
-            for ls in mls.iter() {
-                out.extend(cover_line_string(ls, coverer)?);
-            }
-        }
+impl GeometryParts for FixedCover<'_> {
+    fn point(&mut self, lon: f64, lat: f64) -> Option<()> {
+        insert_point(lon, lat, self.level, self.out);
+        Some(())
     }
-    Some(())
+    fn line(&mut self, coords: &[Coord]) -> Option<()> {
+        self.out
+            .extend(cover_line_coords(coords, &RegionCoverer::at_level(self.level))?);
+        Some(())
+    }
+    fn polygon(&mut self, poly: &Polygon) -> Option<()> {
+        cover_polygon(poly, self.level, self.out)
+    }
+}
+
+/// Collects an adaptive multi-level cover into a `Vec` (later normalized into a
+/// [`CellUnion`]): points map to their cell at `point_level`, lines to the
+/// adaptive [`Polyline`] cover, polygons to the adaptive region cover. Backs
+/// [`cover_r2_geometry`].
+struct AdaptiveCover<'a> {
+    coverer: &'a RegionCoverer,
+    /// `coverer.max_level` clamped to the leaf level, cached so each point does
+    /// not recompute it.
+    point_level: u32,
+    out: &'a mut Vec<S2CellId>,
+}
+
+impl GeometryParts for AdaptiveCover<'_> {
+    fn point(&mut self, lon: f64, lat: f64) -> Option<()> {
+        if valid_lonlat(lon, lat) {
+            let gp = GeoPoint::from_lon_lat(lon, lat);
+            self.out
+                .push(S2CellId::from_geo_point_at_level(gp, self.point_level));
+        }
+        Some(())
+    }
+    fn line(&mut self, coords: &[Coord]) -> Option<()> {
+        self.out.extend(cover_line_coords(coords, self.coverer)?);
+        Some(())
+    }
+    fn polygon(&mut self, poly: &Polygon) -> Option<()> {
+        self.out.extend(adaptive_polygon(poly, self.coverer)?.iter());
+        Some(())
+    }
 }
 
 /// True iff `(lon, lat)` is a finite, in-range WGS84 coordinate.
@@ -334,21 +362,21 @@ pub(super) fn polygon_region(poly: &Polygon) -> Option<S2Polygon> {
 /// The cells covering a chain of lon/lat coordinates: empty for no
 /// coordinates, the containing cell for one, and the [`Polyline`] cover
 /// otherwise; `None` when any coordinate is invalid.
-fn cover_line_coords(coords: &[(f64, f64)], coverer: &RegionCoverer) -> Option<Vec<S2CellId>> {
-    if !coords.iter().all(|&(lon, lat)| valid_lonlat(lon, lat)) {
+fn cover_line_coords(coords: &[Coord], coverer: &RegionCoverer) -> Option<Vec<S2CellId>> {
+    if !coords.iter().all(|c| valid_lonlat(c.x, c.y)) {
         return None;
     }
     let level = coverer.max_level.min(MAX_LEVEL);
     match coords {
         [] => Some(Vec::new()),
-        [(lon, lat)] => {
-            let gp = GeoPoint::from_lon_lat(*lon, *lat);
+        [c] => {
+            let gp = GeoPoint::from_lon_lat(c.x, c.y);
             Some(vec![S2CellId::from_geo_point_at_level(gp, level)])
         }
         _ => {
             let pts: Vec<S2Point> = coords
                 .iter()
-                .map(|&(lon, lat)| S2Point::from_geo_point(GeoPoint::from_lon_lat(lon, lat)))
+                .map(|c| S2Point::from_geo_point(GeoPoint::from_lon_lat(c.x, c.y)))
                 .collect();
             let line = Polyline::new(pts);
             if coverer.min_level == coverer.max_level && coverer.max_cells == usize::MAX {
@@ -358,11 +386,6 @@ fn cover_line_coords(coords: &[(f64, f64)], coverer: &RegionCoverer) -> Option<V
             }
         }
     }
-}
-
-fn cover_line_string(ls: &LineString, coverer: &RegionCoverer) -> Option<Vec<S2CellId>> {
-    let coords: Vec<(f64, f64)> = ls.coords().map(|c| (c.x, c.y)).collect();
-    cover_line_coords(&coords, coverer)
 }
 
 /// A lon/lat ring as a counter-clockwise spherical [`Loop`] (interior to the left
