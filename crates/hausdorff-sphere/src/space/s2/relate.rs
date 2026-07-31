@@ -76,7 +76,10 @@ impl SpatialPredicate {
     /// polygon carrying holes, which need a full spherical boolean / DE-9IM engine
     /// this does not yet provide.
     fn eval_areal_areal(self, a: &[S2Polygon], b: &[S2Polygon]) -> Option<bool> {
-        if !matches!(self, SpatialPredicate::Intersects | SpatialPredicate::Disjoint) {
+        if !matches!(
+            self,
+            SpatialPredicate::Intersects | SpatialPredicate::Disjoint
+        ) {
             return None;
         }
         if a.iter().chain(b.iter()).any(|p| !p.holes().is_empty()) {
