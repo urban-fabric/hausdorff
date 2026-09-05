@@ -44,6 +44,39 @@ fn intersect_segments(a1: Coord, a2: Coord, b1: Coord, b2: Coord) -> (u8, Coord,
     }
 }
 
+/// How far a crossing point may sit from an endpoint and still be treated as
+/// that endpoint. Four ULPs clears the round-off in the parameterisation above
+/// — the creep that motivated this was half an ULP per pass — while staying far
+/// tighter than any distance a caller could intend.
+const TOL_ULPS: f64 = 4.0;
+
+/// Whether a computed crossing point is, for the sweep's purposes, one of the
+/// segment endpoints rather than a point interior to it.
+fn coincident(a: Coord, p: Coord) -> bool {
+    close(a.x, p.x) && close(a.y, p.y)
+}
+
+/// Per-component, and relative to that component's own magnitude. A tolerance
+/// scaled by the larger of the two axes would be far too coarse on the other:
+/// at longitude -97.8 and latitude 30.4 the ULPs differ by a factor of four, and
+/// scaling latitude by the longitude cost measurable area on real inputs.
+fn close(u: f64, v: f64) -> bool {
+    let tol = TOL_ULPS * f64::EPSILON * u.abs().max(v.abs()).max(1.0);
+    (u - v).abs() <= tol
+}
+
+/// Whichever of `anchors` the crossing point cannot be distinguished from, or
+/// the point unchanged. Reusing the anchor's exact coordinates is what lets the
+/// caller's equality tests settle on the next pass.
+fn snap_to_endpoint(p: Coord, anchors: [Coord; 4]) -> Coord {
+    for anchor in anchors {
+        if coincident(anchor, p) {
+            return anchor;
+        }
+    }
+    p
+}
+
 pub(super) fn possible_intersection(
     events: &mut Vec<Event>,
     queue: &mut Vec<u32>,
@@ -65,6 +98,23 @@ pub(super) fn possible_intersection(
     }
 
     if n == 1 {
+        // Splitting two segments at their crossing leaves four sub-segments
+        // sharing that point. Re-deriving the crossing of a sub-segment pair
+        // does not reproduce it bit-for-bit, so the endpoint tests below —
+        // exact equality — miss by an ULP and the pair is split again, a
+        // fraction of an ULP further along, forever. Two events per split:
+        // three near-vertical edges meeting at one isochrone vertex drove this
+        // past three million splits and 114 GB of resident events before the
+        // kernel killed the caller.
+        //
+        // Snapping the crossing onto the endpoint it is indistinguishable from
+        // is what breaks the cycle, and it has to be a snap rather than a
+        // refusal to split: the sweep's bookkeeping assumes that when a
+        // crossing is interior the split happened, so declining to split
+        // strands the segment's `other` pointer and corrupts the result. After
+        // snapping, the equality tests are exact again and the next pass
+        // terminates.
+        let ip1 = snap_to_endpoint(ip1, [a1, a2, b1, b2]);
         if a1 != ip1 && a2 != ip1 {
             divide_segment(events, queue, e1, ip1);
         }
