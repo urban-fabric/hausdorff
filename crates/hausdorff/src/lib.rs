@@ -64,6 +64,7 @@ pub use algebra::{InnerProduct, MetricSpace, Norm, PointRegion, Prunable, Vector
 pub use earth::{FixedGeoPoint, GeoPoint};
 pub use space::r2::{
     Area, Bearing, BooleanOps, BoundingRect, Centroid, ChamberlainDuquetteArea, ConcaveHull,
+    MakeValid, MakeValidError,
     ConfidenceEllipse, Contains, ConvexHull, Coord, CoordsIter, Densify, Destination, Dimensions,
     Direction, Distance, Ellipse, Euclidean, ExactCoord, ExactPredicateError, ExactResult,
     ExactSegmentIntersection, ExactTrianglePosition, Geometry, HasDimensions, Haversine,
