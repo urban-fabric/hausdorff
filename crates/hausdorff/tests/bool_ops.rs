@@ -172,6 +172,9 @@ mod basic;
 #[path = "bool_ops/isochrone_bands.rs"]
 mod isochrone_bands;
 
+#[path = "bool_ops/pinched.rs"]
+mod pinched;
+
 #[path = "bool_ops/random_rects.rs"]
 mod random_rects;
 
