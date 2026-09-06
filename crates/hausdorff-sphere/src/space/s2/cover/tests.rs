@@ -1,8 +1,6 @@
 //! S2 covering and bounding tests.
 
 use super::*;
-
-use super::*;
 use hausdorff_planar::space::r2::{Line, LineString, MultiLineString, Point, Polygon};
 
 fn at(lon: f64, lat: f64, level: u32) -> S2CellId {
