@@ -136,6 +136,13 @@ fn check_ops(a: &MultiPolygon, b: &MultiPolygon, expected_inter: f64) {
         uni >= aa.max(ba) - EPS && uni <= aa + ba + EPS,
         "max(A,B) ≤ A∪B ≤ A+B: {uni}"
     );
+    // Stated on its own rather than left implicit in the identity above: a
+    // difference that exceeds its own minuend means assembly double-counted a
+    // region, and this reports that directly instead of as an identity residual.
+    assert!(
+        diff >= -EPS && diff <= aa + EPS,
+        "0 ≤ A\\B ≤ A: {diff} vs A {aa}"
+    );
     // Commutativity (area level).
     assert!((ha(&b.intersection(a)) - inter).abs() < EPS, "A∩B = B∩A");
     assert!((ha(&b.union(a)) - uni).abs() < EPS, "A∪B = B∪A");

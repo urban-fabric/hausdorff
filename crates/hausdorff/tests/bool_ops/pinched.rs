@@ -6,6 +6,17 @@
 
 use super::*;
 
+/// Load a WKT fixture from `tests/fixtures`. The large pinch cases live on disk
+/// rather than inline because their coordinates must survive verbatim.
+fn fixture(name: &str) -> MultiPolygon {
+    let path = format!("{}/tests/fixtures/{name}.wkt", env!("CARGO_MANIFEST_DIR"));
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {path}: {e}"));
+    match hausdorff::format::wkt::from_wkt(text.trim()).expect("fixture parses") {
+        hausdorff::Geometry::MultiPolygon(mp) => mp,
+        other => panic!("expected a multipolygon, got {other:?}"),
+    }
+}
+
 /// A hexagon and a triangle captured from an isochrone band, translated to the
 /// origin. Verbatim, because the defect they provoke is a topological one and
 /// rounding these coordinates loses it.
@@ -26,11 +37,22 @@ fn hexagon_and_triangle() -> (MultiPolygon, MultiPolygon) {
     (a, b)
 }
 
-// Both sliver cases fail today. They are the reproducer on #44, kept runnable
-// and named so the gap is visible rather than absent: `cargo test -- --ignored`
-// runs them, and the ignore comes off with the fix.
+// #44 was two defects, and the reproducers in this file cover both.
+//
+// *Contour tracing* closed a ring with a chord that was never in the result,
+// because at a point where four or more result edges met it continued along
+// whichever one happened to sit next in the sorted event list. Tracing now
+// orients every result edge so the interior is on its left and pairs them at a
+// shared point by angle, so the continuation follows from the labelling.
+//
+// *Region labelling* then left the tracer edge sets it could not close at all —
+// a point with an **odd** number of result edges meeting, which no closed
+// boundary has. The union below is the cheapest reproducer of that in the
+// suite: twelve result segments, two of them degree-1. The triangle's first
+// vertex lies on a hexagon edge to within two ULPs, so the sweep splits the edge
+// there while ordering the segments as though it had not, and labels a triangle
+// edge inside the hexagon when it is outside. Dropping it opens the corner.
 #[test]
-#[ignore = "reproduces #44: contour tracing closes rings with an invented chord"]
 fn union_of_a_sliver_and_a_triangle_covers_both() {
     let (a, b) = hexagon_and_triangle();
     let (aa, ba) = (ha(&a), ha(&b));
@@ -48,7 +70,6 @@ fn union_of_a_sliver_and_a_triangle_covers_both() {
 }
 
 #[test]
-#[ignore = "reproduces #44: contour tracing closes rings with an invented chord"]
 fn difference_of_a_sliver_and_a_triangle_is_consistent() {
     let (a, b) = hexagon_and_triangle();
     let inter = ha(&a.intersection(&b));
@@ -58,6 +79,67 @@ fn difference_of_a_sliver_and_a_triangle_is_consistent() {
         "A\\B = A-A∩B: {diff} vs {}",
         ha(&a) - inter
     );
+}
+
+/// A second #44 reproducer, from the same isochrone-band run as the fixtures in
+/// [`super::isochrone_bands`] but a different pair. It failed *differently* from
+/// the hexagon/triangle above — that one is three vertices against six, this is
+/// 574 against 393 with many self-touching pinches — so it is kept as the check
+/// that a repair works at scale and not just on the small case. Stored as WKT
+/// because the coordinates must survive verbatim; the conversion from the
+/// captured WKB was checked to re-encode byte for byte.
+fn pinch_band() -> (MultiPolygon, MultiPolygon) {
+    (fixture("pinch_band_a"), fixture("pinch_band_b"))
+}
+
+#[test]
+fn union_of_a_pinched_band_pair_covers_both() {
+    let (a, b) = pinch_band();
+    let (aa, ba) = (ha(&a), ha(&b));
+    let union = ha(&a.union(&b));
+    assert!(
+        union >= aa.max(ba) - EPS,
+        "A∪B must cover A: union {union} vs A {aa}"
+    );
+    let inter = ha(&a.intersection(&b));
+    assert!(
+        (union - (aa + ba - inter)).abs() < EPS,
+        "A∪B = A+B-A∩B: {union} vs {}",
+        aa + ba - inter
+    );
+}
+
+#[test]
+fn difference_of_a_pinched_band_pair_is_consistent() {
+    let (a, b) = pinch_band();
+    let inter = ha(&a.intersection(&b));
+    let diff = ha(&a.difference(&b));
+    assert!(diff <= ha(&a) + EPS, "A\\B ≤ A: {diff} vs {}", ha(&a));
+    assert!(
+        (diff - (ha(&a) - inter)).abs() < EPS,
+        "A\\B = A-A∩B: {diff} vs {}",
+        ha(&a) - inter
+    );
+}
+
+/// The band pair that held out longest. Its operands share exact vertices in two
+/// places and cross again a millionth of a degree further along, which left the
+/// crossing pair separated by a third segment in the sweep's status — never
+/// adjacent, so never tested, so never split. An edge of one polygon then ran
+/// from inside the other to outside it with nothing marking where it changed,
+/// and the tracer was handed a vertex with a single edge at it.
+///
+/// The whole set-algebra battery, because the failure showed in every operation.
+/// The intersection area is a golden constant in the sense of this file's header
+/// — captured once the invariants below all held, and kept so a regression that
+/// preserved the identities while moving the answer would still be caught.
+#[test]
+fn shared_vertex_band_pair_satisfies_the_set_algebra() {
+    let (a, b) = (
+        fixture("shared_vertex_band_a"),
+        fixture("shared_vertex_band_b"),
+    );
+    check_ops(&a, &b, 0.013_051_614_871_983_47);
 }
 
 /// Two unit squares meeting at exactly one vertex. The union has to keep both.

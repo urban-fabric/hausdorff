@@ -10,7 +10,7 @@ pub(super) enum EdgeType {
     DifferentTransition,
 }
 
-/// A sweep event in the arena. `other`/`prev_in_result` are arena indices.
+/// A sweep event in the arena. `other` is an arena index.
 #[derive(Clone, Copy)]
 pub(super) struct Event {
     pub(super) point: Coord,
@@ -21,7 +21,16 @@ pub(super) struct Event {
     pub(super) in_out: bool,
     pub(super) other_in_out: bool,
     pub(super) in_result: bool,
-    pub(super) prev_in_result: Option<u32>,
+    /// Does the ring this edge came from run *away* from this event, towards the
+    /// other endpoint? Recorded per event rather than per segment so that it
+    /// survives [`super::intersection`]'s subdivision, which can swap which end
+    /// of a segment is the left one.
+    ///
+    /// Input winding is normalised before the sweep, so a ring always keeps its
+    /// polygon's interior on its left. That makes this an exact record of which
+    /// side the interior lies on — unlike `in_out`, which the sweep infers from
+    /// the segment below and which near-degenerate slivers can get wrong.
+    pub(super) ring_forward: bool,
 }
 
 /// Push a fresh event into the arena and return its index.
@@ -36,7 +45,7 @@ pub(super) fn new_event(events: &mut Vec<Event>, point: Coord, subject: bool) ->
         in_out: false,
         other_in_out: false,
         in_result: false,
-        prev_in_result: None,
+        ring_forward: false,
     });
     idx
 }
@@ -46,8 +55,8 @@ pub(super) fn other_point(events: &[Event], e: u32) -> Coord {
     events[events[e as usize].other.unwrap() as usize].point
 }
 
-/// Is `p` below the segment `(a -> b)` (a is the left endpoint)? Uses the signed
-/// area of the triangle.
+/// Twice the signed area of the triangle `a, b, c`. Positive when `c` lies above
+/// the line `a -> b`, zero when the three are collinear.
 fn signed_area(a: Coord, b: Coord, c: Coord) -> f64 {
     (a.x - c.x) * (b.y - c.y) - (b.x - c.x) * (a.y - c.y)
 }
@@ -144,22 +153,41 @@ pub(super) fn compare_segments(events: &[Event], le1: u32, le2: u32) -> Ordering
     let (p1, p1o) = (events[le1 as usize].point, other_point(events, le1));
     let (p2, p2o) = (events[le2 as usize].point, other_point(events, le2));
 
-    if signed_area(p1, p1o, p2) != 0.0 || signed_area(p1, p1o, p2o) != 0.0 {
+    let start_off = signed_area(p1, p1o, p2);
+    let end_off = signed_area(p1, p1o, p2o);
+    if start_off != 0.0 || end_off != 0.0 {
         if p1 == p2 {
-            return if below(p1, p1o, p2o) {
+            return if end_off > 0.0 {
                 Ordering::Less
             } else {
                 Ordering::Greater
             };
         }
         if compare_events(events, le1, le2) == Ordering::Greater {
-            return if !below(p2, p2o, p1) {
-                Ordering::Less
+            // Segment 2 starts first, so where segment 1 starts decides — unless
+            // it starts *on* segment 2, which is a touch and not an order. Then
+            // the far endpoint separates them, as it already does just above for
+            // two segments sharing a left endpoint.
+            let on = signed_area(p2, p2o, p1);
+            let first_above = if on != 0.0 {
+                on > 0.0
             } else {
+                signed_area(p2, p2o, p1o) > 0.0
+            };
+            return if first_above {
                 Ordering::Greater
+            } else {
+                Ordering::Less
             };
         }
-        return if below(p1, p1o, p2) {
+        // Symmetrically. Both offsets zero cannot reach here — that is the
+        // collinear case below.
+        let second_above = if start_off != 0.0 {
+            start_off > 0.0
+        } else {
+            end_off > 0.0
+        };
+        return if second_above {
             Ordering::Less
         } else {
             Ordering::Greater
@@ -177,8 +205,4 @@ pub(super) fn compare_segments(events: &[Event], le1: u32, le2: u32) -> Ordering
     } else {
         Ordering::Less
     }
-}
-
-fn below(a: Coord, b: Coord, p: Coord) -> bool {
-    signed_area(a, b, p) > 0.0
 }

@@ -201,6 +201,12 @@ fn divide_segment(events: &mut Vec<Event>, queue: &mut Vec<u32>, e: u32, p: Coor
     events[r as usize].other = Some(e);
     events[l as usize].left = true;
     events[l as usize].other = Some(other);
+    // Both halves inherit the whole segment's ring direction: `r` closes the
+    // half that starts at `e`, `l` opens the half that ends at `other`. Stated
+    // against each half's far endpoint so it holds whichever way the left/right
+    // roles fall out below.
+    events[r as usize].ring_forward = !events[e as usize].ring_forward;
+    events[l as usize].ring_forward = !events[other as usize].ring_forward;
 
     events[other as usize].other = Some(l);
     events[e as usize].other = Some(r);

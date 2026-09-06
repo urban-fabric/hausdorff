@@ -70,9 +70,12 @@ fn isochrone_band_difference_converges() {
         "0 < A∩B ≤ A: {intersection_area} vs {outer_area}"
     );
 
-    // Deliberately *not* asserted: A\B = A - A∩B. It does not hold here, and it
-    // does not hold on unmodified `main` either — three of the thirty-one other
-    // band pairs captured from the same run report a union smaller than one of
-    // their operands. That is a separate defect in how the sweep labels regions
-    // on these hulls, not something this guard introduced or claims to fix.
+    // A\B = A - A∩B. This did not hold when the guard landed — the sweep was
+    // mislabelling regions on these hulls, separately from the non-termination
+    // this test exists for — and is asserted now that it does.
+    assert!(
+        (difference_area - (outer_area - intersection_area)).abs() < 1e-9,
+        "A\\B = A-A∩B: {difference_area} vs {}",
+        outer_area - intersection_area
+    );
 }

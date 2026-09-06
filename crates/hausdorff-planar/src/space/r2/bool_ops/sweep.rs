@@ -29,7 +29,7 @@ pub(super) fn run(subject: &MultiPolygon, clipping: &MultiPolygon, op: Operation
     };
     let contours = {
         let _connect = crate::profile::span("connect_edges");
-        connect_edges(&events, &sorted)
+        connect_edges(&events, &sorted, op)
     };
     MultiPolygon::new(contours)
 }
@@ -57,6 +57,9 @@ fn fill_ring(events: &mut Vec<Event>, queue: &mut Vec<u32>, coords: &[Coord], su
         let e2 = new_event(events, b, subject);
         events[e1 as usize].other = Some(e2);
         events[e2 as usize].other = Some(e1);
+        // The ring runs a -> b, so it leads away from `e1` and into `e2`.
+        events[e1 as usize].ring_forward = true;
+        events[e2 as usize].ring_forward = false;
         if compare_events(events, e1, e2) == std::cmp::Ordering::Less {
             events[e1 as usize].left = true;
             events[e2 as usize].left = false;
@@ -83,18 +86,53 @@ fn subdivide(events: &mut Vec<Event>, queue: &mut Vec<u32>, op: Operation) -> Ve
 
             compute_fields(events, event, prev, op);
 
-            if let Some(next) = next
-                && possible_intersection(events, queue, event, next) == 2
-            {
-                compute_fields(events, event, prev, op);
-                compute_fields(events, next, Some(event), op);
+            let mut divided = false;
+            if let Some(next) = next {
+                match possible_intersection(events, queue, event, next) {
+                    0 => {}
+                    2 => {
+                        compute_fields(events, event, prev, op);
+                        compute_fields(events, next, Some(event), op);
+                    }
+                    _ => divided = true,
+                }
             }
-            if let Some(prev) = prev
-                && possible_intersection(events, queue, prev, event) == 2
-            {
-                let prev_prev = sweep_prev_of(&sweep, prev);
-                compute_fields(events, prev, prev_prev, op);
-                compute_fields(events, event, Some(prev), op);
+            if let Some(prev) = prev {
+                match possible_intersection(events, queue, prev, event) {
+                    0 => {}
+                    2 => {
+                        let prev_prev = sweep_prev_of(&sweep, prev);
+                        compute_fields(events, prev, prev_prev, op);
+                        compute_fields(events, event, Some(prev), op);
+                    }
+                    _ => divided = true,
+                }
+            }
+
+            // This segment was placed against a neighbour that has since been
+            // divided, and it is the *undivided* neighbour it was compared with.
+            // Where the division landed on this segment's own start — a vertex of
+            // one polygon sitting on an edge of the other — the comparison was
+            // decided by a determinant that is only zero once the split exists,
+            // and until then reads as a couple of ULPs to one side. Placing it
+            // again now that the neighbour ends where they actually meet is what
+            // keeps the sweep's order and its subdivision telling the same story.
+            if divided {
+                if let Some(at) = sweep.iter().position(|&e| e == event) {
+                    sweep.remove(at);
+                }
+                let pos = sweep_insert(&mut sweep, events, event);
+                let prev = if pos > 0 { Some(sweep[pos - 1]) } else { None };
+                let next = sweep.get(pos + 1).copied();
+                compute_fields(events, event, prev, op);
+                // Moving it gives it neighbours it was never tested against, and
+                // an untested pair is a crossing the sweep will not split.
+                if let Some(next) = next {
+                    possible_intersection(events, queue, event, next);
+                }
+                if let Some(prev) = prev {
+                    possible_intersection(events, queue, prev, event);
+                }
             }
         } else {
             let left = events[event as usize].other.unwrap();
@@ -150,17 +188,6 @@ fn compute_fields(events: &mut [Event], event: u32, prev: Option<u32>, op: Opera
     }
     let res = in_result(events, event, op);
     events[event as usize].in_result = res;
-    let pir = match prev {
-        Some(prev) => {
-            if !events[prev as usize].in_result || is_vertical(events, prev) {
-                events[prev as usize].prev_in_result
-            } else {
-                Some(prev)
-            }
-        }
-        None => None,
-    };
-    events[event as usize].prev_in_result = pir;
 }
 
 fn in_result(events: &[Event], event: u32, op: Operation) -> bool {
