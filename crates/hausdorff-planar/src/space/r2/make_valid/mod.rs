@@ -32,9 +32,9 @@
 mod node;
 mod trace;
 
+use super::util::point_in_ring;
 use super::validation::Validation;
 use super::{Coord, LineString, MultiPolygon, Polygon};
-use super::util::point_in_ring;
 
 /// Repair polygonal geometry into a valid [`MultiPolygon`].
 pub trait MakeValid {

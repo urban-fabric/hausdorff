@@ -27,7 +27,6 @@ pub mod bool_ops;
 pub mod bounding_rect;
 pub mod centroid;
 pub mod concave_hull;
-pub mod make_valid;
 pub mod contains;
 pub mod convex_hull;
 pub mod coords_iter;
@@ -39,6 +38,7 @@ pub mod index;
 pub mod intersects;
 pub mod join;
 pub mod line_measures;
+pub mod make_valid;
 pub mod map_coords;
 pub mod min_distance;
 pub mod prepared;
@@ -69,7 +69,6 @@ pub use bool_ops::{BooleanOps, Operation, UnaryUnionOperand, unary_union};
 pub use bounding_rect::BoundingRect;
 pub use centroid::Centroid;
 pub use concave_hull::ConcaveHull;
-pub use make_valid::{MakeValid, MakeValidError};
 pub use contains::Contains;
 pub use convex_hull::ConvexHull;
 pub use coords_iter::CoordsIter;
@@ -87,6 +86,7 @@ pub use line_measures::{
     Bearing, Destination, Distance, Euclidean, Geodesic, Haversine, InterpolatePoint, Length,
     Perimeter, Rhumb,
 };
+pub use make_valid::{MakeValid, MakeValidError};
 pub use map_coords::MapCoords;
 pub use min_distance::{MinDistanceWorkspace, euclidean_distance, euclidean_within};
 pub use prepared::PreparedGeometry;

@@ -36,7 +36,11 @@ fn dangling_spur_cancels_against_itself() {
     ]]);
     let repaired = spur.make_valid().expect("spur is repairable");
     assert!(repaired.is_valid());
-    assert!((area(&repaired) - 100.0).abs() < 1e-9, "{}", area(&repaired));
+    assert!(
+        (area(&repaired) - 100.0).abs() < 1e-9,
+        "{}",
+        area(&repaired)
+    );
 }
 
 #[test]

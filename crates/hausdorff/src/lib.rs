@@ -64,11 +64,10 @@ pub use algebra::{InnerProduct, MetricSpace, Norm, PointRegion, Prunable, Vector
 pub use earth::{FixedGeoPoint, GeoPoint};
 pub use space::r2::{
     Area, Bearing, BooleanOps, BoundingRect, Centroid, ChamberlainDuquetteArea, ConcaveHull,
-    MakeValid, MakeValidError,
     ConfidenceEllipse, Contains, ConvexHull, Coord, CoordsIter, Densify, Destination, Dimensions,
     Direction, Distance, Ellipse, Euclidean, ExactCoord, ExactPredicateError, ExactResult,
     ExactSegmentIntersection, ExactTrianglePosition, Geometry, HasDimensions, Haversine,
-    InCirclePosition, InterpolatePoint, Intersects, Length, Line, LineString, MultiLineString,
-    MultiPoint, MultiPolygon, Operation, Orient, OrientationSign, Perimeter, Point, Polygon, Rect,
-    Rhumb, Simplify, Triangle, Winding, WindingOrder,
+    InCirclePosition, InterpolatePoint, Intersects, Length, Line, LineString, MakeValid,
+    MakeValidError, MultiLineString, MultiPoint, MultiPolygon, Operation, Orient, OrientationSign,
+    Perimeter, Point, Polygon, Rect, Rhumb, Simplify, Triangle, Winding, WindingOrder,
 };
