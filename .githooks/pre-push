@@ -1,0 +1,40 @@
+#!/bin/sh
+#
+# Pre-push gate for hausdorff.
+#
+# One file, two ways in, so the gate cannot differ between them:
+#
+#   git push                    git runs this file when core.hooksPath is
+#                               `.githooks` — set by
+#                               `../bin/pre-push.sh --install-hooks`.
+#   ../bin/pre-push.sh hausdorff
+#                               runs this file directly. This repository is
+#                               jj-managed, and `jj git push` runs no git hooks
+#                               at all, so for a jj push this is the only path
+#                               that gates anything.
+#
+# UF_GATE_ONLY=<step>[,<step>...] limits the run to the named steps; unset runs
+# every step. The workspace runner uses it for cheap fleet-wide sweeps.
+
+set -eu
+cd "$(dirname "$0")/.."
+
+# 123 GiB and no swap on this box, with other builds often running: bound the
+# compile rather than letting cargo take every core.
+CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-8}"
+export CARGO_BUILD_JOBS
+
+step() {
+	step_name=$1
+	shift
+	case ",${UF_GATE_ONLY:-}," in
+		",,"|*",$step_name,"*) ;;
+		*) printf 'gate: skip %s\n' "$step_name" >&2; return 0 ;;
+	esac
+	printf 'gate: %s -- %s\n' "$step_name" "$*" >&2
+	"$@"
+}
+
+step fmt  cargo fmt --all --check
+step lint cargo clippy --workspace --all-targets -- -D warnings
+step test cargo test --workspace
