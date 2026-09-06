@@ -169,6 +169,9 @@ fn check_rects(a_rects: &[(f64, f64, f64, f64)], b_rects: &[(f64, f64, f64, f64)
 #[path = "bool_ops/basic.rs"]
 mod basic;
 
+#[path = "bool_ops/isochrone_bands.rs"]
+mod isochrone_bands;
+
 #[path = "bool_ops/random_rects.rs"]
 mod random_rects;
 
