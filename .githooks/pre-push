@@ -19,6 +19,42 @@
 set -eu
 cd "$(dirname "$0")/.."
 
+# A push that only deletes refs carries no code, so there is nothing here to
+# gate — and gating it anyway builds this tree on behalf of a `git push
+# --delete`, which is how a branch deletion ends up rejected by a build failure
+# it has nothing to do with. Both entry points reach this file, and only one of
+# them has a ref list:
+#
+#   git push       git passes the remote name and URL as arguments and feeds one
+#                  `<local-ref> <local-sha> <remote-ref> <remote-sha>` line per
+#                  ref on stdin. A deletion's local sha is all zeros.
+#   pre-push.sh    the runner invokes this file directly, with no arguments and
+#                  no ref list. Gating the read on the argument count is what
+#                  keeps that path from blocking on stdin.
+#
+# Only an all-deletion push skips: every line is read before the verdict, so a
+# push carrying one real ref alongside a deletion still gates.
+push_is_all_deletions() {
+	[ "$#" -ge 2 ] || return 1
+	deletions_only=1
+	refs_seen=0
+	# Reads this hook's own stdin, deliberately not `... | while read`: a piped
+	# loop is a subshell in some shells and the verdict would not survive it.
+	while read -r _local_ref local_sha _remote_ref _remote_sha; do
+		[ -n "$local_sha" ] || continue
+		refs_seen=$((refs_seen + 1))
+		case $local_sha in
+			*[!0]*) deletions_only=0 ;;
+		esac
+	done
+	[ "$refs_seen" -gt 0 ] && [ "$deletions_only" -eq 1 ]
+}
+
+if push_is_all_deletions "$@"; then
+	printf 'gate: skipped -- push deletes refs only, no code to gate\n' >&2
+	exit 0
+fi
+
 # 123 GiB and no swap on this box, with other builds often running: bound the
 # compile rather than letting cargo take every core.
 CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-8}"
