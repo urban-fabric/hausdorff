@@ -22,6 +22,13 @@ use hausdorff::{Coord, Geometry, Line, LineString, MultiPoint, Point, Polygon, R
 
 const EPS: f64 = 1e-9;
 
+/// A polygon's rings as plain coordinate pairs: the exterior, then each hole.
+type Rings = (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>);
+
+/// A polygon fixture beside the rings it was built from, so a test can compare
+/// a hausdorff result against the coordinates that produced it.
+type PolyFixture = (Polygon, Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>);
+
 fn h_line_string(coords: &[(f64, f64)]) -> LineString {
     LineString::new(coords.iter().map(|&(x, y)| Coord::new(x, y)).collect())
 }
@@ -160,10 +167,10 @@ fn point_in_ring(p: (f64, f64), ring: &[(f64, f64)]) -> bool {
 /// Append the closing vertex if `ring` is not already closed.
 fn closed(ring: &[(f64, f64)]) -> Vec<(f64, f64)> {
     let mut v = ring.to_vec();
-    if let (Some(&first), Some(&last)) = (v.first(), v.last()) {
-        if first != last {
-            v.push(first);
-        }
+    if let (Some(&first), Some(&last)) = (v.first(), v.last())
+        && first != last
+    {
+        v.push(first);
     }
     v
 }

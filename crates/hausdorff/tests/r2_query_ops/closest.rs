@@ -87,10 +87,10 @@ fn closest_point_on_line_string_matches_reference() {
 fn closest_point_on_polygon_matches_reference() {
     let exterior = vec![(0.0, 0.0), (8.0, 0.0), (8.0, 8.0), (0.0, 8.0)];
     let hole = vec![(3.0, 3.0), (5.0, 3.0), (5.0, 5.0), (3.0, 5.0)];
-    let cases: Vec<(Polygon, Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>)> = vec![
+    let cases: Vec<PolyFixture> = vec![
         (h_polygon(&exterior, &[]), exterior.clone(), vec![]),
         (
-            h_polygon(&exterior, &[hole.clone()]),
+            h_polygon(&exterior, std::slice::from_ref(&hole)),
             exterior.clone(),
             vec![hole.clone()],
         ),

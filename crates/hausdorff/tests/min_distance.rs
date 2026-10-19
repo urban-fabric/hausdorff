@@ -6,6 +6,9 @@ use hausdorff::space::r2::Intersects as _;
 use hausdorff::space::r2::{MinDistanceWorkspace, euclidean_distance, euclidean_within};
 use hausdorff::{Coord, Geometry, Line, LineString, Point, Polygon};
 
+/// A boundary segment as its two endpoints.
+type Segment = ((f64, f64), (f64, f64));
+
 fn pt(x: f64, y: f64) -> Geometry {
     Geometry::Point(Point::new(x, y))
 }
@@ -53,10 +56,10 @@ fn seg_seg(p1: (f64, f64), p2: (f64, f64), q1: (f64, f64), q2: (f64, f64)) -> f6
 }
 
 /// Decompose a geometry into its boundary segments and isolated points.
-fn primitives(g: &Geometry) -> (Vec<((f64, f64), (f64, f64))>, Vec<(f64, f64)>) {
+fn primitives(g: &Geometry) -> (Vec<Segment>, Vec<(f64, f64)>) {
     let mut segs = Vec::new();
     let mut pts = Vec::new();
-    fn push_ring(segs: &mut Vec<((f64, f64), (f64, f64))>, coords: &[Coord]) {
+    fn push_ring(segs: &mut Vec<Segment>, coords: &[Coord]) {
         for w in coords.windows(2) {
             segs.push(((w[0].x, w[0].y), (w[1].x, w[1].y)));
         }

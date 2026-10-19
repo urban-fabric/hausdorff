@@ -107,7 +107,7 @@ fn extremes_match_reference() {
 fn extremes_ignore_interior_rings() {
     let exterior = vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)];
     let hole = vec![(1.0, 1.0), (3.0, 1.0), (3.0, 3.0), (1.0, 3.0)];
-    let h = h_polygon(&exterior, &[hole.clone()]);
+    let h = h_polygon(&exterior, std::slice::from_ref(&hole));
     // The reference walks only the (closed) exterior ring, never the hole.
     let ro = ref_extremes(&closed(&exterior)).unwrap();
     let ho = h.extremes().unwrap();

@@ -40,7 +40,9 @@ fn ntv2_grid_datum_matches_proj_end_to_end() {
     // Grid-shifted geographic CRS → WGS84 through the full registry pipeline,
     // which uses the embedded NTv2 grids. PROJ 9.4.0 ground truth.
     let wgs84 = Crs::wgs84();
-    let cases: &[(u32, &str, &[(f64, f64, f64, f64)])] = &[
+    // EPSG code, label, and `(lat, lon, expected_lat, expected_lon)` samples.
+    type DatumCase<'a> = (u32, &'a str, &'a [(f64, f64, f64, f64)]);
+    let cases: &[DatumCase] = &[
         (
             4314, // DHDN — BETA2007
             "DHDN",

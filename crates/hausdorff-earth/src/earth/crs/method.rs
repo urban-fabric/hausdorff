@@ -90,9 +90,10 @@ pub(super) fn projection_from_method(
 /// The EPSG method name, method code, and `(name, value, unit)` parameter list for
 /// a projection — the emit side shared by the WKT2 and PROJJSON serializers.
 /// `None` for a projection with no standard method (the local tangent plane).
-pub(super) fn conversion_params(
-    p: ProjectionKind,
-) -> Option<(&'static str, u32, Vec<(&'static str, f64, ParamUnit)>)> {
+/// An EPSG method name and code, with its `(name, value, unit)` parameter list.
+pub(super) type ConversionParams = (&'static str, u32, Vec<(&'static str, f64, ParamUnit)>);
+
+pub(super) fn conversion_params(p: ProjectionKind) -> Option<ConversionParams> {
     use ParamUnit::{Angle, Length, Scale};
     Some(match p {
         ProjectionKind::TransverseMercator(m) => (

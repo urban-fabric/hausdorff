@@ -6,6 +6,7 @@
 //!   * a Sutherland–Hodgman convex clipper (triangle inputs),
 //!   * golden constants captured from the validated implementation (the handful of
 //!     concave/holed fixtures whose intersection has no simple closed form),
+//!
 //! plus the full set-algebra invariants (inclusion–exclusion, difference,
 //! symmetric difference, commutativity, idempotence, monotone bounds), which tie
 //! the four operations to one another and to `unsigned_area`. No geometry crate.

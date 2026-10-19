@@ -211,10 +211,10 @@ fn epsg_of(node: &Json) -> Option<u32> {
 /// EPSG id this crate knows (keeping its shift to WGS84), else the bare
 /// `ellipsoid` (identity shift). Mirrors the WKT2 reader.
 fn datum_of(node: &Json) -> Option<Datum> {
-    if let Some(code) = epsg_of(node) {
-        if let Some(crs) = Crs::from_epsg(code) {
-            return Some(crs.datum());
-        }
+    if let Some(code) = epsg_of(node)
+        && let Some(crs) = Crs::from_epsg(code)
+    {
+        return Some(crs.datum());
     }
     let d = node.get("datum").or_else(|| node.get("datum_ensemble"))?;
     let ell = d.get("ellipsoid")?;

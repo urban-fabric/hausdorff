@@ -190,10 +190,10 @@ fn conversion_node(projection: ProjectionKind) -> String {
 /// when the node carries an EPSG code this crate knows (keeping its shift to
 /// WGS84), else built from the `ELLIPSOID` with an identity shift.
 fn datum_of(node: &WktNode) -> Option<Datum> {
-    if let Some(code) = node.epsg() {
-        if let Some(crs) = Crs::from_epsg(code) {
-            return Some(crs.datum());
-        }
+    if let Some(code) = node.epsg()
+        && let Some(crs) = Crs::from_epsg(code)
+    {
+        return Some(crs.datum());
     }
     let ell = node
         .find_deep("ELLIPSOID")

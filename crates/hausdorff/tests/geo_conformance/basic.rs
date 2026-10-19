@@ -71,7 +71,7 @@ fn contains_matches_ray_cast() {
 
 #[test]
 fn convex_hull_area_matches_golden() {
-    let point_sets = vec![
+    let point_sets = [
         vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0), (2.0, 2.0)],
         vec![
             (0.0, 0.0),

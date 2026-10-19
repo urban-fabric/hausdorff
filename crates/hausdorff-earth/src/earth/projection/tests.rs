@@ -161,9 +161,9 @@ fn local_tangent_plane_matches_proj_topocentric() {
     let ltp = LocalTangentPlane::new(Ellipsoid::WGS84, GeoPoint::from_lat_lon(52.0, 10.0));
     let refs = [
         (52.0, 10.0, 0.0, 0.0),
-        (52.01, 10.0, 0.0, 1112.674_477),
+        (52.01, 10.0, 0.0, 1_112.674_477),
         (52.0, 10.01, 686.780_157, 0.047_228),
-        (52.05, 10.07, 4802.102_024, 5565.702_286),
+        (52.05, 10.07, 4_802.102_024, 5_565.702_286),
     ];
     for &(lat, lon, e, n) in &refs {
         let c = ltp.project(GeoPoint::from_lat_lon(lat, lon));

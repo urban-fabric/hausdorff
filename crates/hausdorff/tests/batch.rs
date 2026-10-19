@@ -43,7 +43,7 @@ fn lonlat_batch_haversine_matches_scalar() {
     assert_eq!(raw.len(), pts.len());
     for (i, p) in pts.iter().enumerate() {
         let expected = haversine_m(*p, target);
-        assert_eq!(fan[i].clone().value(), expected);
+        assert_eq!(fan[i].value(), expected);
         assert_eq!(raw[i], expected);
     }
 }

@@ -126,10 +126,14 @@ fn apply_path(t: &RefAffine, path: &[(f64, f64)]) -> Vec<(f64, f64)> {
 }
 
 // The fixtures used across the affine tests, kept identical to the originals.
-fn poly_fixture() -> (Polygon, Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
+fn poly_fixture() -> PolyFixture {
     let exterior = vec![(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)];
     let hole = vec![(3.0, 3.0), (5.0, 3.0), (5.0, 5.0), (3.0, 5.0)];
-    (h_polygon(&exterior, &[hole.clone()]), exterior, vec![hole])
+    (
+        h_polygon(&exterior, std::slice::from_ref(&hole)),
+        exterior,
+        vec![hole],
+    )
 }
 
 fn ls_fixture() -> (LineString, Vec<(f64, f64)>) {
@@ -226,7 +230,7 @@ fn translate_rotate_scale_skew_match_reference() {
     let poly_centroid = centroid_of(&h_poly);
     let ls_centroid = centroid_of(&h_ls);
 
-    let apply_poly = |t: &RefAffine| -> (Vec<(f64, f64)>, Vec<Vec<(f64, f64)>>) {
+    let apply_poly = |t: &RefAffine| -> Rings {
         (
             apply_ring(t, &ext),
             holes.iter().map(|h| apply_ring(t, h)).collect(),
