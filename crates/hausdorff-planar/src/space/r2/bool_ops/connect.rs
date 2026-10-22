@@ -15,15 +15,21 @@
 //! the usual planar face-traversal rule, and it follows from the labelling
 //! rather than guessing at the geometry.
 //!
-//! **What this depends on.** The rule needs the surviving edges to form a closed
-//! boundary. Where the sweep mislabels which edges belong to the result it hands
-//! over a set with an *odd-degree* vertex — a point where an odd number of result
-//! edges meet, which no closed boundary has — and then the walk must dead-end
-//! there whatever it does. Six of the thirty-two real band pairs used to arrive
-//! that way; see the ordering and re-placement notes in [`super::sweep`] for what
-//! that was. Odd parity is the thing to measure if this regresses: count result
-//! edges per point, rather than comparing areas, which only says something is
-//! wrong and not where.
+//! **What this does not depend on.** An earlier version required the surviving
+//! edges to have an even number meeting at every point, on the reasoning that a
+//! closed boundary has no odd-degree vertex and the walk would otherwise have to
+//! dead-end. That is true of a boundary that never touches itself, and false in
+//! general: where a vertex of one operand lands exactly on a vertex of another,
+//! removing the overlapping edge legitimately leaves odd parity, the walk does
+//! dead-end there, and [`assemble`] recovers the rings regardless. A segment's
+//! offset rectangle meeting a disc at its corner — what `buffer` produces — does
+//! all three and returns an answer bit-identical to the same union computed
+//! without the coincidence.
+//!
+//! So what is checked is the output instead: no two parts of the result may
+//! share interior area. That is the invariant #44 actually broke, and it has no
+//! false positives, because boundary contact between parts is permitted and
+//! interior overlap never is.
 
 use super::super::{Coord, Polygon};
 use super::Operation;
@@ -65,13 +71,6 @@ pub(super) fn connect_edges(events: &[Event], sorted: &[u32], op: Operation) -> 
         return Vec::new();
     }
 
-    debug_assert!(
-        closed_boundary(events, &result),
-        "{op:?}: the sweep left a point with an odd number of result edges at it, \
-         which no closed boundary has — the region labelling is wrong, and tracing \
-         cannot recover it"
-    );
-
     let is_tail = orient(events, &result, &other_pos, op);
     let pairing = pair_at_shared_points(events, &result, &other_pos, &is_tail);
 
@@ -101,27 +100,52 @@ pub(super) fn connect_edges(events: &[Event], sorted: &[u32], op: Operation) -> 
         }
     }
 
-    assemble(rings)
+    let polygons = assemble(rings);
+    debug_assert!(
+        interiors_are_disjoint(&polygons),
+        "{op:?}: two parts of the result share interior area, so tracing closed a \
+         ring with a chord that was never in the result and the overlap is being \
+         double counted"
+    );
+    polygons
 }
 
-/// Does an even number of result edges meet at every point? Anything else is a
-/// dangling boundary, and the tracer below would have to invent a chord to close
-/// it — so this is checked rather than worked around. It is the cheap form of the
-/// question areas only answer indirectly: a residual says a result is wrong, this
-/// says where. Events sharing a point are adjacent in `result`, so it is one pass.
-fn closed_boundary(events: &[Event], result: &[u32]) -> bool {
-    let mut start = 0;
-    while start < result.len() {
-        let point = events[result[start] as usize].point;
-        let mut end = start;
-        while end < result.len() && events[result[end] as usize].point == point {
-            end += 1;
-        }
-        if (end - start) % 2 == 1 {
-            return false;
-        }
-        start = end;
-    }
+/// Do no two parts of the result share interior area?
+///
+/// This is the invariant a multipolygon has to satisfy, and the one the tracing
+/// bug in #44 broke: a contour closed with an invented chord produces two rings
+/// that overlap, and their areas double-count. Boundary contact is permitted —
+/// two parts may meet at a point or along a line — so the test is on the
+/// interior/interior cell of the DE-9IM matrix rather than on intersection.
+///
+/// Checked here rather than on the sweep's input because the obvious
+/// precondition does not hold. An even number of result edges at every point is
+/// *not* necessary: where a vertex of one operand coincides exactly with a
+/// vertex of another, overlapping-edge removal legitimately leaves odd parity,
+/// the traversal dead-ends there, and `assemble` still recovers the correct
+/// rings. A segment's offset rectangle meeting a disc at its corner does all
+/// three and produces an answer identical to the same union without the
+/// coincidence, so parity and dead-ends are both false positives for the thing
+/// actually feared.
+#[cfg(debug_assertions)]
+fn interiors_are_disjoint(polygons: &[Polygon]) -> bool {
+    use super::super::Geometry;
+    use super::super::relate::relate;
+
+    polygons.iter().enumerate().all(|(index, polygon)| {
+        polygons[index + 1..].iter().all(|other| {
+            relate(
+                &Geometry::Polygon(polygon.clone()),
+                &Geometry::Polygon(other.clone()),
+            )
+            .interior_interior_dim()
+                < 0
+        })
+    })
+}
+
+#[cfg(not(debug_assertions))]
+fn interiors_are_disjoint(_polygons: &[Polygon]) -> bool {
     true
 }
 
@@ -241,4 +265,107 @@ fn pair_group(
     // to stop. Continuing along some other incident edge instead was tried: it
     // recovers a little area on the worst band pair and loses more on three
     // others, which is what picking arbitrarily always looks like.
+}
+
+#[cfg(test)]
+mod tests {
+    use super::super::super::LineString;
+    use super::*;
+
+    fn square(origin: f64) -> Polygon {
+        Polygon::new(
+            LineString::from(vec![
+                (origin, origin),
+                (origin + 2.0, origin),
+                (origin + 2.0, origin + 2.0),
+                (origin, origin + 2.0),
+                (origin, origin),
+            ]),
+            Vec::new(),
+        )
+    }
+
+    #[test]
+    fn the_output_invariant_rejects_overlapping_parts() {
+        // The #44 symptom: a contour closed with an invented chord leaves two
+        // rings whose areas double-count. Interior overlap is what that looks
+        // like from the outside, so the check has to reject it.
+        assert!(!interiors_are_disjoint(&[square(0.0), square(1.0)]));
+    }
+
+    /// A coincident vertex must not change the answer.
+    ///
+    /// A segment's offset rectangle plus a disc at each end, with a disc vertex
+    /// landing exactly on the rectangle's corner — what `buffer` produced before
+    /// its discs were rotated. This is the configuration that used to abort
+    /// tracing: it leaves odd parity at the shared point and the walk dead-ends
+    /// there. The answer must still match the same union computed with the discs
+    /// rotated so nothing is coincident.
+    #[test]
+    fn a_coincident_vertex_does_not_change_the_union() {
+        use super::super::super::{Area as _, MultiPolygon};
+        use super::super::unary_union;
+
+        let radius = 0.75;
+        let rectangle = Polygon::new(
+            LineString::from(vec![
+                (0.0, -radius),
+                (3.0, -radius),
+                (3.0, radius),
+                (0.0, radius),
+                (0.0, -radius),
+            ]),
+            Vec::new(),
+        );
+        let disc = |centre: f64, segments: u32, offset: f64| {
+            let mut ring: Vec<(f64, f64)> = (0..segments)
+                .map(|step| {
+                    let angle =
+                        offset + std::f64::consts::TAU * f64::from(step) / f64::from(segments);
+                    (centre + radius * angle.cos(), radius * angle.sin())
+                })
+                .collect();
+            ring.push(ring[0]);
+            Polygon::new(LineString::from(ring), Vec::new())
+        };
+        // Four and 1024 segments both place a vertex at exactly 90 degrees,
+        // which is exactly the rectangle's corner height.
+        for segments in [4u32, 16, 1024] {
+            let half_step = std::f64::consts::TAU / (2.0 * f64::from(segments));
+            let coincident: Vec<Polygon> = vec![
+                rectangle.clone(),
+                disc(0.0, segments, 0.0),
+                disc(3.0, segments, 0.0),
+            ];
+            let rotated: Vec<Polygon> = vec![
+                rectangle.clone(),
+                disc(0.0, segments, half_step),
+                disc(3.0, segments, half_step),
+            ];
+            let merged: MultiPolygon = unary_union(coincident.iter());
+            let reference: MultiPolygon = unary_union(rotated.iter());
+            assert_eq!(
+                merged.0.len(),
+                reference.0.len(),
+                "{segments} segments: part count moved"
+            );
+            assert!(
+                (merged.unsigned_area() - reference.unsigned_area()).abs() < 1e-9,
+                "{segments} segments: area {} against {}",
+                merged.unsigned_area(),
+                reference.unsigned_area()
+            );
+        }
+    }
+
+    #[test]
+    fn the_output_invariant_permits_boundary_contact() {
+        // Two parts of a multipolygon may meet at a point or along a line.
+        // Rejecting that would make the check fail on correct results — which
+        // is the mistake the parity precondition made.
+        assert!(interiors_are_disjoint(&[square(0.0), square(2.0)]));
+        assert!(interiors_are_disjoint(&[square(0.0), square(10.0)]));
+        assert!(interiors_are_disjoint(&[square(0.0)]));
+        assert!(interiors_are_disjoint(&[]));
+    }
 }
