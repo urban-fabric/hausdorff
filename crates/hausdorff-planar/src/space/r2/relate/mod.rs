@@ -17,6 +17,8 @@ mod matrix;
 mod noding;
 mod predicate;
 mod predicates;
+#[cfg(test)]
+mod tests;
 pub use matrix::IntersectionMatrix;
 use matrix::{B, E, I, Loc};
 pub use predicate::SpatialPredicate;
