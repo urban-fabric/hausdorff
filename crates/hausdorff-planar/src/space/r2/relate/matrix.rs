@@ -150,4 +150,79 @@ impl IntersectionMatrix {
             false
         }
     }
+
+    /// Every cell, rows and columns ordered Interior, Boundary, Exterior.
+    ///
+    /// The named predicates above each read a fixed handful of cells. A caller
+    /// that wants a predicate this type does not name — the OGC `relate`
+    /// operation takes an arbitrary pattern — needs the whole matrix, and
+    /// cannot recover it from the booleans, because each of those is a
+    /// many-to-one function of the nine dimensions.
+    #[must_use]
+    pub fn cells(&self) -> [[i8; 3]; 3] {
+        self.m
+    }
+
+    /// The matrix as its nine-character DE-9IM string, row-major from
+    /// Interior/Interior, using the OGC spelling: `F` for an empty
+    /// intersection and `0`/`1`/`2` for one of that dimension.
+    ///
+    /// `T` never appears in a rendered matrix. It is a *pattern* character
+    /// meaning "any dimension", so it belongs to [`Self::matches`] and not
+    /// here; a renderer that emitted it would be discarding the dimension it
+    /// had already computed.
+    #[must_use]
+    pub fn de9im(&self) -> String {
+        let mut rendered = String::with_capacity(9);
+        for row in self.m {
+            for dim in row {
+                rendered.push(match dim {
+                    0 => '0',
+                    1 => '1',
+                    2 => '2',
+                    // Any negative dimension is "no intersection"; the filler
+                    // only ever writes -1, and clamping here keeps a future
+                    // sentinel from rendering as a stray digit.
+                    _ => 'F',
+                });
+            }
+        }
+        rendered
+    }
+
+    /// Whether this matrix satisfies a nine-character DE-9IM pattern.
+    ///
+    /// The pattern alphabet is the OGC one, per cell:
+    ///
+    /// * `0`, `1`, `2` — the intersection has exactly that dimension
+    /// * `T` — the cells intersect, at any dimension
+    /// * `F` — the cells do not intersect
+    /// * `*` — this cell is not constrained
+    ///
+    /// Returns `None` for a pattern that is not nine of those characters,
+    /// rather than treating a malformed pattern as unsatisfied: a caller that
+    /// cannot tell a typo from a false has no way to report the typo, and a
+    /// mistyped pattern that silently matches nothing is the failure mode this
+    /// avoids. Lowercase is accepted for `t` and `f`.
+    #[must_use]
+    pub fn matches(&self, pattern: &str) -> Option<bool> {
+        let mut cells = self.m.iter().flatten();
+        let mut characters = 0usize;
+        let mut satisfied = true;
+        for expected in pattern.chars() {
+            let dim = *cells.next()?;
+            characters += 1;
+            let cell_ok = match expected {
+                '*' => true,
+                'T' | 't' => dim >= 0,
+                'F' | 'f' => dim < 0,
+                '0' => dim == 0,
+                '1' => dim == 1,
+                '2' => dim == 2,
+                _ => return None,
+            };
+            satisfied &= cell_ok;
+        }
+        (characters == 9).then_some(satisfied)
+    }
 }
