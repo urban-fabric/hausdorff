@@ -287,11 +287,15 @@ fn disc(x: f64, y: f64, radius: f64, style: BufferStyle) -> Polygon {
     let segments = style.turn_segments();
     let mut coords = Vec::with_capacity(segments as usize + 1);
     // Half a step of rotation, so no vertex lands at exactly 0, 90, 180 or
-    // 270 degrees. Those are the directions a segment's offset rectangle has
-    // its edges along, and a disc vertex landing exactly on a rectangle edge
-    // is a degenerate tangency for the union sweep rather than a crossing.
-    // Rotating the disc keeps it the same shape and the same inscribed area
-    // while making every boundary meeting transversal.
+    // 270 degrees — the directions a segment's offset rectangle has its edges
+    // along. A disc vertex landing exactly on a rectangle edge is a coincident
+    // vertex rather than a crossing, which leaves the union's tracing to
+    // recover through its dead-end path. That recovery is correct, and
+    // `bool_ops::connect` has a test pinning that a coincident vertex does not
+    // change the answer, so this is a margin rather than a correctness
+    // requirement: it keeps the common case on the straightforward path. The
+    // rotation costs nothing, since a rotated regular polygon is the same
+    // shape with the same inscribed area.
     let half_step = TAU / (2.0 * f64::from(segments));
     for step in 0..segments {
         let angle = half_step + TAU * f64::from(step) / f64::from(segments);
