@@ -1,10 +1,10 @@
 //! Great-circle **arcs** between lat/lon points — the Earth-facing layer over
 //! the unit-sphere kernels in [`hausdorff_sphere::space::s2::arc`] and the edge
-//! predicates in [`hausdorff_sphere::space::s2::edges`]. Everything here is exact on the
+//! predicates in [`hausdorff_sphere::space::s2::crossing_sign`]. Everything here is exact on the
 //! sphere (closed forms, no iteration); for the ellipsoidal counterparts see
 //! [`Ellipsoid`](crate::earth::Ellipsoid).
 //!
-//! Distances come back in metres via [`Sphere`](crate::earth::sphere::Sphere)
+//! Distances come back in metres via [`Sphere`]
 //! methods (radius-aware: `Sphere::EARTH` or any other planet); the
 //! point-valued operations (interpolation, intersection, closest point) are
 //! radius-free and live as free functions.

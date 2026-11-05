@@ -1,0 +1,37 @@
+hausdorff-index
+Copyright 2026 Raymond Mead
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+
+--------------------------------------------------------------------------------
+THIRD-PARTY ATTRIBUTIONS
+--------------------------------------------------------------------------------
+
+1. H3 - Hexagonal hierarchical geospatial indexing system
+   Licensed under the Apache License, Version 2.0.
+   Copyright Uber Technologies, Inc.
+   https://github.com/uber/h3
+
+   The H3 implementation in `index::h3` is ported from the H3 C reference
+   implementation. The constant tables - base cells, faces, and the FaceIJK
+   base-cell lookup - are the standard H3 data, lifted verbatim.
+
+   The `h3o` Rust crate (https://github.com/HydroniumLabs/h3o) was used as a
+   differential-test oracle while the port was developed. It is not a dependency
+   of this crate; the H3 suite now checks against golden constants frozen from
+   the then-h3o-matching output.
+
+2. Geohash
+   The base-32 geohash grid in `index::geohash` implements Gustavo Niemeyer's
+   published encoding, which carries no licence of its own. No code was taken.

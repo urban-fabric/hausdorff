@@ -1,7 +1,7 @@
 use std::fmt;
 
-use super::super::dimensions::HasDimensions;
 use super::*;
+use crate::space::r2::HasDimensions;
 
 /// Why a [`Polygon`] is invalid.
 #[derive(Debug, Clone, PartialEq)]

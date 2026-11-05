@@ -1,6 +1,6 @@
 //! Latitude/longitude validity and proximity kernels over scalar columns.
 
-use euclid::numeric::{Boolean as BooleanMask, Compare, Real};
+use euclid_numeric::{Boolean as BooleanMask, Compare, Real};
 
 use super::{
     GeospatialConstants, LatLon, Sphere, haversine_diameter_m, haversine_m, haversine_on_m,

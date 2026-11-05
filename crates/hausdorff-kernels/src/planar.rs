@@ -6,7 +6,7 @@
 //! and tensor adapters can lower them without constructing eager `f64` geometry
 //! values or branching on host `bool`.
 
-use euclid::numeric::{Boolean as BooleanMask, Compare};
+use euclid_numeric::{Boolean as BooleanMask, Compare};
 
 /// The Boolean mask produced by comparisons on scalar `T`.
 ///

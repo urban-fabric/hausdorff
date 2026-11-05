@@ -1,6 +1,6 @@
 //! Earth and spherical geodesic kernels over any [`Real`] scalar.
 
-use euclid::numeric::Real;
+use euclid_numeric::Real;
 
 mod bbox;
 mod proximity;

@@ -4,8 +4,8 @@
 //!
 //! This is the thin slice most consumers need (`GeoPoint`, `haversine_m`,
 //! `BBox`); the planar/spherical geometry, the indexes, and the codecs live in
-//! the sibling `hausdorff-*` crates, all re-assembled by the `hausdorff`
-//! façade crate under the original module paths.
+//! the sibling `hausdorff-*` crates. There is no umbrella crate — depend on
+//! this one alone and the layers above it are never built.
 //!
 //! [`algebra`] implements the shared `hausdorff-traits` abstractions
 //! (orientation / vector space / interpolation / region pruning) for these
@@ -16,3 +16,6 @@ pub mod algebra;
 pub mod earth;
 pub mod space;
 pub mod web;
+
+#[cfg(test)]
+mod tests;

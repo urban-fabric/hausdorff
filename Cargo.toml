@@ -3,16 +3,22 @@ resolver = "3"
 # hausdorff: urban-fabric's geometry and spatial indexing domain.
 # Flat layout — every crate lives directly under crates/. The dependency DAG is
 #   {hausdorff-kernels, hausdorff-traits} → hausdorff-base → hausdorff-planar →
-#   {hausdorff-sphere, hausdorff-index} → hausdorff-earth →
-#   hausdorff (the façade),
-# cut so that thin consumers (GeoPoint / haversine / BBox) can depend on
-# hausdorff-base alone while the `hausdorff` façade preserves the original
-# single-crate public API unchanged. hausdorff-traits is the abstract
+#   {hausdorff-sphere, hausdorff-index} → hausdorff-earth
+# cut so a consumer takes on only the surface it uses: a thin one needing
+# GeoPoint / haversine / BBox depends on hausdorff-base alone and never builds
+# the planar, spherical, or index layers. hausdorff-traits is the abstract
 # geometry-trait surface (Orientation / VectorSpace / Simplex / Interpolate /
 # PointRegion), upstream of every space so even the r1/s1/r3 substrates in
 # hausdorff-base implement it for their own types.
+#
+# There is deliberately **no umbrella crate**. A single `hausdorff` façade
+# re-exporting all seven existed until 0.2.0, and it undid the point of the
+# split: depending on it pulled the whole graph in regardless of what was used,
+# and it gave most types two public paths (`hausdorff::Point` and
+# `hausdorff_planar::space::r2::Point`), so call sites drifted between them and
+# "where does this live" stopped having one answer. Consumers now name the
+# crates they need.
 members = [
-    "crates/hausdorff",
     "crates/hausdorff-base",
     "crates/hausdorff-earth",
     "crates/hausdorff-index",
@@ -23,26 +29,38 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
-license = "Proprietary"
+license = "Apache-2.0"
 authors = ["Raymond Mead"]
 repository = "https://github.com/urban-fabric/hausdorff"
 rust-version = "1.95"
 
 [workspace.dependencies]
 # Internal crates (path deps within the workspace; consumers in sibling repos
-# reach them through this repo's git URL with the package name they need).
-hausdorff-traits = { path = "crates/hausdorff-traits" }
-hausdorff-kernels = { path = "crates/hausdorff-kernels" }
-hausdorff-base = { path = "crates/hausdorff-base" }
-hausdorff-planar = { path = "crates/hausdorff-planar" }
-hausdorff-sphere = { path = "crates/hausdorff-sphere" }
-hausdorff-index = { path = "crates/hausdorff-index" }
-hausdorff-earth = { path = "crates/hausdorff-earth" }
+# reach them through this repo's git URL with the package name they need). The
+# `version` sits alongside `path` so the crates stay publishable as a set and
+# all version together out of [workspace.package].
+hausdorff-traits = { version = "0.2.0", path = "crates/hausdorff-traits" }
+hausdorff-kernels = { version = "0.2.0", path = "crates/hausdorff-kernels" }
+hausdorff-base = { version = "0.2.0", path = "crates/hausdorff-base" }
+hausdorff-planar = { version = "0.2.0", path = "crates/hausdorff-planar" }
+hausdorff-sphere = { version = "0.2.0", path = "crates/hausdorff-sphere" }
+hausdorff-index = { version = "0.2.0", path = "crates/hausdorff-index" }
+hausdorff-earth = { version = "0.2.0", path = "crates/hausdorff-earth" }
 
-# Urban fabric sibling repository.
-euclid = { git = "ssh://git@github.com/urban-fabric/euclid.git", branch = "main" }
+# Urban fabric sibling repository. euclid has no umbrella crate — a consumer
+# depends on the specific contracts it uses, so `euclid-numeric` carries the
+# scalar surface the kernels are written against and `euclid-units` the
+# dimension contracts the metre carriers in hausdorff-base implement.
+#
+# `version` pins the contract (`^0.3.0`) while `branch` says where to find it:
+# euclid is unpublished, so the version is a requirement cargo checks against
+# the manifest it finds in git rather than a registry lookup. If euclid's main
+# moves to 0.4, resolution fails loudly here instead of silently tracking a
+# reshaped trait surface.
+euclid-numeric = { version = "0.3.0", git = "ssh://git@github.com/urban-fabric/euclid.git", branch = "main" }
+euclid-units = { version = "0.3.0", git = "ssh://git@github.com/urban-fabric/euclid.git", branch = "main" }
 
 # External crates.
 # Backing the canonical GeoPoint/FixedGeoPoint newtypes (POD layout + JSON).

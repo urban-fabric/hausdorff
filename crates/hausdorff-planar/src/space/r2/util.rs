@@ -17,17 +17,33 @@ pub(crate) fn ring_vertices(ring: &[Coord]) -> &[Coord] {
 /// Twice the signed shoelace area of a ring. Sign is positive for a
 /// counter-clockwise ring in x-right / y-up axes. Works on closed or open rings;
 /// degenerate rings (< 3 distinct vertices) give `0`.
+///
+/// **Vertices are shifted to a local origin first, and that is not an
+/// optimisation.** The shoelace is translation-invariant in exact arithmetic but
+/// badly conditioned in `f64`: the raw form sums terms of size `|coord|²` to reach
+/// an answer of size `area`, so a small shape far from the origin cancels almost
+/// everything it computes. Once `|coord|² > 2⁵³` the products are no longer exact
+/// integers and a unit-sized contribution falls below their ULP, which puts the
+/// threshold at about `1e8` — well inside real projected coordinates, and
+/// millimetre-based grids reach it easily.
+///
+/// Untranslated, a unit square reported area `0` at an offset of `1e8`, `16384` at
+/// `1e10` and `134217728` at `1e12`, and [`Winding::is_ccw`](super::Winding) — which
+/// reads this function's *sign* — answered `false` for a counter-clockwise ring at
+/// every one of those. Subtracting `v[0]` makes each term the size of the shape
+/// rather than of its position, which is exact for the differences involved.
 pub(crate) fn signed_area2(ring: &[Coord]) -> f64 {
     let v = ring_vertices(ring);
     let n = v.len();
     if n < 3 {
         return 0.0;
     }
+    let o = v[0];
     let mut s = 0.0;
     for i in 0..n {
         let a = v[i];
         let b = v[(i + 1) % n];
-        s += a.x * b.y - b.x * a.y;
+        s += (a.x - o.x) * (b.y - o.y) - (b.x - o.x) * (a.y - o.y);
     }
     s
 }

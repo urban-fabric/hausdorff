@@ -3,7 +3,7 @@
 //! physical lengths and areas on a sphere of a chosen radius.
 //!
 //! `s1`/`s2` live on the *unit* circle/sphere and carry no radius; [`crate::earth`]
-//! is Earth-specific. [`Sphere`](crate::earth::sphere::Sphere) is the general bridge — pick a radius (Earth,
+//! is Earth-specific. [`Sphere`] is the general bridge — pick a radius (Earth,
 //! Mars, the Moon, or any custom value) and it converts angles → metres and
 //! steradians → m². This is the only place a radius (and hence a physical unit)
 //! enters; the geometry itself stays unit-less and planet-agnostic.
@@ -58,7 +58,7 @@ impl Sphere {
     /// great-circle distance — `Sphere::EARTH.length(...)` is the Earth case.
     ///
     /// The radian measure of `angle` is dimensionless, so it scales the radius
-    /// through `euclid`'s lazy unit algebra.
+    /// through `LengthMeters`' scalar multiplication.
     #[must_use]
     pub fn length(self, angle: Angle) -> LengthMeters {
         self.radius() * angle.radians()
@@ -67,9 +67,10 @@ impl Sphere {
     /// Surface area subtended by a solid angle in `steradians`: `radius² ×
     /// steradians` (e.g. a full sphere is `4π` steradians).
     ///
-    /// `radius × radius` is `euclid`'s `LengthMeters × LengthMeters =
+    /// `radius × radius` is the `LengthMeters × LengthMeters =
     /// AreaSquareMeters` algebraic connection — the area subtended by one
-    /// steradian — then scaled by the dimensionless solid angle.
+    /// steradian — then scaled by the dimensionless solid angle. Both carriers
+    /// are Hausdorff's own, implementing `euclid-units`' dimension contracts.
     #[must_use]
     pub fn area(self, steradians: f64) -> AreaSquareMeters {
         let area_per_steradian = self.radius() * self.radius();

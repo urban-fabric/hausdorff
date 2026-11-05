@@ -150,8 +150,19 @@ impl Crs {
 /// Transform a coordinate from one CRS to another, pivoting through WGS84 ECEF.
 /// `coord` must be `from`'s native [`CrsCoord`] variant (geographic for a
 /// geographic CRS, etc.); the result is `to`'s native variant.
+///
+/// **Transforming to the same CRS returns the coordinate unchanged**, bit for
+/// bit. Without the short circuit the pivot still runs — geodetic → ECEF →
+/// geodetic — and while the round trip is accurate it is not *exact*: it moved an
+/// ellipsoidal height by a couple of nanometres. Harmless on its own, but a
+/// no-op that is not a no-op compounds in a pipeline that normalizes everything
+/// to a working CRS and transforms repeatedly, and it makes an identity hard to
+/// assert.
 #[must_use]
 pub fn transform(from: Crs, to: Crs, coord: CrsCoord) -> CrsCoord {
+    if from == to {
+        return coord;
+    }
     to.decode_wgs84_ecef(from.to_wgs84_ecef(coord))
 }
 

@@ -131,6 +131,10 @@ fn read_parts_shape(r: &mut SliceReader<'_>) -> Result<Vec<Vec<Coord>>, Shapefil
     skip_bbox(r)?;
     let num_parts = nonnegative_usize(r.i32_le()?, "num_parts")?;
     let num_points = nonnegative_usize(r.i32_le()?, "num_points")?;
+    // A part contributes a 4-byte start index and a point 16 bytes of ordinates;
+    // both counts have to be backed by bytes that are actually present.
+    let num_parts = r.count(num_parts, 4)?;
+    let num_points = r.count(num_points, 16)?;
     let mut starts = Vec::with_capacity(num_parts);
     for _ in 0..num_parts {
         let start = nonnegative_usize(r.i32_le()?, "part_start")?;
@@ -156,6 +160,7 @@ fn read_parts_shape(r: &mut SliceReader<'_>) -> Result<Vec<Vec<Coord>>, Shapefil
 }
 
 fn read_points(r: &mut SliceReader<'_>, n: usize) -> Result<Vec<Coord>, ShapefileError> {
+    let n = r.count(n, 16)?;
     let mut points = Vec::with_capacity(n);
     for _ in 0..n {
         points.push(Coord::new(r.f64_le()?, r.f64_le()?));
@@ -247,6 +252,25 @@ impl<'a> SliceReader<'a> {
 
     fn skip(&mut self, n: usize) -> Result<(), ShapefileError> {
         self.take(n).map(|_| ())
+    }
+
+    /// Believe a record's element count only if the remaining bytes could supply
+    /// it, where each element needs at least `bytes_each`.
+    ///
+    /// `num_parts` and `num_points` are read from the record, so they are
+    /// attacker-controlled up to `i32::MAX`. Passing one straight to
+    /// `Vec::with_capacity` asks the allocator for up to 34 GB and *aborts* the
+    /// process when the request is refused — not a `ShapefileError` the caller can
+    /// handle. Checking first keeps allocation proportional to the input.
+    fn count(&self, n: usize, bytes_each: usize) -> Result<usize, ShapefileError> {
+        let remaining = self.bytes.len().saturating_sub(self.pos);
+        if n.saturating_mul(bytes_each) > remaining {
+            return Err(ShapefileError::RecordTooShort {
+                needed: n.saturating_mul(bytes_each),
+                remaining,
+            });
+        }
+        Ok(n)
     }
 
     fn i32_le(&mut self) -> Result<i32, ShapefileError> {

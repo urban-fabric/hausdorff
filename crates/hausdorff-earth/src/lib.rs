@@ -10,9 +10,15 @@
 //!   fans, whole-batch H3 encoding, bboxes).
 //! - [`convert`] — the planar ↔ geographic bridge.
 //!
-//! [`earth`] re-exports the whole `hausdorff-base` earth core, so this crate
-//! presents the complete, assembled `earth` module that the `hausdorff` façade
-//! (and any direct consumer) re-exports as one surface.
+//! [`earth`] re-exports the whole `hausdorff-base` earth core, so a consumer
+//! that needs the integrated layers gets one coherent `earth` module rather than
+//! having to import the core from one crate and its extensions from another. A
+//! consumer that needs *only* the core should depend on `hausdorff-base`
+//! directly and skip this crate — and the planar, spherical, and index layers
+//! it pulls in — entirely.
 
 pub mod convert;
 pub mod earth;
+
+#[cfg(test)]
+mod tests;

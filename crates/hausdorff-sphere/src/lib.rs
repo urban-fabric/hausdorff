@@ -6,3 +6,6 @@
 //! `hausdorff-base`'s `earth` core.
 
 pub mod space;
+
+#[cfg(test)]
+mod tests;

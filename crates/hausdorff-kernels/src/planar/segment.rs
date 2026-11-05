@@ -1,4 +1,4 @@
-use euclid::numeric::Real;
+use euclid_numeric::Real;
 
 use super::orientation::orient2d;
 use super::rect::{rect_contains_xy, rects_overlap_xy};

@@ -12,7 +12,7 @@
 //!   containment ([`in_triangle`], [`left_of_all`], [`is_collinear`]).
 //! - [`vector`] — the [`VectorSpace`] / [`InnerProduct`] / [`Norm`] hierarchy.
 //! - [`simplex`] — the [`Simplex`] / [`Barycentric`] point-in-simplex trait.
-//! - [`interpolate`] — the [`euclid::Interpolate`] segment trait re-export +
+//! - [`interpolate`] — the [`euclid_numeric::Interpolate`] segment trait re-export +
 //!   generic [`sample`].
 //! - [`region`] — the [`PointRegion`] / [`Prunable`] bounding-volume traits +
 //!   the generic spatial filters ([`containment_masks`],
@@ -35,7 +35,7 @@ pub mod region;
 pub mod simplex;
 pub mod vector;
 
-pub use euclid::numeric::{Boolean as BooleanMask, Element, Real};
+pub use euclid_numeric::{Boolean as BooleanMask, Element, Real};
 pub use interpolate::{Interpolate, sample, sample_at};
 pub use interval::ClosedInterval;
 pub use orientation::{

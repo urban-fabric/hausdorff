@@ -1,7 +1,7 @@
 use std::fmt;
 
-use super::super::util::orient;
 use super::*;
+use crate::space::r2::util::orient;
 
 /// Why a [`Point`] is invalid.
 #[derive(Debug, Clone, PartialEq)]

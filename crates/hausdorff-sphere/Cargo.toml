@@ -6,6 +6,7 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+readme = "README.md"
 description = "Unit-sphere geometry (the golang/geo S2 port): cell ids, caps, loops, edge predicates, region coverings."
 
 [dependencies]

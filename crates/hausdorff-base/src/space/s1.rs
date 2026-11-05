@@ -1,6 +1,6 @@
 //! `s1` — one-dimensional spherical geometry: angular measure.
 //!
-//! `euclid` owns the generic carrier angle quantity. This module keeps
+//! `euclid-units` owns the generic carrier angle quantity. This module keeps
 //! Hausdorff's concrete `f64` S1 geometry wrapper: [`Angle`] is the
 //! radians-backed value the spherical geometry computes in, while
 //! [`AngleDegrees`] is the degrees representation for I/O and human-facing

@@ -84,18 +84,39 @@ pub fn lat_from_conformal_t<T: Real>(t: T, e: T) -> T {
     phi
 }
 
+/// `atanh(e·s)/e`, with the removable singularity at `e = 0` filled by its limit, `s`.
+///
+/// This is Snyder's `−(1/2e)·ln[(1 − e·s)/(1 + e·s)]` rewritten through
+/// `ln[(1 + x)/(1 − x)] = 2·atanh(x)`. The rewrite is not cosmetic. The `1/e` factor
+/// is a genuine pole at `e = 0`, and a sphere is a legitimate ellipsoid here
+/// ([`Ellipsoid::SPHERE`](../../../hausdorff_base/earth/struct.Ellipsoid.html)), so the
+/// original form returned `NaN` for every equal-area quantity on one: `inf · ln(1) =
+/// inf · 0`. It is also more accurate at *small* non-zero `e`, where the original
+/// takes the log of a ratio near 1 and then divides by a small number — losing about
+/// `ε/e` relative precision (≈1e-8 at `e = 1e-8`) that `atanh`, built for exactly this
+/// argument range, keeps.
+fn atanh_over_e<T: Real>(s: T, e: T) -> T {
+    let is_sphere = e.eq(&T::zero());
+    // Sanitize the divisor *before* dividing rather than repairing the result after —
+    // euclid's "double where". An eager elementwise carrier then never forms the `0/0`
+    // in a sphere lane at all, instead of forming a NaN and discarding it. `half` is
+    // an arbitrary safe stand-in that also keeps `atanh`'s argument inside (−1, 1) for
+    // any |s| ≤ 1, so the dead lane cannot overflow either.
+    let safe = T::select(&is_sphere, T::half(), e);
+    T::select(&is_sphere, s.clone(), (safe.clone() * s).atanh() / safe)
+}
+
 /// The authalic-area function `q` (Snyder 3-12) — the equal-area analogue of the
-/// conformal `t`, with `sin ξ = q / q(π/2)`.
+/// conformal `t`, with `sin ξ = q / q(π/2)`. On a sphere this is `2·sinφ`, so
+/// `sin ξ = sinφ` and the authalic latitude collapses to the geodetic one.
 #[must_use]
 pub fn authalic_q<T: Real>(phi: T, e: T) -> T {
     let one = T::one();
-    let two = T::two();
-    let e2 = e.clone() * e.clone();
-    let one_minus_e2 = one.clone() - e2;
-    let inv_2e = one.clone() / (two * e.clone());
-    let es = phi.clone().sin() * e;
-    let one_m_es2 = one.clone() - es.clone() * es.clone();
-    one_minus_e2 * (phi.sin() / one_m_es2 - inv_2e * ((one.clone() - es.clone()) / (one + es)).ln())
+    let one_minus_e2 = one.clone() - e.clone() * e.clone();
+    let s = phi.sin();
+    let es = s.clone() * e.clone();
+    let one_m_es2 = one - es.clone() * es;
+    one_minus_e2 * (s.clone() / one_m_es2 + atanh_over_e(s, e))
 }
 
 /// Invert the authalic `q` back to geodetic latitude `φ` (radians) by Snyder's
@@ -106,17 +127,50 @@ pub fn lat_from_authalic_q<T: Real>(q: T, e: T) -> T {
     let one = T::one();
     let two = T::two();
     let half = T::half();
-    let e2 = e.clone() * e.clone();
-    let one_minus_e2 = one.clone() - e2;
-    let inv_2e = one.clone() / (two.clone() * e.clone());
+    let one_minus_e2 = one.clone() - e.clone() * e.clone();
     let mut phi = (q.clone() * half).asin();
     for _ in 0..15 {
-        let es = phi.clone().sin() * e.clone();
-        let one_m_es2 = one.clone() - es.clone() * es.clone();
+        let s = phi.clone().sin();
+        let es = s.clone() * e.clone();
+        let one_m_es2 = one.clone() - es.clone() * es;
+        // `+ (1/2e)·ln[(1 − e·s)/(1 + e·s)]` is `− atanh(e·s)/e`; see `atanh_over_e`
+        // for why the pole is not written literally.
         let delta = one_m_es2.clone() * one_m_es2.clone() / (two.clone() * phi.clone().cos())
-            * (q.clone() / one_minus_e2.clone() - phi.clone().sin() / one_m_es2
-                + inv_2e.clone() * ((one.clone() - es.clone()) / (one.clone() + es)).ln());
+            * (q.clone() / one_minus_e2.clone()
+                - s.clone() / one_m_es2
+                - atanh_over_e(s, e.clone()));
         phi = phi + delta;
     }
     phi
+}
+
+/// The longitude difference `lon − lon0`, wrapped into `[−180, 180]`.
+///
+/// Conic and azimuthal projections scale this difference by a cone constant `n`
+/// and feed the result to `sin`/`cos`, so the *cone angle* is `n·Δλ`. If `Δλ`
+/// arrives unwrapped it can reach ±360, and for a high-latitude conic (where `n`
+/// approaches 1) the cone angle then passes ±180 — at which point the forward
+/// projection wraps and the inverse's `atan2` recovers a **different meridian**.
+/// The result is a finite, plausible, wrong coordinate: EPSG:3978 (Canada Atlas
+/// Lambert, `lon0 = −95°`) mapped longitude 180° and recovered 140.35°.
+///
+/// Wrapping first makes `|Δλ| ≤ 180`, so `|n·Δλ| < 180` for any `n < 1` and the
+/// projection is injective over the whole sphere rather than only within `180/n`
+/// of its central meridian.
+///
+/// The wrap is **selected rather than computed unconditionally**, which is the
+/// detail that matters. `(x + 180) mod 360 − 180` is algebraically the identity
+/// for `|x| ≤ 180` but not *bit-exact*: at `x = 1e-10` the intermediate `180.0000000001`
+/// has already lost the low bits, and the round trip returns `1.0000000827e-10`.
+/// Applying it unconditionally would perturb every in-domain coordinate — and
+/// shift results this crate pins against PROJ reference values — to repair a case
+/// that only arises outside the domain. So the common path returns `raw`
+/// untouched.
+#[must_use]
+pub fn central_lon_delta<T: Real>(lon_deg: T, lon0_deg: T) -> T {
+    let raw = lon_deg - lon0_deg;
+    let half = T::half_turn_degrees();
+    let needs_wrap = raw.clone().abs().gt(&half);
+    let wrapped = (raw.clone() + half.clone()).rem_euclid(T::full_turn_degrees()) - half;
+    T::select(&needs_wrap, wrapped, raw)
 }

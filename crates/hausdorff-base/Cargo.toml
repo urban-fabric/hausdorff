@@ -6,13 +6,15 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+readme = "README.md"
 description = "Geospatial foundations: GeoPoint/BBox, haversine and Karney WGS84 geodesy, ECEF, spheres, plus the unit-less s1 angles and r3 vectors."
 
 [dependencies]
 hausdorff-traits = { workspace = true }
 hausdorff-kernels = { workspace = true }
 bytemuck = { workspace = true }
-euclid = { workspace = true }
+euclid-numeric = { workspace = true }
+euclid-units = { workspace = true }
 serde = { workspace = true }
 
 [lints]

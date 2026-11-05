@@ -8,7 +8,7 @@
 //! Downstream crates re-export these so there is one point/bbox/bearing type
 //! across the workspace (`point → cell` shares this type with the H3 grid in
 //! `hausdorff-index`). Unit-typed lengths and areas implement Hausdorff's
-//! concrete metre wrappers over `euclid`'s unit contracts.
+//! concrete metre wrappers over `euclid-units`' contracts.
 //!
 //! The Earth-facing layers that need the spherical/planar/index machinery —
 //! `arc`, `projection`, `similarity`, `batch` — live in `hausdorff-earth`,

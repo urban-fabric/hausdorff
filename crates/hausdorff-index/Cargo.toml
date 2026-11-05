@@ -6,12 +6,13 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+readme = "README.md"
 description = "Discrete spatial indexes: the H3 hexagonal hierarchy (Uber H3 port), geohash, and a uniform lon/lat point grid."
 
 [dependencies]
+euclid-numeric = { workspace = true }
 hausdorff-base = { workspace = true }
 hausdorff-planar = { workspace = true }
-euclid = { workspace = true }
 
 [lints]
 workspace = true

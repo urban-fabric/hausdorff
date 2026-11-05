@@ -18,7 +18,7 @@
 //! few nanometers*, and Snyder, *Map Projections — A Working Manual* (USGS
 //! PP1395, 1987).
 
-use euclid::numeric::Real;
+use euclid_numeric::Real;
 
 use crate::earth::LatLon;
 
@@ -37,7 +37,8 @@ pub use transverse_mercator::{
 
 mod auxiliary;
 pub use auxiliary::{
-    authalic_q, conformal_t, lat_from_authalic_q, lat_from_conformal_t, m_factor, tauf, taupf,
+    authalic_q, central_lon_delta, conformal_t, lat_from_authalic_q, lat_from_conformal_t,
+    m_factor, tauf, taupf,
 };
 
 mod families;

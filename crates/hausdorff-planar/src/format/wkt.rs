@@ -169,6 +169,7 @@ pub fn from_wkt(text: &str) -> Result<Geometry, WktError> {
     let mut p = Parser {
         s: text.as_bytes(),
         i: 0,
+        depth: 0,
     };
     let g = p.geometry()?;
     p.skip_ws();
@@ -178,9 +179,20 @@ pub fn from_wkt(text: &str) -> Result<Geometry, WktError> {
     Ok(g)
 }
 
+/// Deepest `GEOMETRYCOLLECTION` nesting [`from_wkt`] will follow before refusing
+/// the input.
+///
+/// `GEOMETRYCOLLECTION` nests and the parser recurses to match, so depth is
+/// attacker-controlled: each level costs 19 characters. Without a bound, about a
+/// megabyte of crafted text exhausts the stack, and a stack overflow is not a
+/// [`WktError`] a caller can handle — the process dies on a signal. Matches
+/// `wkb`'s limit, and sits far above anything with geometric meaning.
+const MAX_DEPTH: u32 = 64;
+
 struct Parser<'a> {
     s: &'a [u8],
     i: usize,
+    depth: u32,
 }
 
 impl Parser<'_> {
@@ -263,6 +275,16 @@ impl Parser<'_> {
     }
 
     fn geometry(&mut self) -> Result<Geometry, WktError> {
+        self.depth += 1;
+        if self.depth > MAX_DEPTH {
+            return Err(WktError(format!("nesting deeper than {MAX_DEPTH} levels")));
+        }
+        let geom = self.geometry_inner();
+        self.depth -= 1;
+        geom
+    }
+
+    fn geometry_inner(&mut self) -> Result<Geometry, WktError> {
         let kw = self.keyword();
         match kw.as_str() {
             "POINT" => {

@@ -6,6 +6,7 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+readme = "README.md"
 description = "The integrated Earth layer: great-circle arcs over the S2 kernels, map projections, geographic similarity measures, columnar point batches, and the planar/spherical convert bridge. Re-exports hausdorff-base's earth core."
 
 [dependencies]
@@ -14,7 +15,7 @@ hausdorff-kernels = { workspace = true }
 hausdorff-planar = { workspace = true }
 hausdorff-sphere = { workspace = true }
 hausdorff-index = { workspace = true }
-euclid = { workspace = true }
+euclid-numeric = { workspace = true }
 
 [lints]
 workspace = true

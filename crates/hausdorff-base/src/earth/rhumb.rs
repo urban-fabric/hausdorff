@@ -1,7 +1,7 @@
 //! Rhumb-line (loxodrome) geodesy over [`EARTH_RADIUS_M`]: the constant-bearing
 //! course that appears straight on a Mercator chart. The raw `f64`-metre
 //! primitives ([`rhumb_distance_m`], [`rhumb_destination_m`]) are the kernels;
-//! [`rhumb_distance_meters`] and [`rhumb_destination`] are the `euclid`-typed
+//! [`rhumb_distance_meters`] and [`rhumb_destination`] are the unit-typed
 //! forms callers should prefer so earth-distance quantities carry units rather
 //! than bare `f64`.
 //!

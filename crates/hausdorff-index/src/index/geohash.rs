@@ -109,6 +109,16 @@ fn encode_bisect(lon: f64, lat: f64, precision: usize) -> String {
 /// Decode a geohash to the `(lon, lat)` of its cell center, or `None` for an
 /// empty string or an invalid character.
 ///
+/// **Case-insensitive.** `"9q8yy"` and `"9Q8YY"` decode identically. Geohash is
+/// defined over lowercase base-32 and [`encode`] only ever emits lowercase, so
+/// accepting uppercase on the way in costs nothing and spares callers a
+/// normalization step on hashes that arrived from elsewhere. Note this is *not*
+/// symmetric: there is no uppercase output, so `encode(decode(h))` lowercases a
+/// hash rather than reproducing it byte-for-byte.
+///
+/// The four letters base-32 omits to avoid transcription errors — `a`, `i`, `l`,
+/// `o` — are rejected in either case.
+///
 /// Proof-backed by `riemann` `Hausdorff/Geohash`: decode is per-axis interval
 /// bisection — each base-32 bit halves the lon/lat range toward the coordinate
 /// (`encStepN_mem` keeps `x` in range, `encStepN_width` gives width `(hi−lo)/2ⁿ`),

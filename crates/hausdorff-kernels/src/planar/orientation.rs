@@ -1,4 +1,4 @@
-use euclid::numeric::Real;
+use euclid_numeric::Real;
 
 use super::{Boolean, mask_and, mask_not, mask_or};
 

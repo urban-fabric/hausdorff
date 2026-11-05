@@ -1,8 +1,7 @@
 //! Implementations of the shared [geometry traits](hausdorff_traits)
-//! for this crate's substrate types — the ℝ³ [`Vector`](crate::space::r3::Vector)
+//! for this crate's substrate types — the ℝ³ [`Vector`]
 //! and the bounding regions on the line / circle / ℝ³
-//! ([`Interval`](crate::space::r1::Interval),
-//! [`Sector`](crate::space::s1::Sector), [`Aabb`](crate::space::r3::Aabb)).
+//! ([`Interval`], [`Sector`], [`Aabb`]).
 //!
 //! These instances live here, beside their types, rather than in the downstream
 //! `hausdorff-planar` `algebra` module: the abstract trait surface is upstream
@@ -20,7 +19,7 @@ pub use hausdorff_traits::{
     in_triangle, is_collinear, left_of_all, sample, sample_at,
 };
 
-use euclid::numeric::{Compare, Element, Real};
+use euclid_numeric::{Compare, Element, Real};
 
 use crate::space::r1::Interval;
 use crate::space::r3::{Aabb, Vector};

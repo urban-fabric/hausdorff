@@ -3,7 +3,7 @@
 //! These are the backend-neutral peers of `s1::Angle` and `s1::Sector`
 //! predicates. Angles are radians unless the function name says otherwise.
 
-use euclid::numeric::{Boolean as BooleanMask, Compare, Real};
+use euclid_numeric::{Boolean as BooleanMask, Compare, Real};
 
 /// The Boolean mask produced by comparisons on scalar `T`.
 pub type Boolean<T> = <T as Compare>::Mask;

@@ -4,3 +4,6 @@
 //! radius / k-nearest joins.
 
 pub mod index;
+
+#[cfg(test)]
+mod tests;

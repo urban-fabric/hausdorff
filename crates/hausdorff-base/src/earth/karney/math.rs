@@ -1,6 +1,16 @@
 //! Scalar and angular primitives shared by the geodesic solver: the GeographicLib
 //! tolerances, error-free transforms, polynomial/Clenshaw evaluation, degree-mode
 //! trig, and the astroid root used to seed the nearly-antipodal case.
+//!
+//! The two pieces of *generic* arithmetic here — squaring and the error-free sum —
+//! come from `euclid-numeric` rather than being reimplemented. [`sq`] stays as a
+//! one-line forwarder because the formulas below are a line-by-line port and read
+//! against the upstream source: `sq(calp0) * self.ep2` is recognizable where
+//! `calp0.square() * self.ep2` is not. Everything else in this file is
+//! geodesy-specific — degree-mode quadrant handling, the ellipsoid's `e·atanh(e·x)`,
+//! the astroid seed — and belongs here, not in a general numerics crate.
+
+use euclid_numeric::Real;
 
 /// Newton-iteration budget before falling back to bisection alone.
 pub(super) const MAXIT1: u64 = 20;
@@ -39,7 +49,7 @@ pub(super) fn xthresh() -> f64 {
 
 #[inline]
 pub(super) fn sq(x: f64) -> f64 {
-    x * x
+    x.square()
 }
 
 /// Normalize the two-vector `(x, y)` to unit length in place.
@@ -50,23 +60,36 @@ pub(super) fn norm2(x: &mut f64, y: &mut f64) {
 }
 
 /// Error-free transformation of `u + v`: the rounded sum and its exact error.
+///
+/// `euclid-numeric`'s [`Real::two_sum`] is the same Knuth transform, and additionally
+/// returns a zero error term when the sum is not finite. GeographicLib's form would
+/// compute `inf - inf = NaN` there and poison every subsequent correction; the
+/// angular difference below feeds its error term straight back in, so that NaN would
+/// propagate into the result rather than staying in a discarded low-order bit.
+#[inline]
 pub(super) fn sum(u: f64, v: f64) -> (f64, f64) {
-    let s = u + v;
-    let up = s - v;
-    let vpp = s - up;
-    let up = up - u;
-    let vpp = vpp - v;
-    (s, -(up + vpp))
+    u.two_sum(v)
 }
 
-/// Evaluate the degree-`n` polynomial with coefficients `p[0..=n]` (highest
-/// power first) at `x` by Horner's rule.
+/// Degree-`n` polynomial with coefficients `p[0..=n]`, highest power first.
+///
+/// An adapter over euclid's [`Real::polyval`], which takes the exact coefficient
+/// slice. GeographicLib's call sites pass a degree alongside a longer table and
+/// let the degree pick the window, so the windowing happens here rather than at
+/// ten call sites — the same shape as [`sum`] above, which adapts
+/// [`Real::two_sum`].
+#[inline]
 pub(super) fn polyval(n: usize, p: &[f64], x: f64) -> f64 {
-    let mut y = p[0];
-    for val in &p[1..=n] {
-        y = y * x + val;
-    }
-    y
+    x.polyval(&p[..=n])
+}
+
+/// Sine and cosine of `x` in degrees, exact at the quadrant boundaries.
+///
+/// Now [`Real::sin_cos_degrees`]. Kept as a name here because the series code
+/// reads as a transcription of GeographicLib, where this is `sincosd`.
+#[inline]
+pub(super) fn sincosd(x: f64) -> (f64, f64) {
+    x.sin_cos_degrees()
 }
 
 /// Round a tiny angle (degrees) so values below 1/2⁵⁷ ≈ 0.7 pm underflow to
@@ -121,33 +144,6 @@ pub(super) fn ang_diff(x: f64, y: f64) -> (f64, f64) {
     } else {
         sum(d, t)
     }
-}
-
-/// Sine and cosine of `x` in degrees, exact at the quadrant boundaries
-/// (GeographicLib's `fmod`-based reduction).
-pub(super) fn sincosd(x: f64) -> (f64, f64) {
-    let r = if x.is_finite() { x % 360.0 } else { f64::NAN };
-    let q = if r.is_nan() {
-        0
-    } else {
-        (r / 90.0).round() as i64
-    };
-    let r = (r - 90.0 * q as f64).to_radians();
-    let (s, c) = r.sin_cos();
-    let (mut sinx, cosx) = match q.rem_euclid(4) {
-        0 => (s, c),
-        1 => (c, -s),
-        2 => (-s, -c),
-        3 => (-c, s),
-        _ => unreachable!(),
-    };
-    // IEEE 754 special values (F.10.1.12/13): -0 cosines become +0; a zero
-    // sine keeps the sign of the argument.
-    let cosx = cosx + 0.0;
-    if sinx == 0.0 {
-        sinx = sinx.copysign(x);
-    }
-    (sinx, cosx)
 }
 
 /// `atan2(y, x)` in degrees, with the quadrant handled so results are exact
