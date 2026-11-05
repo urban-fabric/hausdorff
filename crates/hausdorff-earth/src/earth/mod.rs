@@ -8,20 +8,15 @@ pub mod batch;
 
 mod similarity;
 
-/// Great-circle arc operations: interpolation, cross/along-track distances,
-/// arc intersection, spherical point-in-ring, and Clairaut-aware arc bboxes.
+// Each of these carries its own module header; a second description here would
+// be a copy to keep in sync, and rustdoc resolves the merged doc block in this
+// module's scope rather than the submodule's, which breaks their intra-doc
+// links.
 pub mod arc;
-/// Coordinate reference systems (EPSG-keyed) and transforms between them.
 pub mod crs;
-/// High-accuracy datum transforms via embedded NTv2 (`.gsb`) grid-shift files.
 pub mod gridshift;
-/// WGS84 polygons measured natively on the curved Earth ([`polygon::GeoPolygon`] /
-/// [`polygon::GeoMultiPolygon`]) — exact area / perimeter, no projection.
 pub mod polygon;
-/// Map projections anchored to the Earth (e.g. UTM).
 pub mod projection;
-/// The planet-flexible metric layer: arc lengths and areas on a sphere of a
-/// chosen radius ([`sphere::Sphere`]), generalizing this layer's fixed radius.
 pub mod sphere;
 
 pub use hausdorff_base::earth::*;

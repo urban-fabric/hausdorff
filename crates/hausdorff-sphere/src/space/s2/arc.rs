@@ -1,9 +1,18 @@
+//! Arc geometry: a namespace rather than part of `s2`'s facade.
+//!
+//! The eight functions here — [`interpolate`], [`midpoint`], [`closest_point`],
+//! [`along_track`], [`cross_track`], [`distance_to_arc`], [`rect_bound`],
+//! [`latitude_extremes`] — are named for what they do to an arc, and most of
+//! those names mean nothing on their own: a bare `s2::interpolate` does not say
+//! *what* is interpolated. The qualifier is doing real work, so `s2::arc::` is the
+//! path and none of this is re-exported by the parent.
+//!
 //! Great-circle **arc** kernels on the unit sphere: interpolation along an
 //! arc, cross-track / along-track decomposition of a point against an arc,
 //! the closest point on an arc segment, and the latitude extremes of an arc
 //! (Clairaut's relation). All results are angles ([`Angle`], radians) or unit
 //! points — radius-free, like the rest of `s2`. The lat/lon (and metres)
-//! layer over these lives in [`hausdorff_base::earth::arc`].
+//! layer over these lives in `earth::arc`, in `hausdorff-earth`.
 
 use std::f64::consts::PI;
 
@@ -30,7 +39,7 @@ pub fn interpolate(a: S2Point, b: S2Point, t: f64) -> S2Point {
 }
 
 /// `S2Point` interpolates along the **great circle** (SLERP) — the spherical
-/// instance of the shared `euclid`
+/// instance of the shared `euclid-numeric`
 /// [`Interpolate`](hausdorff_planar::algebra::Interpolate) trait. The endpoint
 /// laws `lerp(a, b, 0) = a`, `lerp(a, b, 1) = b` are the riemann `Hausdorff/Slerp`
 /// theorems (`slerp_zero` / `slerp_angle`), so generic `Interpolate` code

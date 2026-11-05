@@ -6,7 +6,7 @@
 //! vector dot/cross products rather than lat/lon, which is what makes them free
 //! of pole and antimeridian singularities.
 
-use euclid::numeric::{Boolean as BooleanMask, Compare, Real};
+use euclid_numeric::{Boolean as BooleanMask, Compare, Real};
 
 use crate::space::s1::Angle;
 

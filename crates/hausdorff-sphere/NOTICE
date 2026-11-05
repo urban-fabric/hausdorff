@@ -1,0 +1,30 @@
+hausdorff-sphere
+Copyright 2026 Raymond Mead
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+
+--------------------------------------------------------------------------------
+THIRD-PARTY ATTRIBUTIONS
+--------------------------------------------------------------------------------
+
+1. S2 Geometry, Go implementation (`github.com/golang/geo/s2`)
+   Licensed under the Apache License, Version 2.0.
+   Copyright Google Inc.
+   https://github.com/golang/geo
+
+   The unit-sphere geometry in `space::s2` is a port of the Go S2 reference
+   implementation: the 64-bit cell-id codec, the cube-to-sphere quadratic
+   projection, the cell hierarchy and neighbour operations, Hilbert-order
+   traversal, the robust orientation predicates and point/edge measures, caps,
+   loops, polylines, and region coverings.

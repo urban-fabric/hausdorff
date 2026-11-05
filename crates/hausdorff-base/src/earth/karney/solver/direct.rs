@@ -1,6 +1,6 @@
 //! The direct-problem entry points: [`direct`](Karney::direct) and
 //! [`line`](Karney::line), the origin-dependent set-up that builds the
-//! [`LineKernel`](crate::earth::karney::line::LineKernel) a caller placing many
+//! [`LineKernel`] a caller placing many
 //! points along one geodesic pays for once.
 
 use super::Karney;

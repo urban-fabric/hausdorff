@@ -1,11 +1,11 @@
 //! Concrete Earth-facing unit carriers.
 //!
-//! Current `euclid` owns the unit contracts, while consumer crates own concrete
+//! `euclid-units` owns the unit contracts, while consumer crates own concrete
 //! carriers. These wrappers preserve Hausdorff's public metre-typed API.
 
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
-use euclid::{Dimension, LinearQuantity, Measure, ScalarQuantity};
+use euclid_units::{Dimension, LinearQuantity, Measure, ScalarQuantity};
 use serde::{Deserialize, Serialize};
 
 /// Length in metres.

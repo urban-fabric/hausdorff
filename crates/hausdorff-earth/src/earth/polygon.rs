@@ -4,7 +4,7 @@
 //!
 //! Each measure is computed in the model that makes it *exact*:
 //! - **area** — through the **authalic (equal-area) sphere**
-//!   ([`AuthalicSphere`](crate::earth::sphere::AuthalicSphere)): the φ→ξ warp is
+//!   ([`AuthalicSphere`]): the φ→ξ warp is
 //!   area-preserving, so the proven spherical-excess kernel (`riemann`
 //!   Hausdorff/SphereArea) yields the true datum area;
 //! - **perimeter** — the **geodesic** boundary length (Karney, exact to round-off);
@@ -17,7 +17,7 @@
 
 use crate::earth::sphere::AuthalicSphere;
 use crate::earth::{EcefPoint, Ellipsoid, GeoPoint};
-use hausdorff_sphere::space::s2::edges::{Crossing, crossing_sign};
+use hausdorff_sphere::space::s2::{Crossing, crossing_sign};
 use hausdorff_sphere::space::s2::{Loop, Polygon as S2Polygon, S2Point, polygon_signed_area_vos};
 
 /// A polygon on the WGS84 ellipsoid (or any [`Ellipsoid`]): an **exterior** ring

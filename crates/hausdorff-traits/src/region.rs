@@ -25,7 +25,7 @@
 //!   soundness), `SphereCap.caps_disjoint_of_far`, `Circular.arcs_disjoint_of_far`
 //!   (far-apart centres share no point — exactly `!intersects`).
 
-use euclid::numeric::{Boolean as BooleanMask, Element, Natural};
+use euclid_numeric::{Boolean as BooleanMask, Element, Natural};
 
 #[inline]
 fn mask_false<M: BooleanMask>() -> M {

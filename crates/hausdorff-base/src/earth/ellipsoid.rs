@@ -1,8 +1,9 @@
 //! [`Ellipsoid`] — a reference ellipsoid of revolution (or sphere): the
 //! datum/planet model shared by the map projections
-//! ([`crate::earth::projection`]) and the ellipsoidal (Karney) geodesics
-//! ([`Ellipsoid::inverse`] / [`Ellipsoid::direct`]). The spherical counterpart
-//! on the metric side is [`crate::earth::sphere::Sphere`].
+//! (`earth::projection` in `hausdorff-earth`) and the ellipsoidal (Karney)
+//! geodesics ([`Ellipsoid::inverse`] / [`Ellipsoid::direct`]). The spherical
+//! counterpart on the metric side is `earth::sphere::Sphere`, also in
+//! `hausdorff-earth`.
 
 use crate::earth::karney::{self, Karney, LineKernel};
 use crate::earth::{Bearing, GeoPoint, LengthMeters};

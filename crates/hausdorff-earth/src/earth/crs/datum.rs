@@ -164,7 +164,7 @@ impl Datum {
         }
     }
 
-    /// WGS84 ECEF → this datum's native ECEF (the inverse of [`to_wgs84_ecef`]).
+    /// WGS84 ECEF → this datum's native ECEF (the inverse of [`Self::to_wgs84_ecef`]).
     pub(super) fn decode_wgs84_ecef(self, ecef: EcefPoint) -> EcefPoint {
         match self.to_wgs84 {
             DatumShift::Helmert(h) => h.inverse_apply(ecef),

@@ -1,8 +1,8 @@
 //! Spherical geodesics over [`EARTH_RADIUS_M`]. The raw `f64`-metre primitives
 //! ([`haversine_m`], [`destination_m`]) are thin `GeoPoint`-typed wrappers over
 //! the backend-neutral [`hausdorff_kernels::earth`] kernels — written once over
-//! any [`euclid::numeric::Real`], so the same formula runs on `f64`, `f32`,
-//! and tensors. [`haversine_meters`] and [`destination`] are the `euclid`-typed
+//! any [`euclid_numeric::Real`], so the same formula runs on `f64`, `f32`,
+//! and tensors. [`haversine_meters`] and [`destination`] are the unit-typed
 //! forms callers should prefer so earth-distance quantities carry units rather
 //! than bare `f64`.
 
@@ -31,6 +31,22 @@ fn haversine_diameter_m(a: GeoPoint, b: GeoPoint, diameter_m: f64) -> f64 {
 
 /// Great-circle distance between `a` and `b` in **metres**, on a sphere of
 /// radius [`EARTH_RADIUS_M`].
+///
+/// **Latitudes are not validated.** A latitude outside `[-90, 90]` is fed to the
+/// trigonometry as given, so this returns a finite but meaningless number rather
+/// than signalling. That is deliberate — the check costs more than the formula on
+/// a hot path where the caller usually knows its data is clean — but it differs
+/// from the ellipsoidal path: [`Ellipsoid::distance_m`](crate::earth::Ellipsoid::distance_m)
+/// follows GeographicLib and returns `NaN` for an out-of-range latitude. Code that
+/// switches between the two metrics should not infer a validation convention from
+/// whichever it tried first.
+///
+/// `NaN` in either coordinate propagates to `NaN`. Longitude needs no validation:
+/// it is cyclic, so any value is a real angle and is normalized.
+///
+/// Use `hausdorff_kernels::earth::valid_latlon_degrees` to check first, or the
+/// `valid_haversine_*` kernels for a mask-returning form that validates and
+/// measures in one pass.
 #[must_use]
 pub fn haversine_m(a: GeoPoint, b: GeoPoint) -> f64 {
     haversine_diameter_m(a, b, EARTH_DIAMETER_M)
@@ -38,7 +54,7 @@ pub fn haversine_m(a: GeoPoint, b: GeoPoint) -> f64 {
 
 /// Great-circle distance between `a` and `b` in metres on a sphere of
 /// `radius_m` metres — the planet-flexible kernel behind
-/// [`crate::earth::sphere::Sphere::distance`].
+/// `Sphere::distance` in `hausdorff-earth`.
 #[must_use]
 pub fn haversine_on_m(a: GeoPoint, b: GeoPoint, radius_m: f64) -> f64 {
     haversine_diameter_m(a, b, 2.0 * radius_m)
@@ -56,7 +72,7 @@ pub fn destination_m(origin: GeoPoint, bearing: Bearing, distance_m: f64) -> Geo
 }
 
 /// [`destination_m`] on a sphere of `radius_m` metres — the planet-flexible
-/// kernel behind [`crate::earth::sphere::Sphere::destination`].
+/// kernel behind `Sphere::destination` in `hausdorff-earth`.
 #[must_use]
 pub fn destination_on_m(
     origin: GeoPoint,

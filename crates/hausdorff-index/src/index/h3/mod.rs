@@ -10,11 +10,12 @@
 //! antimeridian-crossing polygons), grid-path polyline cover, cell-set boundary
 //! dissolve, `is_pentagon`, and cell/edge boundaries.
 //!
-//! Every operation is differential-tested against `h3o` (kept as a
-//! dev-dependency oracle only) plus a random-index validity sweep — see
-//! `tests/h3.rs`. Constant tables (base cells, faces, FaceIJK base-cell lookup) are
-//! the standard H3 data, lifted verbatim; the algorithms are ported from the H3
-//! C reference / h3o.
+//! Every operation was differential-tested against `h3o`, which is no longer a
+//! dependency: the oracle outputs are frozen into golden constants, so the suite
+//! keeps the differential coverage with no reference crate to build. That plus a
+//! random-index validity sweep is the H3 suite. Constant tables (base cells,
+//! faces, FaceIJK base-cell lookup) are the standard H3 data, lifted verbatim;
+//! the algorithms are ported from the H3 C reference. See the repo `NOTICE`.
 
 mod base_cells;
 mod children;

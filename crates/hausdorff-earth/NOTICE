@@ -1,0 +1,45 @@
+hausdorff-earth
+Copyright 2026 Raymond Mead
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+
+--------------------------------------------------------------------------------
+THIRD-PARTY ATTRIBUTIONS
+--------------------------------------------------------------------------------
+
+1. NTv2 grid-shift data files (redistributed data, not code)
+   Embedded under `data/` and compiled into the library with `include_bytes!`.
+   Each file is the official agency distribution, unmodified, and remains subject
+   to the terms its issuing agency publishes it under - **not** to this crate's
+   licence. Verify those terms before redistributing a build that embeds them.
+
+   - `BETA2007.gsb` - DHDN <-> ETRS89.
+     Bundesamt fuer Kartographie und Geodaesie (BKG), Germany.
+
+   - `ntf_r93.gsb` - NTF <-> RGF93.
+     Institut national de l'information geographique et forestiere (IGN), France.
+
+   - `nzgd2kgrid0005.gsb` - NZGD49 <-> NZGD2000.
+     Land Information New Zealand (LINZ).
+
+2. Map projection formulas (implemented, not ported)
+   J. P. Snyder, "Map Projections - A Working Manual", USGS Professional Paper
+   1395 (1987). A work of the United States Government and so not under
+   copyright. The projection series in `earth::projection` implement these
+   published formulas; no code was taken.
+
+3. CRS interchange format specifications (implemented, not ported)
+   The `earth::crs` layer is written from published specifications rather than
+   from any implementation: PROJ-string parameter names, WKT2 (ISO 19162:2019),
+   and PROJJSON. No code was taken from PROJ.

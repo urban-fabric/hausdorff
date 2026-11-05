@@ -1,6 +1,6 @@
 //! Latitude/longitude bounding-box kernels over scalar columns.
 
-use euclid::numeric::{Boolean as BooleanMask, Compare, Real};
+use euclid_numeric::{Boolean as BooleanMask, Compare, Real};
 
 /// The Boolean mask produced by comparisons on scalar `T`.
 pub type Boolean<T> = <T as Compare>::Mask;

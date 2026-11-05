@@ -6,12 +6,12 @@
 //! `chordInterp`; impl'd for `Coord` in `hausdorff-planar` and `Vector` in
 //! `hausdorff-base`) and the spherical great-circle SLERP (`Hausdorff/Slerp`,
 //! `slerp_zero` / `slerp_angle`; impl'd for `S2Point` in `hausdorff-sphere`) are
-//! instances of [`euclid::Interpolate`], so path sampling, midpoints, and
+//! instances of [`euclid_numeric::Interpolate`], so path sampling, midpoints, and
 //! subdivision are written once and run in every space.
 
-use euclid::numeric::{Natural, Real};
+use euclid_numeric::{Natural, Real};
 
-pub use euclid::Interpolate;
+pub use euclid_numeric::Interpolate;
 
 /// Interpolate at a natural-number sample index.
 ///

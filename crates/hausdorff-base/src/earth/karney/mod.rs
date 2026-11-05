@@ -20,7 +20,7 @@
 //!
 //! Internally the kernel is split into the scalar/angular [`math`] primitives,
 //! the Fourier [`series`] coefficient machinery, the [`solver`] (the [`Karney`]
-//! per-ellipsoid state and inverse/direct drivers), and the [`line`]
+//! per-ellipsoid state and inverse/direct drivers), and the [`line`](mod@line)
 //! ([`LineKernel`]) direct-problem state.
 
 mod line;

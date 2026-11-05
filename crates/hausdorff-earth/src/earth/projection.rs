@@ -1,25 +1,25 @@
 //! `projection` — interchange between the geographic/spherical world and
 //! projected **planar** coordinates via standard map projections.
 //!
-//! A [`Projection`](crate::earth::projection::Projection) maps WGS84 geographic
+//! A [`Projection`] maps WGS84 geographic
 //! [`GeoPoint`]s (lat/lon — the hub shared with the spherical [`hausdorff_sphere::space::s2`]
 //! side through [`hausdorff_sphere::space::s2::S2Point::from_geo_point`]) to and from planar
-//! [`Coord`](hausdorff_planar::space::r2::Coord)s in metres, so the `r2` planar algorithms
+//! [`Coord`]s in metres, so the `r2` planar algorithms
 //! can run on real projected data and the results map back to the sphere.
 //!
-//! Projections are parameterized by an [`Ellipsoid`](crate::earth::projection::Ellipsoid)
+//! Projections are parameterized by an [`Ellipsoid`]
 //! (so they are datum- and planet-flexible, mirroring
 //! [`crate::earth::sphere::Sphere`] on the metric side) and follow Snyder,
 //! *Map Projections — A Working Manual* (USGS PP1395, 1987). Provided:
-//! [`WebMercator`](crate::earth::projection::WebMercator) (EPSG:3857) and
-//! [`TransverseMercator`](crate::earth::projection::TransverseMercator) (the basis
-//! of [`Utm`](crate::earth::projection::Utm)). The trivial `x = lon`, `y = lat`
+//! [`WebMercator`] (EPSG:3857) and
+//! [`TransverseMercator`] (the basis
+//! of [`Utm`]). The trivial `x = lon`, `y = lat`
 //! relabelling — *not* a projection — stays in [`crate::convert`].
 //!
 //! Whole geometries project vertex-by-vertex through
-//! [`Projection::project_geometry`](crate::earth::projection::Projection::project_geometry) /
-//! [`Projection::inverse_geometry`](crate::earth::projection::Projection::inverse_geometry)
-//! (via [`MapCoords`](hausdorff_planar::space::r2::MapCoords)), so lon/lat `r2` geometry
+//! [`Projection::project_geometry`] /
+//! [`Projection::inverse_geometry`]
+//! (via [`MapCoords`]), so lon/lat `r2` geometry
 //! can be carried into projected metres, computed on, and carried back.
 
 use crate::earth::GeoPoint;
@@ -274,7 +274,7 @@ impl Utm {
 /// conformal/equal-area auxiliary-latitude kernels (`taupf`/`tauf`,
 /// `conformal_t`/`authalic_q`, the projection families) all now live in
 /// [`hausdorff_kernels::projection`], generic over any
-/// [`euclid::numeric::Real`], so they run on `f64`, `f32`, and tensors alike.
+/// [`euclid_numeric::Real`], so they run on `f64`, `f32`, and tensors alike.
 fn m_factor(phi: f64, e: f64) -> f64 {
     hausdorff_kernels::projection::m_factor(phi, e)
 }

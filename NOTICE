@@ -1,0 +1,108 @@
+hausdorff
+Copyright 2026 Raymond Mead
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+
+--------------------------------------------------------------------------------
+THIRD-PARTY ATTRIBUTIONS
+--------------------------------------------------------------------------------
+
+hausdorff replaces the external geospatial stack with in-house implementations.
+Several of those are ports rather than independent work, and the ported code
+keeps its upstream copyright. Each entry below names what was taken, where it
+now lives, and the licence it arrived under.
+
+The grid-shift data files are the exception to "code": they are redistributed
+verbatim as published, and are covered by their issuing agency's terms rather
+than by this repository's licence.
+
+
+1. georust `geo` / `geo-types`
+   Licensed under MIT OR Apache-2.0.
+   Copyright (c) The GeoRust Developers.
+   https://github.com/georust/geo
+
+   The planar f64 geometry types and algorithms in `hausdorff-planar`
+   (`space::r2`) are a port of `geo`/`geo-types`.
+
+
+2. S2 Geometry, Go implementation (`github.com/golang/geo/s2`)
+   Licensed under the Apache License, Version 2.0.
+   Copyright Google Inc.
+   https://github.com/golang/geo
+
+   The unit-sphere geometry and cell hierarchy in `hausdorff-sphere`
+   (`space::s2`) are a port of the Go S2 reference implementation: the cell-id
+   codec, the cube-to-sphere quadratic projection, the hierarchy and neighbor
+   operations, Hilbert-order traversal, the robust orientation predicates and
+   measures, caps, loops, polylines, and region coverings. The `s1` angle
+   substrate in `hausdorff-base` mirrors `s1.Angle`.
+
+
+3. H3 — Hexagonal hierarchical geospatial indexing system
+   Licensed under the Apache License, Version 2.0.
+   Copyright Uber Technologies, Inc.
+   https://github.com/uber/h3
+
+   The H3 implementation in `hausdorff-index` (`index::h3`) is ported from the
+   H3 C reference implementation. The constant tables — base cells, faces, and
+   the FaceIJK base-cell lookup — are the standard H3 data, lifted verbatim.
+
+   The `h3o` Rust crate (https://github.com/HydroniumLabs/h3o) was used as a
+   differential-test oracle while the port was developed. It is not a
+   dependency of this workspace; the H3 suite now checks against golden
+   constants frozen from the then-h3o-matching output.
+
+
+4. GeographicLib / `geographiclib-rs`
+   Licensed under the MIT/X11 License.
+   Copyright (c) Charles F. F. Karney.
+   https://geographiclib.sourceforge.io/
+   https://github.com/georust/geographiclib-rs
+
+   The ellipsoidal geodesic kernel in `hausdorff-base` (`earth::karney`) is
+   ported from `geographiclib-rs` 0.2.7, itself a port of Karney's
+   GeographicLib. The algorithms are published in C. F. F. Karney,
+   "Algorithms for geodesics", J. Geodesy 87, 43-55 (2013).
+
+
+5. NTv2 grid-shift data files (redistributed data, not code)
+   Embedded under `crates/hausdorff-earth/data/` and compiled into the library
+   with `include_bytes!`. Each file is the official agency distribution,
+   unmodified, and remains subject to the terms its issuing agency publishes it
+   under — not to this repository's licence. Verify those terms before
+   redistributing a build that embeds them.
+
+   - `BETA2007.gsb` — DHDN <-> ETRS89.
+     Bundesamt fuer Kartographie und Geodaesie (BKG), Germany.
+
+   - `ntf_r93.gsb` — NTF <-> RGF93.
+     Institut national de l'information geographique et forestiere (IGN),
+     France.
+
+   - `nzgd2kgrid0005.gsb` — NZGD49 <-> NZGD2000.
+     Land Information New Zealand (LINZ).
+
+
+6. Map projection formulas
+   J. P. Snyder, "Map Projections — A Working Manual", USGS Professional Paper
+   1395 (1987). A work of the United States Government and so not under
+   copyright. The projection series in `hausdorff-kernels` (`projection`) and
+   `hausdorff-earth` (`earth::projection`) implement these published formulas;
+   no code was taken.
+
+   The CRS interchange formats are likewise implemented from their published
+   specifications rather than ported: PROJ-string parameter names, WKT2
+   (ISO 19162:2019), PROJJSON, OGC/ISO Well-Known Binary and Text, GeoJSON
+   (RFC 7946), and the ESRI Shapefile technical description.

@@ -8,7 +8,7 @@
 //!   the blanket `MetricSpace` impl is over `r2`'s `Distance`, and `r2`'s
 //!   set-distances lift the generic `algebra` kernels.
 //! - [`config`] — machine-tunable kernel parameters.
-//! - [`format`] — native WKB/WKT/GeoJSON/shapefile codecs over the planar
+//! - [`format`](mod@format) — native WKB/WKT/GeoJSON/shapefile codecs over the planar
 //!   geometry model.
 //!
 //! The geographic metrics (`Haversine`, `Rhumb`, `Geodesic`) delegate to the
@@ -25,3 +25,6 @@ mod profile;
 
 /// Internal scalar-first SIMD dispatch (runtime-selected) for batch kernels.
 mod simd;
+
+#[cfg(test)]
+mod tests;

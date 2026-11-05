@@ -8,7 +8,7 @@
 //! two-point hull come free — written once here, the minimal structure the
 //! interval algebra actually needs.
 
-use euclid::numeric::{Boolean as BooleanMask, Compare, Element, Real};
+use euclid_numeric::{Boolean as BooleanMask, Compare, Element, Real};
 
 use crate::orientation::Boolean;
 

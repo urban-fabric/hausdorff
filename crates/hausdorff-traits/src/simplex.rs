@@ -12,7 +12,7 @@
 //! impls (in `hausdorff-planar`) and `SphereTriangle` (in `hausdorff-sphere`)
 //! mirror those instances, so the inside-test is written once over [`Simplex`].
 
-use euclid::numeric::{Boolean as BooleanMask, Real};
+use euclid_numeric::{Boolean as BooleanMask, Real};
 
 use crate::orientation::Boolean;
 

@@ -1,5 +1,5 @@
 //! Planar [`Interpolate`] instance — straight-line `lerp` on [`Coord`] (riemann
-//! `planarInterp`). The trait comes from `euclid` and is re-exported by
+//! `planarInterp`). The trait comes from `euclid-numeric` and is re-exported by
 //! [`hausdorff_traits`] alongside the generic `sample` helpers.
 
 use hausdorff_traits::Interpolate;

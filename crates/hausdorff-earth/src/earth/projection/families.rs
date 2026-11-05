@@ -169,7 +169,7 @@ impl Projection for AlbersEqualArea {
 ///
 /// Unlike the global map projections this is **parameterized by a local origin**,
 /// not a standard grid. It is built on the proof-backed ENU frame
-/// ([`EnuFrame`](hausdorff_base::earth::EnuFrame)): the `up` axis is the geodetic
+/// ([`EnuFrame`]): the `up` axis is the geodetic
 /// surface normal and the east/north axes are orthonormal (`riemann`
 /// `Hausdorff/Bearing`), and geodetic↔ECEF↔ENU are exact, so the projection
 /// round-trips to machine precision.

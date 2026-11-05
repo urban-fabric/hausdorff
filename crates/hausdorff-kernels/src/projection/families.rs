@@ -1,4 +1,5 @@
 use super::*;
+use crate::earth::normalize_longitude_degrees;
 
 // ---- Conic / azimuthal / equal-area projection families ----
 //
@@ -113,7 +114,7 @@ pub fn lcc_forward<T: Real>(lat_deg: T, lon_deg: T, c: &LccConstants) -> (T, T) 
 pub fn lcc_forward_typed<T: Real>(lat_deg: T, lon_deg: T, c: &LccConstantsT<T>) -> (T, T) {
     let t = conformal_t(lat_deg.clone().to_radians(), c.e.clone());
     let rho = c.a_f.clone() * t.powf(c.n.clone());
-    let theta = (lon_deg - c.lon0.clone()).to_radians() * c.n.clone();
+    let theta = central_lon_delta(lon_deg, c.lon0.clone()).to_radians() * c.n.clone();
     let (st, ct) = theta.sin_cos();
     let x = c.false_easting.clone() + rho.clone() * st;
     let y = c.false_northing_plus_rho0.clone() - rho * ct;
@@ -136,7 +137,12 @@ pub fn lcc_inverse_typed<T: Real>(x_in: T, y_in: T, c: &LccConstantsT<T>) -> (T,
     let theta = (x.clone() * c.nsign.clone()).atan2(y0 * c.nsign.clone());
     let t = (rho / c.a_f.clone()).powf(c.inv_n.clone());
     let lat = lat_from_conformal_t(t, c.e.clone()).to_degrees();
-    let lon = (theta / c.n.clone()).to_degrees() + c.lon0.clone();
+    // Normalized: the cone angle recovers a *difference* from the central
+    // meridian, and adding `lon0` back can leave the result outside (-180, 180].
+    // EPSG:3978 recovers -181 for a point at 179 — the same meridian, but a
+    // representation a caller will compare against +179 and reject. Canonical
+    // output is the inverse half of `central_lon_delta`'s wrap on the way in.
+    let lon = normalize_longitude_degrees((theta / c.n.clone()).to_degrees() + c.lon0.clone());
     (lat, lon)
 }
 
@@ -230,7 +236,7 @@ pub fn polar_stereographic_forward_typed<T: Real>(
 ) -> (T, T) {
     let phi = lat_deg.clone().to_radians() * c.s.clone();
     let rho = c.a_mc_over_tc.clone() * conformal_t(phi, c.e.clone());
-    let dlon = (lon_deg - c.lon0.clone()).to_radians();
+    let dlon = central_lon_delta(lon_deg, c.lon0.clone()).to_radians();
     let (sdl, cdl) = dlon.sin_cos();
     let x = c.false_easting.clone() + rho.clone() * sdl;
     let y = c.false_northing.clone() - rho * cdl * c.s.clone();
@@ -256,7 +262,13 @@ pub fn polar_stereographic_inverse_typed<T: Real>(
     let rho = x.clone().hypot(y.clone());
     let t = rho * c.tc_over_a_mc.clone();
     let lat = (lat_from_conformal_t(t, c.e.clone()) * c.s.clone()).to_degrees();
-    let lon = c.lon0.clone() + x.atan2(y * c.neg_s.clone()).to_degrees();
+    // Normalized: the cone angle recovers a *difference* from the central
+    // meridian, and adding `lon0` back can leave the result outside (-180, 180].
+    // EPSG:3978 recovers -181 for a point at 179 — the same meridian, but a
+    // representation a caller will compare against +179 and reject. Canonical
+    // output is the inverse half of `central_lon_delta`'s wrap on the way in.
+    let lon =
+        normalize_longitude_degrees(c.lon0.clone() + x.atan2(y * c.neg_s.clone()).to_degrees());
     (lat, lon)
 }
 
@@ -361,7 +373,7 @@ pub fn albers_forward<T: Real>(lat_deg: T, lon_deg: T, c: &AlbersConstants) -> (
 pub fn albers_forward_typed<T: Real>(lat_deg: T, lon_deg: T, c: &AlbersConstantsT<T>) -> (T, T) {
     let q = authalic_q(lat_deg.clone().to_radians(), c.e.clone());
     let rho = c.a.clone() * (c.cc.clone() - c.n.clone() * q).sqrt() / c.n.clone();
-    let theta = (lon_deg - c.lon0.clone()).to_radians() * c.n.clone();
+    let theta = central_lon_delta(lon_deg, c.lon0.clone()).to_radians() * c.n.clone();
     let (st, ct) = theta.sin_cos();
     let x = c.false_easting.clone() + rho.clone() * st;
     let y = c.false_northing_plus_rho0.clone() - rho * ct;
@@ -385,6 +397,11 @@ pub fn albers_inverse_typed<T: Real>(x_in: T, y_in: T, c: &AlbersConstantsT<T>) 
     let rho_na = rho * c.n.clone() / c.a.clone();
     let q = (c.cc.clone() - rho_na.clone() * rho_na) / c.n.clone();
     let lat = lat_from_authalic_q(q, c.e.clone()).to_degrees();
-    let lon = (theta / c.n.clone()).to_degrees() + c.lon0.clone();
+    // Normalized: the cone angle recovers a *difference* from the central
+    // meridian, and adding `lon0` back can leave the result outside (-180, 180].
+    // EPSG:3978 recovers -181 for a point at 179 — the same meridian, but a
+    // representation a caller will compare against +179 and reject. Canonical
+    // output is the inverse half of `central_lon_delta`'s wrap on the way in.
+    let lon = normalize_longitude_degrees((theta / c.n.clone()).to_degrees() + c.lon0.clone());
     (lat, lon)
 }

@@ -23,6 +23,9 @@ impl std::fmt::Display for GeoJsonError {
 }
 impl std::error::Error for GeoJsonError {}
 
+mod feature;
+pub use feature::{Feature, FeatureCollection, GeoJson, from_geojson_any};
+
 /// Serialize a geometry to a GeoJSON geometry string.
 #[must_use]
 pub fn to_geojson(geom: &Geometry) -> String {
@@ -50,7 +53,7 @@ fn object(type_name: &str, key: &str, value: Value) -> Value {
     Value::Object(m)
 }
 
-fn geom_to_value(geom: &Geometry) -> Value {
+pub(crate) fn geom_to_value(geom: &Geometry) -> Value {
     match geom {
         Geometry::Point(p) => object("Point", "coordinates", coord_v(p.0)),
         Geometry::Line(l) => object(
@@ -94,7 +97,7 @@ pub fn from_geojson(text: &str) -> Result<Geometry, GeoJsonError> {
     value_to_geom(&v)
 }
 
-fn err<T>(msg: &str) -> Result<T, GeoJsonError> {
+pub(crate) fn err<T>(msg: &str) -> Result<T, GeoJsonError> {
     Err(GeoJsonError(msg.into()))
 }
 
@@ -135,7 +138,7 @@ fn parse_polygon(v: &Value) -> Result<Polygon, GeoJsonError> {
     Ok(Polygon::new(exterior, rings.map(LineString::new).collect()))
 }
 
-fn value_to_geom(v: &Value) -> Result<Geometry, GeoJsonError> {
+pub(crate) fn value_to_geom(v: &Value) -> Result<Geometry, GeoJsonError> {
     let type_name = v
         .get("type")
         .and_then(Value::as_str)

@@ -8,7 +8,7 @@
 //! associated [`Scalar`](VectorSpace::Scalar): any [`Real`] (`f64` by default,
 //! `f32`, a lazy tensor value, …).
 
-use euclid::numeric::{Compare, Element, Real};
+use euclid_numeric::{Compare, Element, Real};
 
 use crate::orientation::Boolean;
 

@@ -194,19 +194,17 @@ fn point_on_segment(a: (f64, f64), b: (f64, f64), p: (f64, f64)) -> bool {
 }
 
 pub(super) fn linear_ring_area_rads2(ring: &[(f64, f64)]) -> f64 {
-    let mut adder = FloatAdder::default();
-    for (a, b) in ring
-        .iter()
-        .zip(ring.iter().cycle().skip(1))
-        .take(ring.len())
-    {
-        adder.add(cagnoli(
-            (a.1.to_radians(), a.0.to_radians()),
-            (b.1.to_radians(), b.0.to_radians()),
-        ));
-    }
-
-    let area = adder.value();
+    let area = euclid_numeric::compensated::sum_iter(
+        ring.iter()
+            .zip(ring.iter().cycle().skip(1))
+            .take(ring.len())
+            .map(|(a, b)| {
+                cagnoli(
+                    (a.1.to_radians(), a.0.to_radians()),
+                    (b.1.to_radians(), b.0.to_radians()),
+                )
+            }),
+    );
     if area < 0.0 {
         area + 4.0 * std::f64::consts::PI
     } else {
@@ -222,23 +220,4 @@ fn cagnoli(a: (f64, f64), b: (f64, f64)) -> f64 {
 
     let delta = b.0 - a.0;
     -2.0 * (sin_a * delta.sin()).atan2(sin_a * delta.cos() + cos_a)
-}
-
-#[derive(Default)]
-struct FloatAdder {
-    sum: f64,
-    correction: f64,
-}
-
-impl FloatAdder {
-    fn add(&mut self, value: f64) {
-        let y = value - self.correction;
-        let t = self.sum + y;
-        self.correction = (t - self.sum) - y;
-        self.sum = t;
-    }
-
-    fn value(self) -> f64 {
-        self.sum + self.correction
-    }
 }

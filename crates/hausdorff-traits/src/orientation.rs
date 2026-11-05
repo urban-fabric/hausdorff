@@ -15,7 +15,7 @@
 //! whose `orient` satisfies them inherits the proved containment/convexity
 //! results.
 
-use euclid::numeric::{Boolean as BooleanMask, Compare, Element, Real};
+use euclid_numeric::{Boolean as BooleanMask, Compare, Element, Real};
 
 /// The Boolean mask produced by comparisons on scalar `T`.
 ///

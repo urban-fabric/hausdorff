@@ -1,7 +1,7 @@
 use std::fmt;
 
-use super::super::remove_repeated_points::RemoveRepeatedPoints;
 use super::*;
+use crate::space::r2::RemoveRepeatedPoints;
 
 /// Check whether a geometry is valid and report the reason(s) of invalidity.
 pub trait Validation {

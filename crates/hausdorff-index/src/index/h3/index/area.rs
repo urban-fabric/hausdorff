@@ -90,19 +90,20 @@ pub(super) fn distance_rads(a: (f64, f64), b: (f64, f64)) -> f64 {
     2.0 * value.sqrt().atan2((1.0 - value).sqrt())
 }
 
-/// Exact spherical area (rad²) enclosed by a `(lat, lng)` boundary ring,
-/// summing Cagnoli's per-edge contribution with Kahan compensation.
+/// Exact spherical area (rad²) enclosed by a `(lat, lng)` boundary ring, summing
+/// Cagnoli's per-edge contribution with compensation.
+///
+/// The compensated reduction is euclid's. Two hand-rolled Kahan adders used to
+/// live in this crate — this one and an identical copy in `h3::polygon::ring` —
+/// and euclid's is Kahan–Babuška–Neumaier, which additionally handles a term
+/// larger than the running total.
 pub(super) fn linear_ring_area_rads2(ring: &[(f64, f64)]) -> f64 {
-    let mut adder = FloatAdder::default();
-    for (a, b) in ring
-        .iter()
-        .zip(ring.iter().cycle().skip(1))
-        .take(ring.len())
-    {
-        adder.add(cagnoli((a.1, a.0), (b.1, b.0)));
-    }
-
-    let area = adder.value();
+    let area = euclid_numeric::compensated::sum_iter(
+        ring.iter()
+            .zip(ring.iter().cycle().skip(1))
+            .take(ring.len())
+            .map(|(a, b)| cagnoli((a.1, a.0), (b.1, b.0))),
+    );
     if area < 0.0 {
         area + 4.0 * std::f64::consts::PI
     } else {
@@ -118,23 +119,4 @@ fn cagnoli(a: (f64, f64), b: (f64, f64)) -> f64 {
 
     let delta = b.0 - a.0;
     -2.0 * (sin_a * delta.sin()).atan2(sin_a * delta.cos() + cos_a)
-}
-
-#[derive(Default)]
-struct FloatAdder {
-    sum: f64,
-    correction: f64,
-}
-
-impl FloatAdder {
-    fn add(&mut self, value: f64) {
-        let y = value - self.correction;
-        let t = self.sum + y;
-        self.correction = (t - self.sum) - y;
-        self.sum = t;
-    }
-
-    fn value(self) -> f64 {
-        self.sum + self.correction
-    }
 }

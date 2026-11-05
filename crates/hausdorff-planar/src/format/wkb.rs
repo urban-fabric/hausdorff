@@ -193,14 +193,30 @@ pub fn from_wkb(bytes: &[u8]) -> Result<Geometry, WkbError> {
 /// # Errors
 /// Returns [`WkbError`] if the leading bytes are not valid 2-D WKB.
 pub fn from_wkb_prefix(bytes: &[u8]) -> Result<(Geometry, usize), WkbError> {
-    let mut r = Reader { b: bytes, i: 0 };
+    let mut r = Reader {
+        b: bytes,
+        i: 0,
+        depth: 0,
+    };
     let geom = r.geometry()?;
     Ok((geom, r.i))
 }
 
+/// Deepest nesting [`from_wkb`] will follow before refusing the input.
+///
+/// WKB nests through the multi-geometry and collection types and the decoder
+/// recurses to match, so nesting depth is attacker-controlled: nine bytes buy one
+/// level (`GEOMETRYCOLLECTION` header plus a member count of 1). Without a bound,
+/// roughly 200 KB of crafted input exhausts the stack, and a stack overflow is not
+/// a [`WkbError`] a caller can handle — the process dies on a signal. The limit is
+/// far above anything real: nesting past two or three levels has no geometric
+/// meaning, and PostGIS and GEOS both stay in single digits.
+const MAX_DEPTH: u32 = 64;
+
 struct Reader<'a> {
     b: &'a [u8],
     i: usize,
+    depth: u32,
 }
 
 impl Reader<'_> {
@@ -211,6 +227,27 @@ impl Reader<'_> {
         let s = &self.b[self.i..self.i + n];
         self.i += n;
         Ok(s)
+    }
+
+    /// Believe an element count only if the remaining bytes could actually supply
+    /// it, where each element needs at least `bytes_each`.
+    ///
+    /// The count comes straight off the wire, so it is attacker-controlled: a
+    /// nine-byte buffer can claim `u32::MAX` members. Passing that to
+    /// `Vec::with_capacity` asks the allocator for tens of gigabytes — 240 GB for a
+    /// claimed collection — and the process *aborts* when the request is refused,
+    /// which again is not an error the caller can handle. Checking first keeps
+    /// allocation proportional to the input and turns the attack into an ordinary
+    /// parse error.
+    fn count(&self, n: usize, bytes_each: usize) -> Result<usize, WkbError> {
+        let remaining = self.b.len() - self.i;
+        if n.saturating_mul(bytes_each) > remaining {
+            return Err(WkbError(format!(
+                "element count {n} needs at least {} bytes but {remaining} remain",
+                n.saturating_mul(bytes_each)
+            )));
+        }
+        Ok(n)
     }
 
     fn order(&mut self) -> Result<bool, WkbError> {
@@ -270,11 +307,27 @@ impl Reader<'_> {
     }
 
     fn coords(&mut self, le: bool, extra: usize) -> Result<Vec<Coord>, WkbError> {
-        let n = self.u32(le)? as usize;
+        let raw = self.u32(le)? as usize;
+        // Two f64 ordinates, plus any Z/M the header declared.
+        let n = self.count(raw, 16 + 8 * extra)?;
         (0..n).map(|_| self.coord(le, extra)).collect()
     }
 
+    /// The smallest a nested member can be: a one-byte order flag, a four-byte
+    /// type, and a four-byte count of zero (an empty polygon or collection).
+    const MIN_MEMBER_BYTES: usize = 9;
+
     fn geometry(&mut self) -> Result<Geometry, WkbError> {
+        self.depth += 1;
+        if self.depth > MAX_DEPTH {
+            return Err(WkbError(format!("nesting deeper than {MAX_DEPTH} levels")));
+        }
+        let geom = self.geometry_inner();
+        self.depth -= 1;
+        geom
+    }
+
+    fn geometry_inner(&mut self) -> Result<Geometry, WkbError> {
         let (le, base, extra) = self.header()?;
         match base {
             1 => Ok(Geometry::Point(Point(self.coord(le, extra)?))),
@@ -283,7 +336,8 @@ impl Reader<'_> {
             ))),
             3 => Ok(Geometry::Polygon(self.polygon(le, extra)?)),
             4 => {
-                let n = self.u32(le)? as usize;
+                let raw = self.u32(le)? as usize;
+                let n = self.count(raw, Self::MIN_MEMBER_BYTES)?;
                 let mut pts = Vec::with_capacity(n);
                 for _ in 0..n {
                     match self.geometry()? {
@@ -294,7 +348,8 @@ impl Reader<'_> {
                 Ok(Geometry::MultiPoint(MultiPoint::new(pts)))
             }
             5 => {
-                let n = self.u32(le)? as usize;
+                let raw = self.u32(le)? as usize;
+                let n = self.count(raw, Self::MIN_MEMBER_BYTES)?;
                 let mut lines = Vec::with_capacity(n);
                 for _ in 0..n {
                     match self.geometry()? {
@@ -307,7 +362,8 @@ impl Reader<'_> {
                 Ok(Geometry::MultiLineString(MultiLineString::new(lines)))
             }
             6 => {
-                let n = self.u32(le)? as usize;
+                let raw = self.u32(le)? as usize;
+                let n = self.count(raw, Self::MIN_MEMBER_BYTES)?;
                 let mut polys = Vec::with_capacity(n);
                 for _ in 0..n {
                     match self.geometry()? {
@@ -318,7 +374,8 @@ impl Reader<'_> {
                 Ok(Geometry::MultiPolygon(MultiPolygon::new(polys)))
             }
             7 => {
-                let n = self.u32(le)? as usize;
+                let raw = self.u32(le)? as usize;
+                let n = self.count(raw, Self::MIN_MEMBER_BYTES)?;
                 let mut gs = Vec::with_capacity(n);
                 for _ in 0..n {
                     gs.push(self.geometry()?);
@@ -330,7 +387,8 @@ impl Reader<'_> {
     }
 
     fn polygon(&mut self, le: bool, extra: usize) -> Result<Polygon, WkbError> {
-        let num_rings = self.u32(le)? as usize;
+        let raw_rings = self.u32(le)? as usize;
+        let num_rings = self.count(raw_rings, 4)?;
         if num_rings == 0 {
             return Ok(Polygon::new(LineString::new(vec![]), vec![]));
         }

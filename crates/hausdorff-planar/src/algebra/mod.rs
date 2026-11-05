@@ -4,7 +4,7 @@
 //! The abstract trait surface and the generic algorithms over it live upstream
 //! in [`hausdorff_traits`] — [`Orientation`] (+ [`in_triangle`],
 //! [`left_of_all`], [`is_collinear`]), the [`VectorSpace`] / [`InnerProduct`] /
-//! [`Norm`] hierarchy, [`Simplex`] / [`Barycentric`], the `euclid::Interpolate`
+//! [`Norm`] hierarchy, [`Simplex`] / [`Barycentric`], the `euclid_numeric::Interpolate`
 //! contract (re-exported as [`Interpolate`]) + [`sample`], and
 //! [`PointRegion`] / [`Prunable`] (+ [`containment_masks`],
 //! [`filter_contained`], [`count_contained`], [`any_contained`],
@@ -17,9 +17,16 @@
 //!   `Point` (orientation, vector space, interpolation), `Rect` / `Ellipse` /
 //!   `ConfidenceEllipse` (regions), `Triangle` (simplex) — plus the R3
 //!   [`Tetrahedron`] simplex;
-//! - [`metric`] — the [`MetricSpace`]s and the set/curve distances (Hausdorff,
-//!   Fréchet) defined generically over them. It stays here because it is tied to
-//!   this crate's [`Distance`](crate::space::r2::Distance) trait.
+//! - the [`MetricSpace`]s and the set/curve distances (Hausdorff, Fréchet)
+//!   defined generically over them. They stay here because they are tied to this
+//!   crate's [`Distance`](crate::space::r2::Distance) trait.
+//!
+//! Every module below is private and its items are re-exported here, so each has
+//! exactly one path. `metric` used to be `pub mod` *and* re-exported, which gave
+//! all seven of its items two — `algebra::MetricSpace` and
+//! `algebra::metric::MetricSpace` — the same split that the workspace manifest
+//! gives as the reason for deleting the old umbrella crate. Nothing used the long
+//! form, so closing it cost nothing.
 //!
 //! The concrete spaces in [`crate::space::r2`] / `hausdorff_base::space::{r1,s1,r3}`
 //! / `hausdorff-sphere`'s `space::s2` and the Earth layer build on these so
@@ -27,7 +34,7 @@
 //! `riemann` Lean development (`Geometry.*` / `Hausdorff.*`).
 
 mod interpolate;
-pub mod metric;
+mod metric;
 mod orientation;
 mod region;
 mod simplex;

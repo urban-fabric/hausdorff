@@ -6,11 +6,12 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+readme = "README.md"
 description = "Abstract, proof-backed geometry traits (Orientation, VectorSpace, Simplex, Interpolate, PointRegion/Prunable) and the generic algorithms over them — the trait surface every hausdorff space implements for its own point/region types."
 
 [dependencies]
 # The lazy real-analysis foundation behind the local `Real` scalar trait.
-euclid = { workspace = true }
+euclid-numeric = { workspace = true }
 
 [lints]
 workspace = true
