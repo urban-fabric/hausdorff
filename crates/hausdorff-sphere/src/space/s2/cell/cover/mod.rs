@@ -355,7 +355,16 @@ fn adaptive_polygon(poly: &Polygon, coverer: &RegionCoverer) -> Option<CellUnion
 /// The lon/lat polygon as a spherical [`S2Polygon`]; `None` when a ring has an
 /// invalid coordinate.
 /// `pub(crate)`: `ops::relate` builds its spherical operand with this.
-pub(crate) fn polygon_region(poly: &Polygon) -> Option<S2Polygon> {
+/// A lon/lat polygon as a spherical polygon, or `None` when a coordinate is
+/// not a longitude and latitude or a ring bounds nothing.
+///
+/// Public because a caller doing set operations on the sphere has to build its
+/// operands the same way the predicates here build theirs. Restating this
+/// conversion downstream means the two can disagree about which side of a ring
+/// is the inside, and a ring has no intrinsic orientation on a sphere — the
+/// complement of a small region is a valid loop over the same vertices.
+#[must_use]
+pub fn polygon_region(poly: &Polygon) -> Option<S2Polygon> {
     for ring in std::iter::once(poly.exterior()).chain(poly.interiors()) {
         if !ring.coords().all(|c| valid_lonlat(c.x, c.y)) {
             return None;

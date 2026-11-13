@@ -174,19 +174,91 @@ impl Voronoi {
     /// cell cannot be put in a spatial index. The rectangle is the caller's
     /// choice precisely because it is arbitrary: it should be the extent of the
     /// area the answer is wanted for.
+    ///
+    /// Cells are rebuilt from [`sites`](Self::sites) by half-plane intersection
+    /// rather than clipped from [`cells`](Self::cells), because the cells that
+    /// matter most here are exactly the ones that are `None` there: a hull
+    /// site's cell is unbounded and so has no polygon to clip. Intersecting the
+    /// rectangle with one half-plane per other site needs no hull special case
+    /// and gives every site a cell, which is what this method promises.
+    ///
+    /// Together the returned cells tile `bounds` exactly. A site is `None` only
+    /// when its cell falls entirely outside the rectangle. Duplicate sites have
+    /// no bisector between them and so share a cell.
+    ///
+    /// The cost is quadratic in the site count. For a large diagram where only
+    /// a few cells are wanted, [`nearest_site`] answers the usual question
+    /// without building any.
     #[must_use]
     pub fn clipped_to(&self, bounds: crate::space::r2::Rect) -> Vec<Option<Polygon>> {
-        use crate::space::r2::BooleanOps;
-        let frame = MultiPolygon::new(vec![bounds.to_polygon()]);
-        self.cells
+        let (min, max) = (bounds.min(), bounds.max());
+        let window = vec![
+            Coord::new(min.x, min.y),
+            Coord::new(max.x, min.y),
+            Coord::new(max.x, max.y),
+            Coord::new(min.x, max.y),
+        ];
+        self.sites
             .iter()
-            .map(|cell| {
-                let cell = cell.as_ref()?;
-                let clipped = MultiPolygon::new(vec![cell.clone()]).intersection(&frame);
-                clipped.0.into_iter().next()
+            .enumerate()
+            .map(|(index, site)| {
+                let mut cell = window.clone();
+                for (other_index, other) in self.sites.iter().enumerate() {
+                    if other_index == index {
+                        continue;
+                    }
+                    cell = half_plane_clip(&cell, *site, *other);
+                    if cell.len() < 3 {
+                        return None;
+                    }
+                }
+                let first = *cell.first()?;
+                cell.push(first);
+                Some(Polygon::new(LineString::new(cell), Vec::new()))
             })
             .collect()
     }
+}
+
+/// Clip a convex ring to the half-plane of points nearer `keep` than `drop`.
+///
+/// Sutherland-Hodgman against the perpendicular bisector. A point `p` is nearer
+/// `keep` when `|p - keep|² <= |p - drop|²`; expanding both sides cancels the
+/// quadratic terms and leaves a linear test, so the boundary is a straight line
+/// and a convex ring stays convex.
+///
+/// Identical sites give `a = b = c = 0`, so every point passes and the ring is
+/// returned unchanged — which is why duplicate sites share a cell rather than
+/// annihilating each other.
+fn half_plane_clip(ring: &[Coord], keep: Coord, drop: Coord) -> Vec<Coord> {
+    let a = 2.0 * (drop.x - keep.x);
+    let b = 2.0 * (drop.y - keep.y);
+    let c = (drop.x * drop.x + drop.y * drop.y) - (keep.x * keep.x + keep.y * keep.y);
+    // Signed slack in `a*x + b*y <= c`: non-negative is inside, and the
+    // magnitude is the interpolation weight for an edge that crosses.
+    let slack = |p: Coord| c - (a * p.x + b * p.y);
+    let mut out: Vec<Coord> = Vec::with_capacity(ring.len() + 1);
+    for index in 0..ring.len() {
+        let (Some(&current), Some(&next)) = (ring.get(index), ring.get((index + 1) % ring.len()))
+        else {
+            continue;
+        };
+        let (current_slack, next_slack) = (slack(current), slack(next));
+        if current_slack >= 0.0 {
+            out.push(current);
+        }
+        if (current_slack >= 0.0) != (next_slack >= 0.0) {
+            let span = current_slack - next_slack;
+            if span != 0.0 && span.is_finite() {
+                let t = current_slack / span;
+                out.push(Coord::new(
+                    current.x + t * (next.x - current.x),
+                    current.y + t * (next.y - current.y),
+                ));
+            }
+        }
+    }
+    out
 }
 
 /// The circumcircle of three points, or `None` when they are collinear.

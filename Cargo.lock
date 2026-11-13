@@ -25,12 +25,12 @@ dependencies = [
 [[package]]
 name = "euclid-numeric"
 version = "0.3.0"
-source = "git+ssh://git@github.com/urban-fabric/euclid.git?branch=main#1c502ab248609203da40e29164a67b7e79d3c19f"
+source = "git+ssh://git@github.com/urban-fabric/euclid.git?branch=main#c63f1fb7d5ea5331aca307a18896f427b4b7de1e"
 
 [[package]]
 name = "euclid-units"
 version = "0.3.0"
-source = "git+ssh://git@github.com/urban-fabric/euclid.git?branch=main#1c502ab248609203da40e29164a67b7e79d3c19f"
+source = "git+ssh://git@github.com/urban-fabric/euclid.git?branch=main#c63f1fb7d5ea5331aca307a18896f427b4b7de1e"
 dependencies = [
  "euclid-numeric",
 ]

@@ -62,6 +62,7 @@ pub use cell::cellid::S2CellId;
 pub use cell::cellunion::CellUnion;
 pub use cell::cover::{
     bound_r2_geometry, bound_r2_geometry_arc, cover_r2_geometry, cover_r2_geometry_at_level,
+    polygon_region,
 };
 pub use cell::metric::{AVG_EDGE, LengthMetric, MIN_WIDTH, SphereMetric};
 pub use ops::bool_ops::{

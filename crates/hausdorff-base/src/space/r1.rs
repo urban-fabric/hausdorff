@@ -189,10 +189,14 @@ impl Interval {
     }
 
     /// `p` clamped into `[lo, hi]` (the closest point of the interval to `p`).
+    ///
+    /// A NaN `p` passes through as NaN rather than clamping to `hi`; the empty interval
+    /// clamps to `lo`. Delegates to [`euclid_numeric::interval::clamp_point`] rather than
+    /// composing `min`/`max` here, so the two cannot drift apart on those edges.
     #[inline]
     #[must_use]
     pub fn clamp_point(self, p: f64) -> f64 {
-        self.lo.max(self.hi.min(p))
+        euclid_numeric::interval::clamp_point(self.lo, self.hi, p)
     }
 
     /// True iff `self` and `other` are equal to within a fixed `1e-15` tolerance

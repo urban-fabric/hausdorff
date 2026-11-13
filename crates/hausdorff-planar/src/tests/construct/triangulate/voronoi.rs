@@ -67,14 +67,40 @@ fn hull_sites_have_no_bounded_cell_and_say_so() {
             v.sites[i]
         );
     }
-    // And the clip gives every site a cell.
+    // And the clip gives every site a cell — including the four hull sites,
+    // whose unbounded cells are `None` above. The previous assertion here only
+    // required `>= closed.len()`, which a clip that silently dropped every
+    // unbounded cell also satisfied.
     let bounds = crate::space::r2::Rect::new(Coord::new(-5.0, -5.0), Coord::new(15.0, 15.0));
     let clipped = v.clipped_to(bounds);
     assert_eq!(clipped.len(), 5);
-    assert!(
-        clipped.iter().filter(|c| c.is_some()).count() >= closed.len(),
-        "clipping must not lose the cells that already closed"
+    assert_eq!(
+        clipped.iter().filter(|c| c.is_some()).count(),
+        5,
+        "every site should have a clipped cell, hull sites included"
     );
+
+    // The cells partition the window: areas sum to the rectangle's, and no two
+    // overlap. Together those are what "tile" means, and they are the property
+    // a lookup table built from these cells depends on.
+    use crate::space::r2::{Area, BooleanOps, MultiPolygon};
+    let window_area = bounds.width() * bounds.height();
+    let cells: Vec<_> = clipped.iter().flatten().cloned().collect();
+    let total: f64 = cells.iter().map(Area::signed_area).map(f64::abs).sum();
+    assert!(
+        (total - window_area).abs() < 1e-6,
+        "cells cover {total} of the window's {window_area}"
+    );
+    for (i, a) in cells.iter().enumerate() {
+        for b in cells.iter().skip(i + 1) {
+            let overlap = MultiPolygon::new(vec![a.clone()])
+                .intersection(&MultiPolygon::new(vec![b.clone()]));
+            assert!(
+                Area::signed_area(&overlap).abs() < 1e-6,
+                "cells {i} and its neighbour overlap"
+            );
+        }
+    }
 }
 
 #[test]
