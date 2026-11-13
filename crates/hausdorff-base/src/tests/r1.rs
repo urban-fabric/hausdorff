@@ -93,6 +93,10 @@ fn expanded_and_clamp_point() {
     assert_eq!(u.clamp_point(0.5), 0.5);
     assert_eq!(u.clamp_point(-3.0), 0.0);
     assert_eq!(u.clamp_point(7.0), 1.0);
+    // A NaN coordinate stays NaN instead of being clamped to a plausible-looking `hi`.
+    assert!(u.clamp_point(f64::NAN).is_nan());
+    // The empty interval clamps to its `lo` rather than panicking.
+    assert_eq!(EMPTY.clamp_point(0.5), EMPTY.lo);
 }
 
 #[test]
