@@ -1,7 +1,7 @@
 # hausdorff
 
 Urban Fabric's geometry and spatial-indexing substrate. It follows the
-[fleet glossary](../glossary.md) and defines no domain vocabulary: it knows
+[fleet glossary](https://github.com/urban-fabric/shannon/blob/main/GLOSSARY.md) and defines no domain vocabulary: it knows
 nothing about census geography, OSM, or tiles, and every spatial claim the fleet
 makes ultimately reduces to a predicate proved here.
 
